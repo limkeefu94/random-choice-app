@@ -1722,6 +1722,12 @@ function renderWorldChannel() {
   `;
 }
 
+function scrollWorldChatToBottom() {
+  if (elements.worldChatList) {
+    elements.worldChatList.scrollTop = elements.worldChatList.scrollHeight;
+  }
+}
+
 function renderWorldAttachment(attachment) {
   if (!attachment || attachment.type !== "image" || !attachment.url) {
     return "";
@@ -2039,6 +2045,8 @@ function addWorldMessage({ user, text, attachment }) {
   state.worldOpen = true;
   saveState();
   render();
+  window.requestAnimationFrame(scrollWorldChatToBottom);
+  window.setTimeout(scrollWorldChatToBottom, 280);
 }
 
 async function sendWorldMessage() {
