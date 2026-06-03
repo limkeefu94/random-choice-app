@@ -21,19 +21,19 @@ function getServiceAccount() {
     };
   }
 
-  if (process.env.GCS_CLIENT_EMAIL && process.env.GCS_PRIVATE_KEY) {
-    return {
-      projectId: process.env.GCP_PROJECT_ID,
-      credentials: {
-        client_email: process.env.GCS_CLIENT_EMAIL,
-        private_key: process.env.GCS_PRIVATE_KEY.replace(/\\n/g, "\n"),
-      },
-    };
+  const clientEmail = process.env.GCS_CLIENT_EMAIL || process.env.GCP_CLIENT_EMAIL;
+  const privateKey = process.env.GCS_PRIVATE_KEY || process.env.GCP_PRIVATE_KEY;
+
+  if (!process.env.GCP_PROJECT_ID || !clientEmail || !privateKey) {
+    throw new Error("Missing Google Cloud environment variables");
   }
 
   return {
     projectId: process.env.GCP_PROJECT_ID,
-    credentials: undefined,
+    credentials: {
+      client_email: clientEmail,
+      private_key: privateKey.replace(/\\n/g, "\n"),
+    },
   };
 }
 
@@ -114,6 +114,8 @@ module.exports = async function handler(request, response) {
       },
       bucket: bucketName,
       objectName,
+      filePath: objectName,
+      publicUrl: `https://storage.googleapis.com/${bucketName}/${objectName}`,
       expiresInSeconds: 900,
     });
   } catch (error) {

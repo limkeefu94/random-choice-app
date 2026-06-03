@@ -25,8 +25,10 @@
 
 如果你不想用 base64 JSON，也可以改用：
 
-- `GCS_CLIENT_EMAIL`
-- `GCS_PRIVATE_KEY`
+- `GCP_CLIENT_EMAIL`：service account 的 `client_email`。
+- `GCP_PRIVATE_KEY`：service account 的 `private_key`。
+
+接口也兼容旧命名 `GCS_CLIENT_EMAIL` / `GCS_PRIVATE_KEY`，但 Vercel 里只需要保留一套即可。
 
 本地开发时可以复制 `.env.example` 为 `.env.local`，但 `.env.local` 不要提交。
 
