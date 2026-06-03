@@ -51,4 +51,4 @@ Content-Type: application/json
 
 接口会返回一个 15 分钟有效的 `uploadUrl`，前端再用 `PUT` 把文件上传到 GCS。
 
-世界频道图片上传会优先使用 `/api/gcs-signed-url` 直传；如果浏览器被 GCS CORS 拦截，会自动改用 `/api/gcs-upload` 同源备用上传。备用上传只接受图片，单张最大 2.5MB。
+世界频道图片上传默认使用 `/api/gcs-upload` 同源上传，避免浏览器被 GCS CORS 拦截。这个接口只接受图片，单张最大 2.5MB。`/api/gcs-signed-url` 保留给之后配置好 GCS CORS 后的大文件直传。
