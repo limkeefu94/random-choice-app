@@ -40,6 +40,10 @@
             <span>选择模式</span>
             <small>每天都会用到的小决定</small>
           </div>
+          <button class="mode-menu-toggle" id="modeMenuToggle" type="button" aria-expanded="false" aria-controls="modeList">
+            <span>选择模式</span>
+            <strong id="modeMenuLabel">今天吃什么？</strong>
+          </button>
           <nav class="mode-list" id="modeList" aria-label="随机模式列表"></nav>
           <div class="sidebar-world">
             <span>公共频道</span>
@@ -47,7 +51,7 @@
               <span class="mode-icon">🌍</span>
               <span class="mode-copy">
                 <strong>世界频道</strong>
-                <small>独立聊天，不参与随机候选</small>
+                <small>打开独立聊天窗口</small>
               </span>
             </button>
           </div>
@@ -107,14 +111,6 @@
               </div>
               <div class="chip-cloud" id="optionPreview"></div>
             </div>
-
-            <div class="world-chat-panel" id="worldChatPanel" hidden>
-              <div class="section-heading">
-                <span>世界聊天框</span>
-                <small id="worldChatCount">0 条消息</small>
-              </div>
-              <div class="world-chat-shell" id="worldChatList"></div>
-            </div>
           </div>
         </section>
 
@@ -144,6 +140,18 @@
           </section>
         </aside>
       </main>
+
+      <section class="world-chat-window" id="worldChatPanel" aria-label="世界聊天窗口" hidden>
+        <div class="world-window-header">
+          <div>
+            <span>🌍 世界频道</span>
+            <small id="worldChatCount">0 条消息</small>
+          </div>
+          <button class="ghost-button compact-ghost" id="worldCloseButton" type="button">关闭</button>
+        </div>
+        <div class="world-chat-shell" id="worldChatList"></div>
+        <div class="world-auth-panel" id="worldAuthPanel"></div>
+      </section>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>

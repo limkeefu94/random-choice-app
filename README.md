@@ -14,6 +14,8 @@
 
 不要把 Google Cloud Storage API key、service account JSON 或 private key 放进前端代码，也不要提交到 GitHub。
 
+后端接口已经放在 `api/gcs-signed-url.js`，Vercel 会把它部署成 `/api/gcs-signed-url`。你要放的是 GCS 凭证环境变量，不是把密钥写进 `app.js` 或 `index.html`。
+
 在 Vercel 项目里打开 `Settings -> Environment Variables`，新增这些变量：
 
 - `GCP_PROJECT_ID`：Google Cloud project id。

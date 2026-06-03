@@ -15,14 +15,6 @@ const MODES = {
     hint: "参考外卖平台和品牌菜单，价格以门店为准",
     label: "今日饮料",
   },
-  world: {
-    icon: "🌍",
-    title: "世界频道",
-    short: "一起聊天",
-    description: "登入后可以在世界频道留言；目前是本地原型，接后台后可变成实时多人频道。",
-    hint: "本地登入注册仅供原型演示，不要使用真实密码",
-    label: "世界频道",
-  },
   travel: {
     icon: "✈️",
     title: "下一站去哪？",
@@ -940,6 +932,7 @@ const STORAGE_KEY = "choiceWheelState";
 
 const state = {
   mode: "food",
+  worldOpen: false,
   currency: "MYR",
   food: {
     country: "马来西亚",
@@ -984,7 +977,11 @@ const state = {
 
 const elements = {
   modeList: document.querySelector("#modeList"),
+  modeMenuToggle: document.querySelector("#modeMenuToggle"),
+  modeMenuLabel: document.querySelector("#modeMenuLabel"),
+  sidebar: document.querySelector(".sidebar"),
   worldChannelButton: document.querySelector("#worldChannelButton"),
+  worldCloseButton: document.querySelector("#worldCloseButton"),
   todayLabel: document.querySelector("#todayLabel"),
   currencySelect: document.querySelector("#currencySelect"),
   actionRow: document.querySelector(".action-row"),
@@ -998,6 +995,7 @@ const elements = {
   worldChatPanel: document.querySelector("#worldChatPanel"),
   worldChatList: document.querySelector("#worldChatList"),
   worldChatCount: document.querySelector("#worldChatCount"),
+  worldAuthPanel: document.querySelector("#worldAuthPanel"),
   resultStage: document.querySelector("#resultStage"),
   resultLabel: document.querySelector("#resultLabel"),
   resultValue: document.querySelector("#resultValue"),
@@ -1025,7 +1023,8 @@ function loadState() {
       return;
     }
 
-    state.mode = saved.mode || state.mode;
+    state.mode = MODES[saved.mode] ? saved.mode : state.mode;
+    state.worldOpen = Boolean(saved.worldOpen);
     state.currency = CURRENCY_RATES[saved.currency] ? saved.currency : state.currency;
     state.food = { ...state.food, ...saved.food };
     state.travel = { ...state.travel, ...saved.travel };
@@ -1052,6 +1051,7 @@ function loadState() {
 function saveState() {
   const payload = {
     mode: state.mode,
+    worldOpen: state.worldOpen,
     currency: state.currency,
     food: state.food,
     drink: state.drink,
@@ -1156,7 +1156,6 @@ function formatDateLabel() {
 
 function renderModes() {
   elements.modeList.innerHTML = Object.entries(MODES)
-    .filter(([key]) => key !== "world")
     .map(([key, mode]) => {
       const activeClass = key === state.mode ? " is-active" : "";
       return `
@@ -1175,14 +1174,21 @@ function renderModes() {
     button.addEventListener("click", () => switchMode(button.dataset.mode));
   });
 
-  elements.worldChannelButton.classList.toggle("is-active", state.mode === "world");
-  elements.worldChannelButton.setAttribute("aria-pressed", String(state.mode === "world"));
-  elements.worldChannelButton.onclick = () => switchMode("world");
+  elements.modeMenuLabel.textContent = MODES[state.mode].title;
+  elements.worldChannelButton.classList.toggle("is-active", state.worldOpen);
+  elements.worldChannelButton.setAttribute("aria-pressed", String(state.worldOpen));
+  elements.worldChannelButton.onclick = toggleWorldChat;
 }
 
 function switchMode(mode) {
+  if (!MODES[mode]) {
+    return;
+  }
+
   state.mode = mode;
   state.currentResult = null;
+  elements.sidebar.classList.remove("is-menu-open");
+  elements.modeMenuToggle.setAttribute("aria-expanded", "false");
   saveState();
   render();
   showToast(`已切换到「${MODES[mode].title}」`);
@@ -1191,9 +1197,9 @@ function switchMode(mode) {
 function render() {
   const mode = MODES[state.mode];
   elements.currencySelect.value = state.currency;
-  elements.actionRow.hidden = state.mode === "world";
-  elements.previewPanel.hidden = state.mode === "world";
-  elements.worldChatPanel.hidden = state.mode !== "world";
+  elements.actionRow.hidden = false;
+  elements.previewPanel.hidden = false;
+  elements.worldChatPanel.hidden = !state.worldOpen;
   elements.modeTitle.textContent = mode.title;
   elements.modeDescription.textContent = mode.description;
   elements.controlHint.textContent = mode.hint;
@@ -1205,21 +1211,12 @@ function render() {
   renderControls();
   renderPreview();
   renderWorldChannel();
+  renderWorldControls();
   renderHistory();
   renderFavorites();
 }
 
 function renderModeStage() {
-  if (state.mode === "world") {
-    elements.resultLabel.textContent = "公共频道";
-    elements.resultValue.textContent = "世界频道";
-    elements.resultMeta.textContent = getCurrentUser()
-      ? `你好，${getCurrentUser().username}。写一句话，让世界轻一点。`
-      : "请先登入或注册，再在世界频道发言。";
-    elements.numberDigits.innerHTML = "";
-    return;
-  }
-
   if (!state.currentResult || state.currentResult.mode !== state.mode) {
     elements.resultValue.textContent = "按下按钮，让今天轻一点";
     elements.resultMeta.textContent = "你可以先选模式，也可以直接随机。";
@@ -1235,11 +1232,6 @@ function renderControls() {
 
   if (state.mode === "drink") {
     renderDrinkControls();
-    return;
-  }
-
-  if (state.mode === "world") {
-    renderWorldControls();
     return;
   }
 
@@ -1379,7 +1371,7 @@ function renderWorldControls() {
   const currentUser = getCurrentUser();
 
   if (!currentUser) {
-    elements.modeControls.innerHTML = `
+    elements.worldAuthPanel.innerHTML = `
       <form class="world-panel auth-panel" id="authForm">
         <div class="world-panel-header">
           <strong>登入 / 注册</strong>
@@ -1416,7 +1408,7 @@ function renderWorldControls() {
     return;
   }
 
-  elements.modeControls.innerHTML = `
+  elements.worldAuthPanel.innerHTML = `
     <div class="world-panel identity-panel">
       <div class="world-panel-header">
         <strong>已登入：${escapeHtml(currentUser.username)}</strong>
@@ -1662,12 +1654,6 @@ function getCurrentOptions() {
 }
 
 function renderPreview() {
-  if (state.mode === "world") {
-    elements.optionPreview.innerHTML = "";
-    elements.previewCount.textContent = "0 个选择";
-    return;
-  }
-
   const options = getCurrentOptions();
   const lockedOptions = getActiveLockedOptions(options);
   const totalLocked = getLockedTitles().length;
@@ -1699,12 +1685,6 @@ function renderPreview() {
 }
 
 function renderWorldChannel() {
-  if (state.mode !== "world") {
-    elements.worldChatList.innerHTML = "";
-    elements.worldChatCount.textContent = "0 条消息";
-    return;
-  }
-
   elements.worldChatCount.textContent = `${state.worldMessages.length} 条消息`;
   elements.worldChatList.innerHTML = `
     <div class="world-chat">
@@ -1934,6 +1914,22 @@ function getCurrentUser() {
   return state.users.find((user) => user.username === state.auth.currentUser) || null;
 }
 
+function toggleWorldChat() {
+  state.worldOpen = !state.worldOpen;
+  elements.sidebar.classList.remove("is-menu-open");
+  elements.modeMenuToggle.setAttribute("aria-expanded", "false");
+  saveState();
+  render();
+  showToast(state.worldOpen ? "世界聊天窗口已打开。" : "世界聊天窗口已收起。");
+}
+
+function closeWorldChat() {
+  state.worldOpen = false;
+  saveState();
+  render();
+  showToast("世界聊天窗口已关闭。");
+}
+
 function getAuthFormValues() {
   const username = document.querySelector("#authUsername")?.value.trim();
   const password = document.querySelector("#authPassword")?.value;
@@ -1965,6 +1961,7 @@ function registerUser() {
     createdAt: new Date().toISOString(),
   });
   state.auth.currentUser = username;
+  state.worldOpen = true;
   saveState();
   render();
   showToast(`欢迎加入世界频道，${username}。`);
@@ -1980,6 +1977,7 @@ function loginUser() {
   }
 
   state.auth.currentUser = user.username;
+  state.worldOpen = true;
   saveState();
   render();
   showToast(`欢迎回来，${user.username}。`);
@@ -2021,8 +2019,9 @@ function sendWorldMessage() {
   ].slice(-80);
 
   input.value = "";
+  state.worldOpen = true;
   saveState();
-  renderWorldChannel();
+  render();
   showToast("消息已发送到世界频道。");
 }
 
@@ -2081,11 +2080,6 @@ function buildNumberMeta() {
 }
 
 function drawResult() {
-  if (state.mode === "world") {
-    showToast("世界频道不用随机，登入后直接发言。");
-    return;
-  }
-
   const result = getResult();
 
   if (!result) {
@@ -2247,6 +2241,12 @@ elements.randomButton.addEventListener("click", drawResult);
 elements.favoriteButton.addEventListener("click", favoriteCurrent);
 elements.clearHistoryButton.addEventListener("click", clearHistory);
 elements.surpriseModeButton.addEventListener("click", surpriseMode);
+elements.modeMenuToggle.addEventListener("click", () => {
+  const expanded = !elements.sidebar.classList.contains("is-menu-open");
+  elements.sidebar.classList.toggle("is-menu-open", expanded);
+  elements.modeMenuToggle.setAttribute("aria-expanded", String(expanded));
+});
+elements.worldCloseButton.addEventListener("click", closeWorldChat);
 elements.currencySelect.addEventListener("change", (event) => changeCurrency(event.target.value));
 elements.optionPreview.addEventListener("click", (event) => {
   const clearButton = event.target.closest("[data-clear-locks]");
