@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>随心转盘｜随机选择应用</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar" aria-label="应用顶部导航">
+        <a class="brand" href="#" aria-label="随心转盘首页">
+          <span class="brand-mark">转</span>
+          <span>
+            <strong>随心转盘</strong>
+            <small>把选择困难交给一点点随机</small>
+          </span>
+        </a>
+        <div class="top-actions">
+          <span class="date-chip" id="todayLabel">今天</span>
+          <label class="currency-switch" for="currencySelect">
+            <span>货币</span>
+            <select id="currencySelect" aria-label="切换预算货币">
+              <option value="MYR">MYR</option>
+              <option value="SGD">SGD</option>
+              <option value="USD">USD</option>
+              <option value="CNY">CNY</option>
+              <option value="JPY">JPY</option>
+              <option value="THB">THB</option>
+              <option value="TWD">TWD</option>
+            </select>
+          </label>
+          <button class="ghost-button" id="clearHistoryButton" type="button">清空记录</button>
+        </div>
+      </header>
+
+      <main class="app-shell">
+        <aside class="sidebar" aria-label="选择模式">
+          <div class="sidebar-title">
+            <span>选择模式</span>
+            <small>每天都会用到的小决定</small>
+          </div>
+          <nav class="mode-list" id="modeList" aria-label="随机模式列表"></nav>
+          <div class="sidebar-world">
+            <span>公共频道</span>
+            <button class="mode-button world-entry-button" id="worldChannelButton" type="button" aria-pressed="false">
+              <span class="mode-icon">🌍</span>
+              <span class="mode-copy">
+                <strong>世界频道</strong>
+                <small>独立聊天，不参与随机候选</small>
+              </span>
+            </button>
+          </div>
+        </aside>
+
+        <section class="workspace" aria-live="polite">
+          <div class="decision-card">
+            <div class="decision-copy">
+              <div>
+                <h1 id="modeTitle">今天吃什么？</h1>
+                <p id="modeDescription">选择国家和地区，餐单会跟着变化。</p>
+              </div>
+              <button class="secondary-button" id="surpriseModeButton" type="button">帮我换个模式</button>
+            </div>
+
+            <div class="result-stage" id="resultStage">
+              <div class="result-orb" aria-hidden="true">
+                <span class="orb-dot orb-dot-one"></span>
+                <span class="orb-dot orb-dot-two"></span>
+                <span class="orb-dot orb-dot-three"></span>
+              </div>
+              <div class="result-content">
+                <span class="result-label" id="resultLabel">准备好了吗</span>
+                <strong class="result-value" id="resultValue">按下按钮，让今天轻一点</strong>
+                <div class="number-digits" id="numberDigits" hidden></div>
+                <p class="result-meta" id="resultMeta">你可以先选模式，也可以直接随机。</p>
+              </div>
+            </div>
+
+            <div class="action-row">
+              <button class="primary-button" id="randomButton" type="button">
+                <span>随机决定</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M16.5 3.25h4.25v4.25" />
+                  <path d="M20.25 3.75 14 10" />
+                  <path d="M3.75 12.25c2.2-3.3 4.8-4.85 7.8-4.65" />
+                  <path d="M3.75 18.75c3.7 0 5.6-1.35 8.05-5.45 2.05-3.45 3.95-4.55 8.45-4.55" />
+                  <path d="M16.5 16.5h4.25v4.25" />
+                  <path d="m20.25 20.25-5.15-5.15" />
+                </svg>
+              </button>
+              <button class="secondary-button" id="favoriteButton" type="button">收藏结果</button>
+            </div>
+
+            <div class="controls-panel">
+              <div class="section-heading">
+                <span>筛选条件</span>
+                <small id="controlHint">国家和地区会改变美食候选池</small>
+              </div>
+              <div class="controls-grid" id="modeControls"></div>
+            </div>
+
+            <div class="preview-panel">
+              <div class="section-heading">
+                <span>当前候选</span>
+                <small id="previewCount">0 个选择</small>
+              </div>
+              <div class="chip-cloud" id="optionPreview"></div>
+            </div>
+
+            <div class="world-chat-panel" id="worldChatPanel" hidden>
+              <div class="section-heading">
+                <span>世界聊天框</span>
+                <small id="worldChatCount">0 条消息</small>
+              </div>
+              <div class="world-chat-shell" id="worldChatList"></div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="insight-panel" aria-label="灵感和记录">
+          <section class="insight-card">
+            <div class="section-heading">
+              <span>今日灵感</span>
+              <small>每天换一点点</small>
+            </div>
+            <div class="daily-card" id="dailyInspiration"></div>
+          </section>
+
+          <section class="insight-card">
+            <div class="section-heading">
+              <span>最近决定</span>
+              <small id="historyCount">0 条</small>
+            </div>
+            <div class="stack-list" id="historyList"></div>
+          </section>
+
+          <section class="insight-card">
+            <div class="section-heading">
+              <span>收藏</span>
+              <small id="favoriteCount">0 个</small>
+            </div>
+            <div class="stack-list" id="favoritesList"></div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="./app.js"></script>
+  </body>
+</html>
