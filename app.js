@@ -1017,6 +1017,7 @@ const elements = {
 
 let toastTimer;
 let pendingWorldImage = null;
+let authMode = "login";
 
 function loadState() {
   try {
@@ -1372,40 +1373,69 @@ function renderDrinkControls() {
 
 function renderWorldControls() {
   const currentUser = getCurrentUser();
+  const isRegisterMode = authMode === "register";
 
   if (!currentUser) {
     elements.worldAuthPanel.innerHTML = `
       <form class="world-panel auth-panel" id="authForm">
         <div class="world-panel-header">
-          <strong>登入 / 注册</strong>
-          <small>本地原型账户，不要用真实密码</small>
+          <strong>${isRegisterMode ? "注册新账号" : "登入世界频道"}</strong>
+          <small>账号目前保存在这个浏览器</small>
+        </div>
+        <div class="auth-mode-tabs" role="tablist" aria-label="登入注册切换">
+          <button class="auth-mode-tab${!isRegisterMode ? " is-active" : ""}" type="button" data-auth-mode="login" aria-pressed="${!isRegisterMode}">登入</button>
+          <button class="auth-mode-tab${isRegisterMode ? " is-active" : ""}" type="button" data-auth-mode="register" aria-pressed="${isRegisterMode}">注册</button>
         </div>
         <div class="field">
           <label for="authUsername">用户名</label>
-          <input id="authUsername" autocomplete="username" maxlength="20" placeholder="例如 limke" />
+          <input id="authUsername" autocomplete="username" maxlength="20" placeholder="2-20 字，例如 limke" />
+          <small class="field-hint">可用中文、英文、数字、_ 和 -。</small>
         </div>
         <div class="field">
           <label for="authPassword">密码</label>
-          <input id="authPassword" type="password" autocomplete="current-password" maxlength="40" placeholder="至少 4 个字符" />
+          <input id="authPassword" type="password" autocomplete="${isRegisterMode ? "new-password" : "current-password"}" maxlength="40" placeholder="至少 4 个字符" />
+          <small class="field-hint">目前是本地账号，请不要使用真实重要密码。</small>
         </div>
+        ${isRegisterMode ? `
+          <div class="field">
+            <label for="authConfirmPassword">确认密码</label>
+            <input id="authConfirmPassword" type="password" autocomplete="new-password" maxlength="40" placeholder="再输入一次密码" />
+          </div>
+        ` : ""}
         <div class="custom-actions">
-          <button class="primary-button compact-primary" id="loginButton" type="button">登入</button>
-          <button class="secondary-button" id="registerButton" type="button">注册</button>
+          <button class="primary-button compact-primary" id="authSubmitButton" type="submit">${isRegisterMode ? "创建账号" : "登入"}</button>
+          <button class="secondary-button" id="authSwitchButton" type="button">${isRegisterMode ? "已有账号？去登入" : "没有账号？去注册"}</button>
         </div>
+        <ul class="auth-hint-list">
+          <li>登入后可以发送文字、先预览图片，再点发送上传到 GCS。</li>
+          <li>换浏览器或清空记录后，本地账号会消失；正式多人账号后续可接云端数据库。</li>
+        </ul>
       </form>
-      <div class="world-panel gcs-panel">
+      <div class="world-panel gcs-panel is-ready">
         <div class="world-panel-header">
           <strong>Google Cloud Storage</strong>
-          <small>等待接后台</small>
+          <small>图片上传已启用</small>
         </div>
-        <p>前端不能直接放 GCS 服务账号密钥。后续需要后端生成上传授权，用来存头像、图片或频道附件。</p>
+        <div class="cloud-status-list">
+          <span class="status-pill">✅ Vercel API 已连接</span>
+          <span class="status-pill">✅ 图片走 GCS 储存</span>
+          <span class="status-pill">🔒 密钥只在后端环境变量</span>
+        </div>
+        <p>现在可以登入后上传图片。图片会先在聊天框预览，点「发送消息」才会上传并发出。</p>
       </div>
     `;
 
-    document.querySelector("#loginButton").addEventListener("click", loginUser);
-    document.querySelector("#registerButton").addEventListener("click", registerUser);
+    document.querySelectorAll("[data-auth-mode]").forEach((button) => {
+      button.addEventListener("click", () => setAuthMode(button.dataset.authMode));
+    });
+    document.querySelector("#authSwitchButton").addEventListener("click", () => setAuthMode(isRegisterMode ? "login" : "register"));
     document.querySelector("#authForm").addEventListener("submit", (event) => {
       event.preventDefault();
+      if (authMode === "register") {
+        registerUser();
+        return;
+      }
+
       loginUser();
     });
     return;
@@ -1417,7 +1447,7 @@ function renderWorldControls() {
         <strong>已登入：${escapeHtml(currentUser.username)}</strong>
         <button class="ghost-button compact-ghost" id="logoutButton" type="button">登出</button>
       </div>
-      <p>这是本地世界频道原型；真正上线后会把登入、消息和附件同步到云端。</p>
+      <p>图片上传已接入 Google Cloud Storage。当前账号和聊天记录仍保存在这个浏览器，后续可再接云端数据库做真正多人同步。</p>
     </div>
     <form class="world-panel message-panel" id="worldMessageForm">
       <div class="field">
@@ -1967,15 +1997,21 @@ function closeWorldChat() {
   showToast("世界聊天窗口已关闭。");
 }
 
+function setAuthMode(mode) {
+  authMode = mode === "register" ? "register" : "login";
+  renderWorldControls();
+}
+
 function getAuthFormValues() {
   const username = document.querySelector("#authUsername")?.value.trim();
   const password = document.querySelector("#authPassword")?.value;
+  const confirmPassword = document.querySelector("#authConfirmPassword")?.value;
 
-  return { username, password };
+  return { username, password, confirmPassword };
 }
 
 function registerUser() {
-  const { username, password } = getAuthFormValues();
+  const { username, password, confirmPassword } = getAuthFormValues();
 
   if (!isValidUsername(username)) {
     showToast("用户名需 2-20 字，只能包含字母、数字、中文、_ 或 -。");
@@ -1987,8 +2023,15 @@ function registerUser() {
     return;
   }
 
+  if (password !== confirmPassword) {
+    showToast("两次输入的密码不一样。");
+    return;
+  }
+
   if (state.users.some((user) => user.username.toLowerCase() === username.toLowerCase())) {
-    showToast("这个用户名已经注册。");
+    authMode = "login";
+    renderWorldControls();
+    showToast("这个用户名已经注册，已切换到登入。");
     return;
   }
 
@@ -2008,8 +2051,20 @@ function loginUser() {
   const { username, password } = getAuthFormValues();
   const user = state.users.find((item) => item.username.toLowerCase() === username?.toLowerCase());
 
-  if (!user || user.passwordHash !== hashPassword(password || "")) {
-    showToast("用户名或密码不正确。");
+  if (!isValidUsername(username)) {
+    showToast("请输入正确的用户名。");
+    return;
+  }
+
+  if (!user) {
+    authMode = "register";
+    renderWorldControls();
+    showToast("还没有这个账号，已切换到注册。");
+    return;
+  }
+
+  if (user.passwordHash !== hashPassword(password || "")) {
+    showToast("密码不正确。");
     return;
   }
 
