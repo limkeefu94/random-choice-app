@@ -995,6 +995,8 @@ const DAILY_TIPS = [
 ];
 
 const DEFAULT_CUSTOM_TEXT = "看电影\n去散步\n整理书桌\n喝一杯咖啡\n给朋友发消息\n早点睡";
+const USER_ID_STORAGE_KEY = "choiceWheelAnonymousUserId";
+const CLOUD_SYNC_ENDPOINT = "/api/user-data";
 const DEFAULT_WORLD_MESSAGES = [
   {
     id: "seed-1",
@@ -1012,6 +1014,7 @@ const DEFAULT_WORLD_MESSAGES = [
 const STORAGE_KEY = "choiceWheelState";
 
 const state = {
+  userId: "",
   mode: "food",
   worldOpen: false,
   currency: "MYR",
@@ -1055,6 +1058,12 @@ const state = {
   customText: DEFAULT_CUSTOM_TEXT,
   history: [],
   favorites: [],
+  uploads: [],
+  cloudSync: {
+    loading: false,
+    available: false,
+    lastError: "",
+  },
   currentResult: null,
 };
 
@@ -1100,12 +1109,55 @@ let toastTimer;
 let pendingWorldImage = null;
 let authMode = "login";
 
+function isValidAnonymousUserId(userId) {
+  return /^anon_[a-zA-Z0-9_-]{12,80}$/.test(String(userId || ""));
+}
+
+function createAnonymousUserId() {
+  const cryptoApi = window.crypto || window.msCrypto;
+  const randomPart = cryptoApi?.randomUUID
+    ? cryptoApi.randomUUID().replace(/-/g, "")
+    : `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+
+  return `anon_${Date.now().toString(36)}_${randomPart.slice(0, 28)}`;
+}
+
+function ensureAnonymousUserId() {
+  try {
+    const existingUserId = localStorage.getItem(USER_ID_STORAGE_KEY);
+
+    if (isValidAnonymousUserId(existingUserId)) {
+      return existingUserId;
+    }
+
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+
+    if (isValidAnonymousUserId(saved.userId)) {
+      localStorage.setItem(USER_ID_STORAGE_KEY, saved.userId);
+      return saved.userId;
+    }
+
+    const newUserId = createAnonymousUserId();
+    localStorage.setItem(USER_ID_STORAGE_KEY, newUserId);
+    return newUserId;
+  } catch {
+    return createAnonymousUserId();
+  }
+}
+
 function loadState() {
+  state.userId = ensureAnonymousUserId();
+
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
 
     if (!saved) {
       return;
+    }
+
+    if (isValidAnonymousUserId(saved.userId)) {
+      state.userId = saved.userId;
+      localStorage.setItem(USER_ID_STORAGE_KEY, saved.userId);
     }
 
     state.mode = MODES[saved.mode] ? saved.mode : state.mode;
@@ -1121,13 +1173,14 @@ function loadState() {
       ? saved.worldMessages.slice(-80)
       : [...DEFAULT_WORLD_MESSAGES];
     state.locked = {
-    ...state.locked,
+      ...state.locked,
       ...(saved.locked || {}),
     };
     state.drink = { ...state.drink, ...saved.drink };
     state.customText = saved.customText || state.customText;
     state.history = Array.isArray(saved.history) ? saved.history.slice(0, 8) : [];
     state.favorites = Array.isArray(saved.favorites) ? saved.favorites.slice(0, 8) : [];
+    state.uploads = Array.isArray(saved.uploads) ? saved.uploads.slice(0, 30) : [];
   } catch {
     showToast("读取本地记录失败，已使用默认设置。");
   }
@@ -1135,6 +1188,7 @@ function loadState() {
 
 function saveState() {
   const payload = {
+    userId: state.userId,
     mode: state.mode,
     worldOpen: state.worldOpen,
     currency: state.currency,
@@ -1150,6 +1204,7 @@ function saveState() {
     customText: state.customText,
     history: state.history,
     favorites: state.favorites,
+    uploads: state.uploads,
   };
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -1461,7 +1516,7 @@ function renderWorldControls() {
       <form class="world-panel auth-panel" id="authForm">
         <div class="world-panel-header">
           <strong>${isRegisterMode ? "注册新账号" : "登入世界频道"}</strong>
-          <small>账号目前保存在这个浏览器</small>
+          <small>匿名 ID：${escapeHtml(getShortUserId())}</small>
         </div>
         <div class="auth-mode-tabs" role="tablist" aria-label="登入注册切换">
           <button class="auth-mode-tab${!isRegisterMode ? " is-active" : ""}" type="button" data-auth-mode="login" aria-pressed="${!isRegisterMode}">登入</button>
@@ -1489,20 +1544,21 @@ function renderWorldControls() {
         </div>
         <ul class="auth-hint-list">
           <li>登入后可以发送文字、先预览图片，再点发送上传到 GCS。</li>
-          <li>换浏览器或清空记录后，本地账号会消失；正式多人账号后续可接云端数据库。</li>
+          <li>最近决定、收藏和上传记录会按匿名 ID 测试同步到 Firestore。</li>
         </ul>
       </form>
       <div class="world-panel gcs-panel is-ready">
         <div class="world-panel-header">
-          <strong>Google Cloud Storage</strong>
-          <small>图片上传已启用</small>
+          <strong>Google Cloud</strong>
+          <small>Storage + Firestore 测试同步</small>
         </div>
         <div class="cloud-status-list">
           <span class="status-pill">✅ Vercel API 已连接</span>
           <span class="status-pill">✅ 图片走 GCS 储存</span>
+          <span class="status-pill" data-cloud-sync-status>${escapeHtml(getCloudSyncLabel())}</span>
           <span class="status-pill">🔒 密钥只在后端环境变量</span>
         </div>
-        <p>现在可以登入后上传图片。图片会先在聊天框预览，点「发送消息」才会上传并发出。</p>
+        <p>首次打开会自动生成匿名 userId。Firestore 失败时不会影响页面，仍会使用 localStorage 记录。</p>
       </div>
     `;
 
@@ -1528,7 +1584,7 @@ function renderWorldControls() {
         <strong>已登入：${escapeHtml(currentUser.username)}</strong>
         <button class="ghost-button compact-ghost" id="logoutButton" type="button">登出</button>
       </div>
-      <p>图片上传已接入 Google Cloud Storage。当前账号和聊天记录仍保存在这个浏览器，后续可再接云端数据库做真正多人同步。</p>
+      <p data-cloud-sync-identity>匿名 ID：${escapeHtml(getShortUserId())}。${escapeHtml(getCloudSyncLabel())}；图片上传后会记录到 Firestore uploads。</p>
     </div>
     <form class="world-panel message-panel" id="worldMessageForm">
       <div class="field">
@@ -2204,6 +2260,30 @@ function getCurrentUser() {
   return state.users.find((user) => user.username === state.auth.currentUser) || null;
 }
 
+function getCloudSyncLabel() {
+  if (state.cloudSync.loading) {
+    return "☁️ 正在读取 Firestore";
+  }
+
+  if (state.cloudSync.available) {
+    return "✅ Firestore 同步已连接";
+  }
+
+  if (state.cloudSync.lastError) {
+    return "⚠️ Firestore 失败，使用本地缓存";
+  }
+
+  return "💾 本地缓存已准备";
+}
+
+function getShortUserId() {
+  if (!state.userId) {
+    return "未生成";
+  }
+
+  return `${state.userId.slice(0, 18)}…`;
+}
+
 function toggleWorldChat() {
   state.worldOpen = !state.worldOpen;
   elements.sidebar.classList.remove("is-menu-open");
@@ -2355,6 +2435,7 @@ async function sendWorldMessage() {
     if (imageToSend) {
       setUploadStatus("正在上传图片并发送到世界频道…");
       attachment = await uploadImageThroughServer(imageToSend.file);
+      rememberUpload(attachment, imageToSend.file);
       messageText = messageText || `上传了一张图片：${imageToSend.file.name}`;
       attachment = {
         type: "image",
@@ -2504,6 +2585,7 @@ async function uploadImageThroughSignedUrl(file) {
     url: signedPayload.viewUrl || signedPayload.publicUrl,
     publicUrl: signedPayload.publicUrl,
     objectName: signedPayload.objectName || signedPayload.filePath,
+    filePath: signedPayload.filePath || signedPayload.objectName,
     transport: "signed-url",
   };
 }
@@ -2531,6 +2613,7 @@ async function uploadImageThroughServer(file) {
     url: uploadPayload.url,
     publicUrl: uploadPayload.publicUrl,
     objectName: uploadPayload.objectName,
+    filePath: uploadPayload.filePath || uploadPayload.objectName,
     transport: "server-upload",
   };
 }
@@ -2556,6 +2639,162 @@ async function fileToBase64(file) {
   }
 
   return btoa(binary);
+}
+
+function getItemTimestamp(item) {
+  const createdAtTime = Date.parse(item.createdAt || "");
+
+  if (Number.isFinite(createdAtTime)) {
+    return createdAtTime;
+  }
+
+  const idTime = Number(String(item.id || "").split("-")[0]);
+  return Number.isFinite(idTime) ? idTime : 0;
+}
+
+function mergeSyncedItems(localItems, cloudItems, limit) {
+  const mergedMap = new Map();
+
+  [...cloudItems, ...localItems].forEach((item) => {
+    if (!item?.id) {
+      return;
+    }
+
+    mergedMap.set(item.id, {
+      ...mergedMap.get(item.id),
+      ...item,
+    });
+  });
+
+  return [...mergedMap.values()]
+    .sort((first, second) => getItemTimestamp(second) - getItemTimestamp(first))
+    .slice(0, limit);
+}
+
+function setCloudSyncState(nextState) {
+  state.cloudSync = {
+    ...state.cloudSync,
+    ...nextState,
+  };
+
+  document.querySelectorAll("[data-cloud-sync-status]").forEach((element) => {
+    element.textContent = getCloudSyncLabel();
+  });
+
+  const identityStatus = document.querySelector("[data-cloud-sync-identity]");
+
+  if (identityStatus) {
+    identityStatus.textContent = `匿名 ID：${getShortUserId()}。${getCloudSyncLabel()}；图片上传后会记录到 Firestore uploads。`;
+  }
+}
+
+async function syncFromCloud() {
+  if (!state.userId) {
+    return;
+  }
+
+  setCloudSyncState({ loading: true, lastError: "" });
+
+  try {
+    const response = await fetch(`${CLOUD_SYNC_ENDPOINT}?userId=${encodeURIComponent(state.userId)}`, {
+      cache: "no-store",
+    });
+    const payload = await readJsonResponse(response);
+
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.detail || payload.error || "Firestore 读取失败");
+    }
+
+    state.history = mergeSyncedItems(state.history, payload.data?.history || [], 8);
+    state.favorites = mergeSyncedItems(state.favorites, payload.data?.favorites || [], 8);
+    state.uploads = mergeSyncedItems(state.uploads, payload.data?.uploads || [], 30);
+    setCloudSyncState({ loading: false, available: true, lastError: "" });
+    saveState();
+    renderHistory();
+    renderFavorites();
+  } catch (error) {
+    setCloudSyncState({ loading: false, available: false, lastError: error.message });
+    console.warn("Firestore sync unavailable; using local cache.", error);
+    showToast("Firestore 暂时不可用，已使用本地记录。");
+  }
+}
+
+async function syncCloudItem(collection, item) {
+  if (!state.userId) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(CLOUD_SYNC_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        userId: state.userId,
+        collection,
+        item,
+      }),
+    });
+    const payload = await readJsonResponse(response);
+
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.detail || payload.error || "Firestore 写入失败");
+    }
+
+    setCloudSyncState({ available: true, lastError: "" });
+    return payload.item || item;
+  } catch (error) {
+    setCloudSyncState({ available: false, lastError: error.message });
+    console.warn(`Firestore ${collection} sync failed; local cache kept.`, error);
+    return null;
+  }
+}
+
+async function syncCloudClear(collections) {
+  if (!state.userId) {
+    return;
+  }
+
+  try {
+    const response = await fetch(CLOUD_SYNC_ENDPOINT, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        userId: state.userId,
+        collections,
+      }),
+    });
+    const payload = await readJsonResponse(response);
+
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.detail || payload.error || "Firestore 清理失败");
+    }
+
+    setCloudSyncState({ available: true, lastError: "" });
+  } catch (error) {
+    setCloudSyncState({ available: false, lastError: error.message });
+    console.warn("Firestore clear failed; local cache was cleared.", error);
+  }
+}
+
+function rememberUpload(attachment, file) {
+  const entry = {
+    id: `${Date.now()}-${randomInt(1000)}`,
+    imageUrl: attachment.url || attachment.publicUrl,
+    publicUrl: attachment.publicUrl,
+    filePath: attachment.filePath || attachment.objectName,
+    fileName: file.name,
+    contentType: file.type,
+    createdAt: new Date().toISOString(),
+  };
+
+  state.uploads = [entry, ...state.uploads].slice(0, 30);
+  saveState();
+  syncCloudItem("uploads", entry);
+  return entry;
 }
 
 function setUploadStatus(message) {
@@ -2634,8 +2873,9 @@ function drawResult() {
   window.setTimeout(() => {
     state.currentResult = result;
     renderResult(result);
-    addHistory(result);
+    const historyEntry = addHistory(result);
     saveState();
+    syncCloudItem("history", historyEntry);
     elements.resultStage.classList.remove("is-spinning");
     elements.randomButton.disabled = false;
   }, 520);
@@ -2660,6 +2900,7 @@ function addHistory(result) {
   const entry = {
     ...result,
     id: `${Date.now()}-${randomInt(1000)}`,
+    createdAt: new Date().toISOString(),
     time: new Intl.DateTimeFormat("zh-CN", {
       hour: "2-digit",
       minute: "2-digit",
@@ -2668,6 +2909,7 @@ function addHistory(result) {
 
   state.history = [entry, ...state.history].slice(0, 8);
   renderHistory();
+  return entry;
 }
 
 function favoriteCurrent() {
@@ -2685,16 +2927,17 @@ function favoriteCurrent() {
     return;
   }
 
-  state.favorites = [
-    {
-      ...state.currentResult,
-      id: `${Date.now()}-${randomInt(1000)}`,
-    },
-    ...state.favorites,
-  ].slice(0, 8);
+  const favoriteEntry = {
+    ...state.currentResult,
+    id: `${Date.now()}-${randomInt(1000)}`,
+    createdAt: new Date().toISOString(),
+  };
+
+  state.favorites = [favoriteEntry, ...state.favorites].slice(0, 8);
 
   saveState();
   renderFavorites();
+  syncCloudItem("favorites", favoriteEntry);
   showToast("已加入收藏。");
 }
 
@@ -2743,6 +2986,7 @@ function clearHistory() {
   saveState();
   renderHistory();
   renderFavorites();
+  syncCloudClear(["history", "favorites"]);
   showToast("记录和收藏已清空。");
 }
 
@@ -2808,3 +3052,4 @@ loadState();
 formatDateLabel();
 renderDailyInspiration();
 render();
+syncFromCloud();

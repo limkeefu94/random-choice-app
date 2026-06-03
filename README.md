@@ -56,3 +56,29 @@ Content-Type: application/json
 世界频道图片会先显示待发送缩略图，点「发送消息」才上传并发到聊天。上传默认使用 `/api/gcs-upload` 同源上传，避免浏览器被 GCS CORS 拦截。这个接口只接受图片，单张最大 2.5MB。`/api/gcs-signed-url` 保留给之后配置好 GCS CORS 后的大文件直传。
 
 登入/注册目前是本地原型账号，账号数据保存在当前浏览器；GCS 图片上传已经通过 Vercel API 接到后端环境变量，不再需要在前端显示「等待接后台」。
+
+## Firestore 多用户同步基础版
+
+这个版本不是完整 SaaS，只按浏览器自动生成的匿名 `userId` 做数据隔离。
+
+- 首次打开会生成 `anon_...` 格式的 `userId`，并保存到 `localStorage`。
+- 页面载入时会请求 `/api/user-data?userId=...`，读取当前用户的 `history`、`favorites`、`uploads`。
+- 随机产生最近决定时，会同步到 Firestore `history`。
+- 收藏结果时，会同步到 Firestore `favorites`。
+- 世界频道图片上传到 GCS 成功后，会把 `imageUrl`、`filePath`、`createdAt` 写入 Firestore `uploads`。
+- Firestore 失败时不会中断页面；应用会继续显示 `localStorage` 里的离线缓存。
+
+你需要在 Google Cloud 做：
+
+1. 开启 Firestore，选择 Native mode，并建立默认数据库。
+2. 确认 Vercel 里的 service account 环境变量仍然存在：`GCP_PROJECT_ID` + `GCS_SERVICE_ACCOUNT_JSON_BASE64`，或 `GCP_CLIENT_EMAIL` + `GCP_PRIVATE_KEY`。
+3. 给这个 service account 加 Firestore 写入权限，例如 `Cloud Datastore User` / `roles/datastore.user`。
+4. 重新部署 Vercel。
+
+Firestore 结构：
+
+```text
+randomChoiceUsers/{userId}/history/{itemId}
+randomChoiceUsers/{userId}/favorites/{itemId}
+randomChoiceUsers/{userId}/uploads/{itemId}
+```

@@ -1,35 +1,9 @@
 const { Storage } = require("@google-cloud/storage");
 const crypto = require("node:crypto");
+const { getGoogleServiceAccount } = require("./google-service-account");
 
 const MAX_FILE_SIZE = 2.5 * 1024 * 1024;
 const ALLOWED_CONTENT_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
-
-function getServiceAccount() {
-  if (process.env.GCS_SERVICE_ACCOUNT_JSON_BASE64) {
-    const jsonText = Buffer.from(process.env.GCS_SERVICE_ACCOUNT_JSON_BASE64, "base64").toString("utf8");
-    const serviceAccount = JSON.parse(jsonText);
-
-    return {
-      projectId: serviceAccount.project_id || process.env.GCP_PROJECT_ID,
-      credentials: serviceAccount,
-    };
-  }
-
-  const clientEmail = process.env.GCS_CLIENT_EMAIL || process.env.GCP_CLIENT_EMAIL;
-  const privateKey = process.env.GCS_PRIVATE_KEY || process.env.GCP_PRIVATE_KEY;
-
-  if (!process.env.GCP_PROJECT_ID || !clientEmail || !privateKey) {
-    throw new Error("Missing Google Cloud environment variables");
-  }
-
-  return {
-    projectId: process.env.GCP_PROJECT_ID,
-    credentials: {
-      client_email: clientEmail,
-      private_key: privateKey.replace(/\\n/g, "\n"),
-    },
-  };
-}
 
 function parseBody(request) {
   if (typeof request.body === "string") {
@@ -95,7 +69,7 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    const { projectId, credentials } = getServiceAccount();
+    const { projectId, credentials } = getGoogleServiceAccount();
     const storage = new Storage({ projectId, credentials });
     const safeName = sanitizeFileName(requestBody.fileName);
     const objectName = `world/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
