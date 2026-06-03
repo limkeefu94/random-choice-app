@@ -1016,6 +1016,7 @@ const elements = {
 };
 
 let toastTimer;
+let pendingWorldImage = null;
 
 function loadState() {
   try {
@@ -1424,13 +1425,21 @@ function renderWorldControls() {
         <textarea id="worldMessageInput" maxlength="220" placeholder="写一句话，最多 220 字。"></textarea>
       </div>
       <div class="custom-actions">
-        <button class="primary-button compact-primary" type="submit">发送消息</button>
+        <button class="primary-button compact-primary" id="worldSendButton" type="submit">发送消息</button>
         <label class="image-upload-button">
           <input id="worldImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
-          上传图片
+          选择图片
         </label>
       </div>
-      <small class="upload-status" id="worldUploadStatus">支持 PNG / JPG / WebP / GIF，最大 2.5MB。</small>
+      <div class="pending-image-preview" id="worldPendingImage" hidden>
+        <img id="worldPendingImageThumb" alt="待发送图片缩略图" />
+        <div>
+          <strong id="worldPendingImageName"></strong>
+          <small>图片已选择，点「发送消息」才会发出。</small>
+        </div>
+        <button class="ghost-button compact-ghost" id="clearWorldImageButton" type="button">移除</button>
+      </div>
+      <small class="upload-status" id="worldUploadStatus">选择图片后会先预览；点发送才上传。支持 PNG / JPG / WebP / GIF，最大 2.5MB。</small>
     </form>
   `;
 
@@ -1439,7 +1448,9 @@ function renderWorldControls() {
     event.preventDefault();
     sendWorldMessage();
   });
-  document.querySelector("#worldImageInput").addEventListener("change", uploadWorldImage);
+  document.querySelector("#worldImageInput").addEventListener("change", prepareWorldImage);
+  document.querySelector("#clearWorldImageButton").addEventListener("click", () => clearPendingWorldImage());
+  updatePendingImagePreview();
 }
 
 function renderTravelControls() {
@@ -2004,6 +2015,7 @@ function loginUser() {
 }
 
 function logoutUser() {
+  clearPendingWorldImage();
   state.auth.currentUser = "";
   saveState();
   render();
@@ -2029,30 +2041,71 @@ function addWorldMessage({ user, text, attachment }) {
   render();
 }
 
-function sendWorldMessage() {
+async function sendWorldMessage() {
   const currentUser = getCurrentUser();
   const input = document.querySelector("#worldMessageInput");
+  const sendButton = document.querySelector("#worldSendButton");
+  const imageInput = document.querySelector("#worldImageInput");
   const text = input?.value.trim();
+  const imageToSend = pendingWorldImage;
 
   if (!currentUser) {
     showToast("请先登入再发言。");
     return;
   }
 
-  if (!text) {
-    showToast("先写一点内容再发送。");
+  if (!text && !imageToSend) {
+    showToast("先写一点内容，或选择一张图片再发送。");
     return;
   }
 
-  addWorldMessage({
-    user: currentUser.username,
-    text,
-  });
-  input.value = "";
-  showToast("消息已发送到世界频道。");
+  sendButton.disabled = true;
+  imageInput.disabled = true;
+
+  try {
+    let attachment = null;
+    let messageText = text;
+
+    if (imageToSend) {
+      setUploadStatus("正在上传图片并发送到世界频道…");
+      attachment = await uploadImageThroughServer(imageToSend.file);
+      messageText = messageText || `上传了一张图片：${imageToSend.file.name}`;
+      attachment = {
+        type: "image",
+        name: imageToSend.file.name,
+        contentType: imageToSend.file.type,
+        ...attachment,
+      };
+    }
+
+    clearPendingWorldImage({ resetInput: false });
+    addWorldMessage({
+      user: currentUser.username,
+      text: messageText,
+      attachment,
+    });
+
+    input.value = "";
+    setUploadStatus(imageToSend ? "图片已发送成功，可以继续选择下一张。" : "选择图片后会先预览；点发送才上传。支持 PNG / JPG / WebP / GIF，最大 2.5MB。");
+    showToast(imageToSend ? "图片已发送到世界频道。" : "消息已发送到世界频道。");
+  } catch (error) {
+    setUploadStatus(`发送失败：${error.message}`);
+    showToast("发送失败，请检查图片大小或 GCS 权限。");
+  } finally {
+    const currentSendButton = document.querySelector("#worldSendButton");
+    const currentImageInput = document.querySelector("#worldImageInput");
+
+    if (currentSendButton) {
+      currentSendButton.disabled = false;
+    }
+
+    if (currentImageInput) {
+      currentImageInput.disabled = false;
+    }
+  }
 }
 
-async function uploadWorldImage(event) {
+function prepareWorldImage(event) {
   const currentUser = getCurrentUser();
   const input = event.target;
   const file = input.files?.[0];
@@ -2079,44 +2132,56 @@ async function uploadWorldImage(event) {
     return;
   }
 
-  const uploadStatus = document.querySelector("#worldUploadStatus");
-  const uploadButton = document.querySelector(".image-upload-button");
-  input.disabled = true;
-  uploadButton?.classList.add("is-uploading");
-  setUploadStatus("正在上传图片到 Google Cloud Storage…");
-  let uploadSucceeded = false;
-
-  try {
-    const attachment = await uploadImageThroughServer(file);
-    addImageMessage(currentUser.username, file, attachment);
-    uploadSucceeded = true;
-    showToast("图片已上传到世界频道。");
-  } catch (uploadError) {
-    setUploadStatus(`上传失败：${uploadError.message}`);
-    showToast("图片上传失败，请检查 GCS 权限或文件大小。");
-  } finally {
-    input.value = "";
-    input.disabled = false;
-    uploadButton?.classList.remove("is-uploading");
-
-    if (!uploadSucceeded && (uploadStatus?.textContent.startsWith("正在") || uploadStatus?.textContent.startsWith("直传"))) {
-      setUploadStatus("支持 PNG / JPG / WebP / GIF，最大 2.5MB。");
-    }
-  }
+  clearPendingWorldImage({ resetInput: false });
+  pendingWorldImage = {
+    file,
+    previewUrl: URL.createObjectURL(file),
+  };
+  updatePendingImagePreview();
+  setUploadStatus("图片已选择，点「发送消息」才会上传并发出。");
+  showToast("图片已加入待发送。");
 }
 
-function addImageMessage(username, file, attachment) {
-  addWorldMessage({
-    user: username,
-    text: `上传了一张图片：${file.name}`,
-    attachment: {
-      type: "image",
-      name: file.name,
-      contentType: file.type,
-      ...attachment,
-    },
-  });
-  setUploadStatus("图片已上传成功。");
+function updatePendingImagePreview() {
+  const previewPanel = document.querySelector("#worldPendingImage");
+  const previewImage = document.querySelector("#worldPendingImageThumb");
+  const previewName = document.querySelector("#worldPendingImageName");
+
+  if (!previewPanel || !previewImage || !previewName) {
+    return;
+  }
+
+  previewPanel.hidden = !pendingWorldImage;
+
+  if (!pendingWorldImage) {
+    previewImage.removeAttribute("src");
+    previewName.textContent = "";
+    return;
+  }
+
+  previewImage.src = pendingWorldImage.previewUrl;
+  previewName.textContent = pendingWorldImage.file.name;
+}
+
+function clearPendingWorldImage(options = {}) {
+  const { resetInput = true } = options;
+
+  if (pendingWorldImage?.previewUrl) {
+    URL.revokeObjectURL(pendingWorldImage.previewUrl);
+  }
+
+  pendingWorldImage = null;
+
+  if (resetInput) {
+    const input = document.querySelector("#worldImageInput");
+
+    if (input) {
+      input.value = "";
+    }
+  }
+
+  updatePendingImagePreview();
+  setUploadStatus("选择图片后会先预览；点发送才上传。支持 PNG / JPG / WebP / GIF，最大 2.5MB。");
 }
 
 async function uploadImageThroughSignedUrl(file) {

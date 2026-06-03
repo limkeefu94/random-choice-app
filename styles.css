@@ -716,6 +716,42 @@ button {
   line-height: 1.5;
 }
 
+.pending-image-preview {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(96, 199, 160, 0.22);
+  border-radius: 18px;
+  background: rgba(245, 255, 250, 0.74);
+}
+
+.pending-image-preview img {
+  width: 74px;
+  height: 58px;
+  object-fit: cover;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.pending-image-preview strong,
+.pending-image-preview small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.pending-image-preview strong {
+  margin-bottom: 4px;
+  color: #4d3025;
+  font-size: 0.88rem;
+}
+
+.pending-image-preview small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .world-chat-window {
   position: fixed;
   right: 24px;
