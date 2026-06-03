@@ -19,8 +19,8 @@ const MODES = {
     icon: "✈️",
     title: "下一站去哪？",
     short: "旅行灵感",
-    description: "按心情、消费等级和出行方式抽一个目的地，随机后会给出预算范围。",
-    hint: "可按穷游、低消费、自驾游等条件筛选",
+    description: "按想去国家、活动、消费等级和出行方式抽一个目的地，随机后会给出预算范围。",
+    hint: "可按国家、潜水/浮潜/爬山/滑雪等活动筛选",
     label: "旅行目的地",
   },
   number: {
@@ -56,6 +56,7 @@ const DRINK_CATEGORIES = ["全部", "奶茶", "咖啡", "果茶", "纯茶", "冰
 const IMAGE_CONTENT_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const MAX_IMAGE_UPLOAD_BYTES = 2.5 * 1024 * 1024;
 const TRAVEL_MOODS = ["全部", "短途", "放松", "自然", "城市", "美食", "文化", "冒险", "购物", "海岛", "亲子"];
+const TRAVEL_ACTIVITIES = ["全部", "潜水", "浮潜", "海岛跳岛", "爬山", "徒步", "滑雪", "冲浪", "露营", "温泉", "沙漠", "极光", "野生动物", "赏鲸", "骑行", "皮划艇", "漂流", "文化探索", "美食巡礼", "城市漫游", "购物", "亲子乐园", "摄影", "自驾风景"];
 const TRAVEL_LEVELS = ["全部", "穷游", "低消费", "舒适", "轻奢", "奢华"];
 const TRAVEL_TRANSPORTS = ["全部", "公共交通", "自驾游", "自由行", "跟团", "步行城市"];
 const SHOPPING_LEVELS = ["全部", "低消费", "中等", "高消费", "奢侈品", "理性"];
@@ -78,8 +79,8 @@ function drink(brand, title, tags, budget) {
   return { brand, title: `${brand} · ${title}`, drinkTitle: title, tags, budget };
 }
 
-function destination(title, country, days, tags, transports, budgets, note) {
-  return { title, country, days, tags, transports, budgets, note };
+function destination(title, country, days, tags, transports, budgets, note, activities = []) {
+  return { title, country, days, tags, transports, budgets, note, activities };
 }
 
 function shop(title, level, budget, tags = []) {
@@ -822,6 +823,84 @@ const TRAVEL_DATA = [
   destination("巴黎", "法国", "5", ["城市", "文化", "购物"], ["公共交通", "步行城市"], { 舒适: "RM8500-13000", 轻奢: "RM16000-30000", 奢华: "RM45000+" }, "适合博物馆、餐厅和奢侈品购物。"),
 ];
 
+const GLOBAL_TRAVEL_DATA = [
+  ...TRAVEL_DATA,
+  destination("刁曼岛", "马来西亚", "3-4", ["海岛", "自然", "放松"], ["自由行", "跟团"], { 低消费: "RM700-1300", 舒适: "RM1600-2800" }, "适合浮潜、入门潜水和安静海岛假期。", ["浮潜", "潜水", "海岛跳岛"]),
+  destination("神山 / 京那巴鲁山", "马来西亚", "3-4", ["自然", "冒险"], ["跟团", "自由行"], { 低消费: "RM1200-2200", 舒适: "RM2600-4500" }, "爬山名额和向导要提前订，体力门槛较高。", ["爬山", "徒步", "摄影"]),
+  destination("石垣岛", "日本", "4-5", ["海岛", "自然"], ["自由行", "自驾游"], { 舒适: "RM5200-8500", 轻奢: "RM10000-18000" }, "以珊瑚、海龟和蝠鲼潜点闻名，适合海岛慢旅行。", ["潜水", "浮潜", "海岛跳岛"]),
+  destination("富士山五湖", "日本", "3-4", ["自然", "文化", "亲子"], ["公共交通", "自驾游"], { 低消费: "RM2600-4200", 舒适: "RM5200-8500" }, "适合看富士山、温泉和湖区摄影。", ["摄影", "温泉", "自驾风景", "徒步"]),
+  destination("北海道二世谷", "日本", "4-6", ["自然", "冒险"], ["自驾游", "跟团"], { 舒适: "RM7800-13000", 轻奢: "RM15000-28000" }, "雪季滑雪预算较高，非雪季适合自驾和温泉。", ["滑雪", "温泉", "自驾风景"]),
+  destination("屋久岛", "日本", "4-5", ["自然", "冒险"], ["自由行", "跟团"], { 舒适: "RM6000-10000", 轻奢: "RM12000-20000" }, "森林徒步和古杉路线很经典，雨具必备。", ["徒步", "摄影", "野生动物"]),
+  destination("涛岛", "泰国", "4-5", ["海岛", "冒险", "放松"], ["自由行", "跟团"], { 低消费: "RM1200-2200", 舒适: "RM2600-4500" }, "潜水课程和浮潜点密集，适合第一次考潜水证。", ["潜水", "浮潜", "海岛跳岛"]),
+  destination("甲米", "泰国", "4", ["海岛", "自然", "冒险"], ["自由行", "跟团"], { 低消费: "RM1200-2100", 舒适: "RM2600-4500" }, "石灰岩海岸、跳岛、攀岩和皮划艇都好安排。", ["浮潜", "海岛跳岛", "皮划艇", "摄影"]),
+  destination("拉贾安帕特", "印尼", "6-8", ["海岛", "自然", "冒险"], ["跟团", "自由行"], { 舒适: "RM8000-14000", 轻奢: "RM18000-35000" }, "世界级潜水和珊瑚生态，交通复杂、预算较高。", ["潜水", "浮潜", "海岛跳岛", "摄影"]),
+  destination("科莫多国家公园", "印尼", "4-5", ["自然", "冒险", "海岛"], ["跟团", "自由行"], { 舒适: "RM4500-8000", 轻奢: "RM10000-20000" }, "看科莫多龙、船宿、粉红沙滩和蝠鲼潜点。", ["潜水", "浮潜", "野生动物", "海岛跳岛"]),
+  destination("布罗莫火山", "印尼", "3-4", ["自然", "冒险"], ["跟团", "自驾游"], { 低消费: "RM1800-3200", 舒适: "RM4200-7000" }, "日出和火山地貌很震撼，清晨温差大。", ["爬山", "摄影", "自驾风景"]),
+  destination("巴拉望爱妮岛", "菲律宾", "5", ["海岛", "自然", "放松"], ["自由行", "跟团"], { 低消费: "RM2200-3800", 舒适: "RM4800-8000", 轻奢: "RM10000-20000" }, "泻湖、跳岛和浮潜很强，适合海岛控。", ["浮潜", "海岛跳岛", "皮划艇", "摄影"]),
+  destination("科隆", "菲律宾", "5", ["海岛", "冒险", "自然"], ["自由行", "跟团"], { 低消费: "RM2300-4000", 舒适: "RM5200-8500" }, "沉船潜水、湖泊和跳岛路线丰富。", ["潜水", "浮潜", "海岛跳岛"]),
+  destination("锡亚高", "菲律宾", "5-7", ["海岛", "冒险", "放松"], ["自由行"], { 低消费: "RM2200-3800", 舒适: "RM4800-8000" }, "冲浪、泻湖和机车环岛很适合年轻旅行。", ["冲浪", "海岛跳岛", "摄影"]),
+  destination("马尔代夫环礁", "马尔代夫", "4-5", ["海岛", "放松", "亲子"], ["自由行", "跟团"], { 舒适: "RM6500-12000", 轻奢: "RM15000-35000", 奢华: "RM50000+" }, "浮潜、潜水和水上屋是预算重点。", ["浮潜", "潜水", "海岛跳岛"]),
+  destination("加德满都 + 博卡拉", "尼泊尔", "6-8", ["文化", "自然", "冒险"], ["自由行", "跟团"], { 穷游: "RM2500-4200", 低消费: "RM4800-7500", 舒适: "RM9000-15000" }, "适合湖景、寺庙和喜马拉雅徒步入门。", ["徒步", "爬山", "文化探索", "摄影"]),
+  destination("安纳普尔纳小环线", "尼泊尔", "8-12", ["自然", "冒险"], ["跟团", "自由行"], { 低消费: "RM5200-8500", 舒适: "RM10000-18000" }, "长线徒步需要体力、装备和高海拔准备。", ["徒步", "爬山", "摄影"]),
+  destination("拉达克", "印度", "6-8", ["自然", "文化", "冒险"], ["自驾游", "跟团"], { 低消费: "RM4200-7000", 舒适: "RM8500-15000" }, "高原风景、寺院和公路旅行很强，注意适应海拔。", ["自驾风景", "文化探索", "摄影"]),
+  destination("锡吉里耶 + 康提", "斯里兰卡", "6-7", ["文化", "自然", "野生动物"], ["自驾游", "跟团"], { 低消费: "RM3000-5200", 舒适: "RM6500-11000" }, "古城、茶园、火车和野生动物可以串联。", ["文化探索", "野生动物", "摄影"]),
+  destination("下龙湾", "越南", "2-3", ["自然", "放松", "亲子"], ["跟团", "自由行"], { 低消费: "RM900-1600", 舒适: "RM2200-3800" }, "适合游船、皮划艇和石灰岩海景。", ["皮划艇", "摄影", "亲子乐园"]),
+  destination("沙巴 / 萨帕", "越南", "3-4", ["自然", "文化"], ["自由行", "跟团"], { 穷游: "RM800-1400", 低消费: "RM1500-2600", 舒适: "RM3200-5200" }, "梯田徒步和少数民族村落体验。", ["徒步", "文化探索", "摄影"]),
+  destination("暹粒吴哥窟", "柬埔寨", "3-4", ["文化", "摄影"], ["自由行", "跟团"], { 穷游: "RM900-1600", 低消费: "RM1800-3000", 舒适: "RM3800-6500" }, "日出、寺庙群和历史文化密度很高。", ["文化探索", "摄影"]),
+  destination("张家界", "中国", "4-5", ["自然", "冒险", "亲子"], ["跟团", "自由行"], { 低消费: "RM2200-3800", 舒适: "RM4800-8000" }, "玻璃桥、森林公园和山地景观适合拍照。", ["徒步", "爬山", "摄影"]),
+  destination("桂林阳朔", "中国", "4-5", ["自然", "放松", "文化"], ["自由行", "自驾游"], { 穷游: "RM1600-2600", 低消费: "RM3000-4800", 舒适: "RM5800-9500" }, "喀斯特山水、骑行和竹筏路线友好。", ["骑行", "摄影", "文化探索"]),
+  destination("花莲太鲁阁", "台湾", "3-4", ["自然", "冒险"], ["自驾游", "自由行"], { 低消费: "RM1500-2600", 舒适: "RM3200-5500" }, "峡谷、海岸和步道适合自驾风景线。", ["徒步", "自驾风景", "摄影"]),
+  destination("雪岳山", "韩国", "3-4", ["自然", "冒险"], ["公共交通", "跟团"], { 低消费: "RM2000-3300", 舒适: "RM4200-7000" }, "秋色和山岳徒步很经典。", ["徒步", "爬山", "摄影"]),
+  destination("大堡礁", "澳大利亚", "4-6", ["海岛", "自然", "亲子"], ["跟团", "自由行"], { 舒适: "RM8500-14000", 轻奢: "RM17000-30000" }, "适合浮潜、潜水和亲子海洋活动。", ["浮潜", "潜水", "海岛跳岛"]),
+  destination("宁格鲁海岸", "澳大利亚", "5-7", ["自然", "冒险"], ["自驾游", "跟团"], { 舒适: "RM9500-16000", 轻奢: "RM19000-35000" }, "季节性鲸鲨、珊瑚礁和西澳自驾。", ["浮潜", "潜水", "赏鲸", "自驾风景"]),
+  destination("塔斯马尼亚", "澳大利亚", "6-8", ["自然", "放松", "冒险"], ["自驾游"], { 舒适: "RM9000-15000", 轻奢: "RM18000-32000" }, "国家公园、自驾、徒步和海岸风景很强。", ["徒步", "自驾风景", "野生动物", "摄影"]),
+  destination("皇后镇", "新西兰", "5-7", ["自然", "冒险"], ["自驾游", "自由行"], { 舒适: "RM9500-16000", 轻奢: "RM19000-35000" }, "蹦极、湖景、滑雪和峡湾路线都可组合。", ["滑雪", "自驾风景", "皮划艇", "摄影"]),
+  destination("汤加里罗国家公园", "新西兰", "3-4", ["自然", "冒险"], ["自驾游", "跟团"], { 舒适: "RM7500-12000", 轻奢: "RM15000-26000" }, "火山徒步路线经典，天气窗口很重要。", ["徒步", "爬山", "摄影"]),
+  destination("斐济玛玛努卡群岛", "斐济", "5-6", ["海岛", "放松", "亲子"], ["自由行", "跟团"], { 舒适: "RM9000-16000", 轻奢: "RM20000-38000" }, "海岛跳岛、珊瑚和度假村体验。", ["浮潜", "潜水", "海岛跳岛"]),
+  destination("大溪地波拉波拉", "法属波利尼西亚", "5-6", ["海岛", "放松"], ["自由行"], { 轻奢: "RM25000-45000", 奢华: "RM60000+" }, "顶级海岛和水上屋目的地，适合蜜月和预算充足时。", ["浮潜", "潜水", "摄影"]),
+  destination("班夫国家公园", "加拿大", "5-7", ["自然", "冒险"], ["自驾游", "跟团"], { 舒适: "RM9000-15000", 轻奢: "RM18000-32000" }, "湖泊、雪山和自驾风景线非常经典。", ["徒步", "自驾风景", "摄影", "滑雪"]),
+  destination("温哥华岛", "加拿大", "4-6", ["自然", "放松"], ["自驾游", "自由行"], { 舒适: "RM8500-14000", 轻奢: "RM17000-30000" }, "雨林、海岸、赏鲸和小镇慢旅行。", ["赏鲸", "徒步", "自驾风景"]),
+  destination("黄石国家公园", "美国", "5-7", ["自然", "亲子", "冒险"], ["自驾游", "跟团"], { 舒适: "RM12000-20000", 轻奢: "RM25000-45000" }, "地热、野生动物和公路旅行路线经典。", ["野生动物", "自驾风景", "摄影"]),
+  destination("夏威夷欧胡 + 茂宜", "美国", "5-7", ["海岛", "放松", "冒险"], ["自驾游", "自由行"], { 舒适: "RM12000-20000", 轻奢: "RM25000-45000" }, "冲浪、浮潜、火山和海岸公路都能组合。", ["冲浪", "浮潜", "自驾风景", "徒步"]),
+  destination("阿拉斯加", "美国", "6-8", ["自然", "冒险"], ["自驾游", "跟团"], { 舒适: "RM15000-26000", 轻奢: "RM32000-60000" }, "冰川、野生动物、邮轮和极光季都值得规划。", ["野生动物", "赏鲸", "极光", "摄影"]),
+  destination("尤卡坦 / 图卢姆", "墨西哥", "5-6", ["海岛", "文化", "放松"], ["自由行", "自驾游"], { 低消费: "RM6500-10000", 舒适: "RM12000-20000" }, "玛雅遗址、洞穴水井、浮潜和加勒比海滩。", ["浮潜", "潜水", "文化探索"]),
+  destination("下加利福尼亚", "墨西哥", "5-7", ["自然", "冒险", "海岛"], ["自驾游", "跟团"], { 舒适: "RM11000-18000", 轻奢: "RM22000-40000" }, "季节性赏鲸、海狮和沙漠海岸景观。", ["赏鲸", "浮潜", "自驾风景"]),
+  destination("阿雷纳尔 + 蒙特维德", "哥斯达黎加", "6-8", ["自然", "冒险", "亲子"], ["自驾游", "跟团"], { 舒适: "RM9500-16000", 轻奢: "RM19000-33000" }, "火山、云雾林、吊桥、温泉和野生动物。", ["野生动物", "温泉", "徒步", "摄影"]),
+  destination("加拉帕戈斯群岛", "厄瓜多尔", "6-8", ["海岛", "自然", "冒险"], ["跟团"], { 舒适: "RM18000-32000", 轻奢: "RM38000-70000" }, "野生动物、浮潜和生态旅行预算较高。", ["浮潜", "潜水", "野生动物", "摄影"]),
+  destination("马丘比丘 + 圣谷", "秘鲁", "6-8", ["文化", "自然", "冒险"], ["跟团", "自由行"], { 舒适: "RM10000-17000", 轻奢: "RM21000-38000" }, "印加遗址、高山景观和徒步路线很经典。", ["徒步", "文化探索", "摄影"]),
+  destination("巴塔哥尼亚", "智利", "7-10", ["自然", "冒险"], ["跟团", "自驾游"], { 舒适: "RM16000-28000", 轻奢: "RM35000-65000" }, "百内国家公园、冰川和长线徒步。", ["徒步", "爬山", "摄影", "自驾风景"]),
+  destination("阿塔卡马沙漠", "智利", "4-5", ["自然", "冒险"], ["跟团", "自驾游"], { 舒适: "RM12000-20000", 轻奢: "RM25000-45000" }, "沙漠、盐湖、星空和高原地貌。", ["沙漠", "摄影", "自驾风景"]),
+  destination("里约热内卢", "巴西", "4-5", ["城市", "海岛", "文化"], ["自由行", "跟团"], { 舒适: "RM11000-18000", 轻奢: "RM22000-40000" }, "海滩、城市景观、桑巴和山海风景。", ["城市漫游", "文化探索", "摄影"]),
+  destination("亚马逊雨林", "巴西", "5-7", ["自然", "冒险"], ["跟团"], { 舒适: "RM12000-22000", 轻奢: "RM28000-52000" }, "雨林生态、河流和野生动物观察，适合深度自然行。", ["野生动物", "皮划艇", "摄影"]),
+  destination("冰岛环岛", "冰岛", "7-10", ["自然", "冒险"], ["自驾游", "跟团"], { 舒适: "RM14000-24000", 轻奢: "RM30000-55000" }, "瀑布、冰川、火山和极光季都很强，自驾要看天气。", ["自驾风景", "极光", "徒步", "摄影"]),
+  destination("罗弗敦群岛", "挪威", "5-7", ["自然", "冒险"], ["自驾游", "自由行"], { 舒适: "RM14000-24000", 轻奢: "RM30000-55000" }, "峡湾、渔村、极光和摄影路线非常突出。", ["极光", "自驾风景", "摄影", "徒步"]),
+  destination("因特拉肯", "瑞士", "4-5", ["自然", "冒险", "亲子"], ["公共交通", "自由行"], { 舒适: "RM12000-20000", 轻奢: "RM25000-45000" }, "雪山、湖区、滑翔伞和火车风景线。", ["爬山", "徒步", "自驾风景", "摄影"]),
+  destination("采尔马特", "瑞士", "4-5", ["自然", "放松"], ["公共交通", "自由行"], { 舒适: "RM13000-22000", 轻奢: "RM28000-52000" }, "马特洪峰、滑雪和高山徒步路线。", ["滑雪", "爬山", "徒步", "摄影"]),
+  destination("多洛米蒂", "意大利", "5-7", ["自然", "冒险"], ["自驾游", "自由行"], { 舒适: "RM12000-20000", 轻奢: "RM26000-48000" }, "山景公路、湖泊和徒步摄影路线密集。", ["徒步", "爬山", "自驾风景", "摄影"]),
+  destination("阿马尔菲海岸", "意大利", "4-5", ["放松", "文化", "美食"], ["自驾游", "公共交通"], { 舒适: "RM11000-18000", 轻奢: "RM24000-45000" }, "海岸小镇、美食和风景路，旺季住宿贵。", ["自驾风景", "美食巡礼", "摄影"]),
+  destination("霞慕尼", "法国", "4-5", ["自然", "冒险"], ["公共交通", "自由行"], { 舒适: "RM11000-19000", 轻奢: "RM24000-45000" }, "阿尔卑斯山地户外、滑雪和登山氛围强。", ["滑雪", "爬山", "徒步", "摄影"]),
+  destination("加那利群岛", "西班牙", "5-7", ["海岛", "自然", "冒险"], ["自驾游", "自由行"], { 舒适: "RM10000-17000", 轻奢: "RM22000-40000" }, "火山、海岸、潜水和全年温和气候。", ["潜水", "徒步", "冲浪", "自驾风景"]),
+  destination("亚速尔群岛", "葡萄牙", "5-7", ["自然", "海岛", "冒险"], ["自驾游", "跟团"], { 舒适: "RM11000-19000", 轻奢: "RM24000-45000" }, "火山湖、温泉、赏鲸和海岛自驾。", ["赏鲸", "温泉", "徒步", "自驾风景"]),
+  destination("圣托里尼", "希腊", "3-4", ["海岛", "放松", "摄影"], ["自由行"], { 舒适: "RM9000-15000", 轻奢: "RM20000-38000" }, "日落、白色小镇和爱琴海摄影。", ["摄影", "海岛跳岛", "美食巡礼"]),
+  destination("卡帕多奇亚", "土耳其", "3-4", ["文化", "自然", "摄影"], ["跟团", "自由行"], { 低消费: "RM4500-7500", 舒适: "RM9000-15000" }, "热气球、洞穴酒店和奇岩地貌。", ["摄影", "文化探索", "徒步"]),
+  destination("撒哈拉沙漠", "摩洛哥", "4-5", ["自然", "文化", "冒险"], ["跟团", "自驾游"], { 低消费: "RM4800-8000", 舒适: "RM9500-16000" }, "沙漠营地、骑骆驼、星空和古城可串联。", ["沙漠", "露营", "摄影", "文化探索"]),
+  destination("红海赫尔格达", "埃及", "4-5", ["海岛", "冒险", "放松"], ["自由行", "跟团"], { 舒适: "RM8000-14000", 轻奢: "RM17000-32000" }, "红海潜水和度假村体验，适合搭配古埃及文化线。", ["潜水", "浮潜", "海岛跳岛"]),
+  destination("卢克索 + 开罗", "埃及", "5-7", ["文化", "摄影"], ["跟团", "自由行"], { 低消费: "RM6500-10000", 舒适: "RM12000-20000" }, "金字塔、神庙和尼罗河历史线。", ["文化探索", "摄影"]),
+  destination("开普敦", "南非", "5-7", ["城市", "自然", "美食"], ["自驾游", "自由行"], { 舒适: "RM10000-17000", 轻奢: "RM22000-40000" }, "桌山、酒庄、海岸公路和城市美食。", ["爬山", "自驾风景", "美食巡礼", "摄影"]),
+  destination("克鲁格国家公园", "南非", "4-6", ["自然", "冒险"], ["自驾游", "跟团"], { 舒适: "RM12000-22000", 轻奢: "RM28000-60000" }, "非洲野生动物 Safari，住宿级别决定预算。", ["野生动物", "摄影", "自驾风景"]),
+  destination("马赛马拉", "肯尼亚", "4-6", ["自然", "冒险"], ["跟团"], { 舒适: "RM13000-23000", 轻奢: "RM30000-65000" }, "草原 Safari 和动物大迁徙季最热门。", ["野生动物", "摄影"]),
+  destination("瓦塔穆海岸", "肯尼亚", "3-4", ["海岛", "自然"], ["自由行", "跟团"], { 舒适: "RM8500-15000", 轻奢: "RM18000-35000" }, "海洋国家公园、浮潜和海岸放松。", ["浮潜", "潜水", "野生动物"]),
+  destination("乞力马扎罗", "坦桑尼亚", "6-8", ["自然", "冒险"], ["跟团"], { 舒适: "RM13000-23000", 轻奢: "RM28000-52000" }, "非洲高峰徒步挑战，需要向导和体能准备。", ["爬山", "徒步", "摄影"]),
+  destination("桑给巴尔", "坦桑尼亚", "4-5", ["海岛", "文化", "放松"], ["自由行", "跟团"], { 舒适: "RM9000-16000", 轻奢: "RM20000-38000" }, "海滩、石头城、香料岛和潜水浮潜。", ["浮潜", "潜水", "文化探索"]),
+  destination("塞舌尔", "塞舌尔", "5-6", ["海岛", "放松", "自然"], ["自由行"], { 轻奢: "RM18000-35000", 奢华: "RM50000+" }, "花岗岩海滩、海龟和轻奢海岛度假。", ["浮潜", "潜水", "野生动物", "摄影"]),
+  destination("毛里求斯", "毛里求斯", "5-6", ["海岛", "亲子", "放松"], ["自驾游", "自由行"], { 舒适: "RM11000-19000", 轻奢: "RM24000-45000" }, "海滩、火山地貌、亲子度假和自驾。", ["浮潜", "自驾风景", "亲子乐园"]),
+  destination("瓦迪拉姆 + 佩特拉", "约旦", "4-6", ["文化", "自然", "冒险"], ["自驾游", "跟团"], { 舒适: "RM8500-15000", 轻奢: "RM18000-33000" }, "沙漠营地、古城遗址和公路旅行。", ["沙漠", "露营", "文化探索", "摄影"]),
+];
+
+const TRAVEL_COUNTRIES = ["全部", ...new Set(GLOBAL_TRAVEL_DATA.map((item) => item.country))].sort((first, second) =>
+  first === "全部" ? -1 : second === "全部" ? 1 : first.localeCompare(second, "zh-CN"),
+);
+
 const SHOPPING_DATA = {
   生活补给: [
     shop("洗衣凝珠", "低消费", "RM18-45"),
@@ -947,7 +1026,9 @@ const state = {
     category: "全部",
   },
   travel: {
+    country: "全部",
     mood: "全部",
+    activity: "全部",
     level: "全部",
     transport: "全部",
   },
@@ -1484,11 +1565,32 @@ function renderWorldControls() {
 }
 
 function renderTravelControls() {
+  const countryOptions = TRAVEL_COUNTRIES.includes(state.travel.country) ? TRAVEL_COUNTRIES : ["全部", ...TRAVEL_COUNTRIES];
+  const currentCountry = countryOptions.includes(state.travel.country) ? state.travel.country : "全部";
+  const currentActivity = TRAVEL_ACTIVITIES.includes(state.travel.activity) ? state.travel.activity : "全部";
+  state.travel.country = currentCountry;
+  state.travel.activity = currentActivity;
+
   elements.modeControls.innerHTML = `
+    <div class="field travel-country-field">
+      <label for="travelCountry">想去国家</label>
+      <select id="travelCountry">
+        ${countryOptions.map((country) => `<option value="${country}" ${country === currentCountry ? "selected" : ""}>${country}</option>`).join("")}
+      </select>
+      <div class="travel-chip-row" aria-label="热门国家快捷按钮">
+        ${countryOptions.slice(0, 18).map((country) => `<button class="travel-filter-chip${country === currentCountry ? " is-active" : ""}" type="button" data-travel-country="${country}">${country}</button>`).join("")}
+      </div>
+    </div>
     <div class="field">
       <label for="travelMood">旅行心情</label>
       <select id="travelMood">
         ${TRAVEL_MOODS.map((mood) => `<option value="${mood}" ${mood === state.travel.mood ? "selected" : ""}>${mood}</option>`).join("")}
+      </select>
+    </div>
+    <div class="field">
+      <label for="travelActivity">想要活动</label>
+      <select id="travelActivity">
+        ${TRAVEL_ACTIVITIES.map((activity) => `<option value="${activity}" ${activity === currentActivity ? "selected" : ""}>${activity}</option>`).join("")}
       </select>
     </div>
     <div class="field">
@@ -1505,12 +1607,34 @@ function renderTravelControls() {
     </div>
     <div class="field">
       <label for="travelNote">朋友提案</label>
-      <input id="travelNote" value="锁定 5 个地点后，只在这些地点里随机" readonly />
+      <input id="travelNote" value="全球精选地点 + 国家/活动筛选；点候选可锁定朋友提案" readonly />
     </div>
   `;
 
+  document.querySelector("#travelCountry").addEventListener("change", (event) => {
+    state.travel.country = event.target.value;
+    saveState();
+    renderControls();
+    renderPreview();
+  });
+
+  document.querySelectorAll("[data-travel-country]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.travel.country = button.dataset.travelCountry;
+      saveState();
+      renderControls();
+      renderPreview();
+    });
+  });
+
   document.querySelector("#travelMood").addEventListener("change", (event) => {
     state.travel.mood = event.target.value;
+    saveState();
+    renderPreview();
+  });
+
+  document.querySelector("#travelActivity").addEventListener("change", (event) => {
+    state.travel.activity = event.target.value;
     saveState();
     renderPreview();
   });
@@ -1803,7 +1927,8 @@ function getOptionDetails(item) {
   }
 
   if (state.mode === "travel") {
-    return `${item.country} · ${getBudgetText(item)}`;
+    const activities = getDestinationActivities(item).slice(0, 3).join(" · ");
+    return `${item.country} · ${activities} · ${getBudgetText(item)}`;
   }
 
   if (state.mode === "shopping") {
@@ -1818,13 +1943,110 @@ function getOptionDetails(item) {
 }
 
 function getFilteredTravel() {
-  return TRAVEL_DATA.filter((item) => {
+  return GLOBAL_TRAVEL_DATA.filter((item) => {
+    const countryMatches = state.travel.country === "全部" || item.country === state.travel.country;
     const moodMatches = state.travel.mood === "全部" || item.tags.includes(state.travel.mood);
+    const activityMatches = state.travel.activity === "全部" || getDestinationActivities(item).includes(state.travel.activity);
     const levelMatches = state.travel.level === "全部" || item.budgets[state.travel.level];
     const transportMatches = state.travel.transport === "全部" || item.transports.includes(state.travel.transport);
 
-    return moodMatches && levelMatches && transportMatches;
+    return countryMatches && moodMatches && activityMatches && levelMatches && transportMatches;
   });
+}
+
+function getDestinationActivities(item) {
+  const activities = new Set(item.activities || []);
+  const searchableText = `${item.title} ${item.country} ${item.note} ${item.tags.join(" ")} ${item.transports.join(" ")}`;
+
+  if (/(潜水|diving|沉船|珊瑚|蝠鲼|鲸鲨|红海|reef)/i.test(searchableText)) {
+    activities.add("潜水");
+  }
+
+  if (/(浮潜|跳岛|泻湖|珊瑚|海岛|snorkel|reef)/i.test(searchableText)) {
+    activities.add("浮潜");
+  }
+
+  if (/(山|爬山|登山|高峰|火山|高原|mount|peak)/i.test(searchableText)) {
+    activities.add("爬山");
+  }
+
+  if (/(徒步|步道|森林|trail|hiking|国家公园)/i.test(searchableText)) {
+    activities.add("徒步");
+  }
+
+  if (/(滑雪|雪季|雪山|ski)/i.test(searchableText)) {
+    activities.add("滑雪");
+  }
+
+  if (/(冲浪|surf)/i.test(searchableText)) {
+    activities.add("冲浪");
+  }
+
+  if (/(露营|营地|camp)/i.test(searchableText)) {
+    activities.add("露营");
+  }
+
+  if (/(温泉|hot spring)/i.test(searchableText)) {
+    activities.add("温泉");
+  }
+
+  if (/(沙漠|撒哈拉|desert)/i.test(searchableText)) {
+    activities.add("沙漠");
+  }
+
+  if (/(极光|aurora)/i.test(searchableText)) {
+    activities.add("极光");
+  }
+
+  if (/(野生动物|safari|动物|鲸|海龟|海狮|whale)/i.test(searchableText)) {
+    activities.add("野生动物");
+  }
+
+  if (/(赏鲸|鲸|whale)/i.test(searchableText)) {
+    activities.add("赏鲸");
+  }
+
+  if (/(骑行|自行车|cycling|bike)/i.test(searchableText)) {
+    activities.add("骑行");
+  }
+
+  if (/(皮划艇|kayak|独木舟)/i.test(searchableText)) {
+    activities.add("皮划艇");
+  }
+
+  if (/(漂流|rafting)/i.test(searchableText)) {
+    activities.add("漂流");
+  }
+
+  if (/(文化|寺|古城|遗址|博物馆|历史|神庙)/i.test(searchableText)) {
+    activities.add("文化探索");
+  }
+
+  if (/(美食|餐厅|小吃|咖啡|夜市)/i.test(searchableText)) {
+    activities.add("美食巡礼");
+  }
+
+  if (/(城市|购物|商场|地铁)/i.test(searchableText)) {
+    activities.add("城市漫游");
+  }
+
+  if (/(购物|奢侈品|商场)/i.test(searchableText)) {
+    activities.add("购物");
+  }
+
+  if (/(亲子|乐园|家庭)/i.test(searchableText)) {
+    activities.add("亲子乐园");
+  }
+
+  if (/(摄影|日出|日落|星空|风景|景观)/i.test(searchableText)) {
+    activities.add("摄影");
+  }
+
+  if (/(自驾|公路|环岛|环线|road)/i.test(searchableText)) {
+    activities.add("自驾风景");
+  }
+
+  return [...activities];
 }
 
 function getResult() {
@@ -1860,11 +2082,12 @@ function getResult() {
   if (state.mode === "travel") {
     const travelResult = choose(pool);
     const budgetText = getBudgetText(travelResult, false);
+    const activityText = getDestinationActivities(travelResult).slice(0, 3).join(" / ");
 
     return {
       mode: state.mode,
       title: travelResult.title,
-      meta: `${travelResult.country} · ${travelResult.days} 天 · ${state.travel.transport === "全部" ? travelResult.transports[0] : state.travel.transport} · 预算约 ${budgetText}/人${poolNote}。${travelResult.note}`,
+      meta: `${travelResult.country} · ${travelResult.days} 天 · ${activityText} · ${state.travel.transport === "全部" ? travelResult.transports[0] : state.travel.transport} · 预算约 ${budgetText}/人${poolNote}。${travelResult.note}`,
     };
   }
 
