@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "check": "node --check app.js && node --check api/gcs-signed-url.js"
+    "check": "node --check app.js && node --check api/gcs-signed-url.js && node --check api/gcs-upload.js"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.16.0"

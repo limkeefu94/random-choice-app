@@ -676,19 +676,44 @@ button {
   padding: 8px 12px;
 }
 
-.disabled-upload {
+.image-upload-button {
   display: inline-flex;
   align-items: center;
   min-height: 46px;
   padding: 0 14px;
   border: 1px dashed rgba(80, 45, 24, 0.16);
   border-radius: 999px;
-  color: var(--muted);
-  background: rgba(255, 255, 255, 0.54);
+  color: #6b4d3e;
+  cursor: pointer;
+  background:
+    linear-gradient(135deg, rgba(96, 199, 160, 0.16), rgba(255, 255, 255, 0.68)),
+    rgba(255, 255, 255, 0.54);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
 }
 
-.disabled-upload input {
+.image-upload-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(96, 199, 160, 0.38);
+  background: #fff;
+}
+
+.image-upload-button.is-uploading {
+  cursor: wait;
+  color: var(--muted);
+  opacity: 0.74;
+}
+
+.image-upload-button input {
   display: none;
+}
+
+.upload-status {
+  display: block;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .world-chat-window {
@@ -788,6 +813,31 @@ button {
   color: #5f4638;
   line-height: 1.6;
   white-space: pre-wrap;
+}
+
+.world-image-link {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  color: #6b4d3e;
+  text-decoration: none;
+}
+
+.world-image-link img {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  border: 1px solid rgba(80, 45, 24, 0.1);
+  border-radius: 18px;
+  background: #fff7ef;
+}
+
+.world-image-link span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .chip-cloud {

@@ -53,6 +53,9 @@ const FOOD_CATEGORIES = ["全部", "Mamak", "快餐连锁", "外卖平台热门"
 const SPECIAL_FOOD_CATEGORIES = new Set(["Mamak", "快餐连锁", "外卖平台热门"]);
 const SPECIAL_REGION_KEYS = new Set(["全国 Mamak", "快餐连锁", "外卖平台热门"]);
 const DRINK_CATEGORIES = ["全部", "奶茶", "咖啡", "果茶", "纯茶", "冰沙", "冰淇淋", "低糖", "高热量", "健康类", "外卖热门"];
+const IMAGE_CONTENT_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const MAX_IMAGE_UPLOAD_BYTES = 8 * 1024 * 1024;
+const FALLBACK_IMAGE_UPLOAD_BYTES = 2.5 * 1024 * 1024;
 const TRAVEL_MOODS = ["全部", "短途", "放松", "自然", "城市", "美食", "文化", "冒险", "购物", "海岛", "亲子"];
 const TRAVEL_LEVELS = ["全部", "穷游", "低消费", "舒适", "轻奢", "奢华"];
 const TRAVEL_TRANSPORTS = ["全部", "公共交通", "自驾游", "自由行", "跟团", "步行城市"];
@@ -1423,11 +1426,12 @@ function renderWorldControls() {
       </div>
       <div class="custom-actions">
         <button class="primary-button compact-primary" type="submit">发送消息</button>
-        <label class="disabled-upload">
-          <input type="file" disabled />
-          图片/附件：接 GCS 后启用
+        <label class="image-upload-button">
+          <input id="worldImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
+          上传图片
         </label>
       </div>
+      <small class="upload-status" id="worldUploadStatus">支持 PNG / JPG / WebP / GIF，最大 8MB。</small>
     </form>
   `;
 
@@ -1436,6 +1440,7 @@ function renderWorldControls() {
     event.preventDefault();
     sendWorldMessage();
   });
+  document.querySelector("#worldImageInput").addEventListener("change", uploadWorldImage);
 }
 
 function renderTravelControls() {
@@ -1697,12 +1702,28 @@ function renderWorldChannel() {
                 <strong>${escapeHtml(message.user)}</strong>
                 <small>${escapeHtml(message.time)}</small>
               </div>
-              <p>${escapeHtml(message.text)}</p>
+              ${message.text ? `<p>${escapeHtml(message.text)}</p>` : ""}
+              ${renderWorldAttachment(message.attachment)}
             </article>
           `,
         )
         .join("")}
     </div>
+  `;
+}
+
+function renderWorldAttachment(attachment) {
+  if (!attachment || attachment.type !== "image" || !attachment.url) {
+    return "";
+  }
+
+  const imageName = attachment.name || "上传图片";
+
+  return `
+    <a class="world-image-link" href="${escapeHtml(attachment.url)}" target="_blank" rel="noreferrer">
+      <img src="${escapeHtml(attachment.url)}" alt="${escapeHtml(imageName)}" loading="lazy" />
+      <span>${escapeHtml(imageName)}</span>
+    </a>
   `;
 }
 
@@ -1990,6 +2011,25 @@ function logoutUser() {
   showToast("已登出世界频道。");
 }
 
+function addWorldMessage({ user, text, attachment }) {
+  state.worldMessages = [
+    ...state.worldMessages,
+    {
+      id: `${Date.now()}-${randomInt(1000)}`,
+      user,
+      text,
+      attachment,
+      time: new Intl.DateTimeFormat("zh-CN", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date()),
+    },
+  ].slice(-80);
+  state.worldOpen = true;
+  saveState();
+  render();
+}
+
 function sendWorldMessage() {
   const currentUser = getCurrentUser();
   const input = document.querySelector("#worldMessageInput");
@@ -2005,24 +2045,187 @@ function sendWorldMessage() {
     return;
   }
 
-  state.worldMessages = [
-    ...state.worldMessages,
-    {
-      id: `${Date.now()}-${randomInt(1000)}`,
-      user: currentUser.username,
-      text,
-      time: new Intl.DateTimeFormat("zh-CN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(new Date()),
-    },
-  ].slice(-80);
-
+  addWorldMessage({
+    user: currentUser.username,
+    text,
+  });
   input.value = "";
-  state.worldOpen = true;
-  saveState();
-  render();
   showToast("消息已发送到世界频道。");
+}
+
+async function uploadWorldImage(event) {
+  const currentUser = getCurrentUser();
+  const input = event.target;
+  const file = input.files?.[0];
+
+  if (!file) {
+    return;
+  }
+
+  if (!currentUser) {
+    input.value = "";
+    showToast("请先登入再上传图片。");
+    return;
+  }
+
+  if (!IMAGE_CONTENT_TYPES.has(file.type)) {
+    input.value = "";
+    showToast("只支持 PNG / JPG / WebP / GIF 图片。");
+    return;
+  }
+
+  if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+    input.value = "";
+    showToast("图片不能超过 8MB。");
+    return;
+  }
+
+  const uploadStatus = document.querySelector("#worldUploadStatus");
+  const uploadButton = document.querySelector(".image-upload-button");
+  input.disabled = true;
+  uploadButton?.classList.add("is-uploading");
+  setUploadStatus("正在上传图片到 Google Cloud Storage…");
+  let uploadSucceeded = false;
+
+  try {
+    const attachment = await uploadImageThroughSignedUrl(file);
+    addImageMessage(currentUser.username, file, attachment);
+    uploadSucceeded = true;
+    showToast("图片已上传到世界频道。");
+  } catch (signedUrlError) {
+    try {
+      if (file.size > FALLBACK_IMAGE_UPLOAD_BYTES) {
+        throw signedUrlError;
+      }
+
+      setUploadStatus("直传被拦截，正在使用 Vercel 备用上传…");
+      const attachment = await uploadImageThroughServer(file);
+      addImageMessage(currentUser.username, file, attachment);
+      uploadSucceeded = true;
+      showToast("图片已通过备用通道上传。");
+    } catch (fallbackError) {
+      setUploadStatus(`上传失败：${fallbackError.message || signedUrlError.message}`);
+      showToast("图片上传失败，请检查 GCS 权限或 CORS。");
+    }
+  } finally {
+    input.value = "";
+    input.disabled = false;
+    uploadButton?.classList.remove("is-uploading");
+
+    if (!uploadSucceeded && (uploadStatus?.textContent.startsWith("正在") || uploadStatus?.textContent.startsWith("直传"))) {
+      setUploadStatus("支持 PNG / JPG / WebP / GIF，最大 8MB。");
+    }
+  }
+}
+
+function addImageMessage(username, file, attachment) {
+  addWorldMessage({
+    user: username,
+    text: `上传了一张图片：${file.name}`,
+    attachment: {
+      type: "image",
+      name: file.name,
+      contentType: file.type,
+      ...attachment,
+    },
+  });
+  setUploadStatus("图片已上传成功。");
+}
+
+async function uploadImageThroughSignedUrl(file) {
+  const signedResponse = await fetch("/api/gcs-signed-url", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      fileName: file.name,
+      contentType: file.type,
+      fileSize: file.size,
+    }),
+  });
+  const signedPayload = await readJsonResponse(signedResponse);
+
+  if (!signedResponse.ok || !signedPayload.uploadUrl) {
+    throw new Error(signedPayload.detail || signedPayload.error || "无法生成上传授权");
+  }
+
+  const uploadResponse = await fetch(signedPayload.uploadUrl, {
+    method: signedPayload.method || "PUT",
+    headers: signedPayload.headers || {
+      "Content-Type": file.type,
+    },
+    body: file,
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error(`GCS 上传失败：${uploadResponse.status}`);
+  }
+
+  return {
+    url: signedPayload.viewUrl || signedPayload.publicUrl,
+    publicUrl: signedPayload.publicUrl,
+    objectName: signedPayload.objectName || signedPayload.filePath,
+    transport: "signed-url",
+  };
+}
+
+async function uploadImageThroughServer(file) {
+  const uploadResponse = await fetch("/api/gcs-upload", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      fileName: file.name,
+      contentType: file.type,
+      fileSize: file.size,
+      data: await fileToBase64(file),
+    }),
+  });
+  const uploadPayload = await readJsonResponse(uploadResponse);
+
+  if (!uploadResponse.ok || !uploadPayload.url) {
+    throw new Error(uploadPayload.detail || uploadPayload.error || "备用上传失败");
+  }
+
+  return {
+    url: uploadPayload.url,
+    publicUrl: uploadPayload.publicUrl,
+    objectName: uploadPayload.objectName,
+    transport: "server-upload",
+  };
+}
+
+async function readJsonResponse(response) {
+  const text = await response.text();
+
+  try {
+    return JSON.parse(text || "{}");
+  } catch {
+    return { error: text || response.statusText };
+  }
+}
+
+async function fileToBase64(file) {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    const chunk = bytes.subarray(index, index + 0x8000);
+    binary += String.fromCharCode(...chunk);
+  }
+
+  return btoa(binary);
+}
+
+function setUploadStatus(message) {
+  const uploadStatus = document.querySelector("#worldUploadStatus");
+
+  if (uploadStatus) {
+    uploadStatus.textContent = message;
+  }
 }
 
 function isValidUsername(username) {
