@@ -261,6 +261,22 @@ button {
   font-size: 1rem;
 }
 
+.mode-menu-hint {
+  display: none;
+  margin: 10px 4px 0;
+  padding: 10px 12px;
+  border: 1px dashed rgba(255, 122, 61, 0.32);
+  border-radius: 16px;
+  color: var(--muted);
+  background: rgba(255, 248, 239, 0.72);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.mode-menu-hint::before {
+  content: "👆 ";
+}
+
 .sidebar-world {
   display: grid;
   gap: 10px;
@@ -1228,6 +1244,19 @@ button {
 
   .mode-menu-toggle {
     display: block;
+  }
+
+  .mode-menu-hint {
+    display: block;
+  }
+
+  .sidebar.is-menu-open .mode-menu-hint {
+    border-color: rgba(96, 199, 160, 0.28);
+    background: rgba(232, 250, 243, 0.72);
+  }
+
+  .sidebar.is-menu-open .mode-menu-hint::before {
+    content: "✅ ";
   }
 
   .mode-list,
