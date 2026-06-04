@@ -702,6 +702,66 @@ button {
   line-height: 1.6;
 }
 
+.world-avatar {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.98rem;
+  font-weight: 900;
+  background:
+    radial-gradient(circle at 28% 24%, rgba(255, 255, 255, 0.36), transparent 32%),
+    linear-gradient(135deg, var(--accent), var(--mint));
+  box-shadow: 0 10px 22px rgba(96, 199, 160, 0.24);
+}
+
+.identity-panel {
+  padding: 10px 12px;
+  border-color: rgba(96, 199, 160, 0.24);
+  background: rgba(245, 255, 250, 0.74);
+}
+
+.world-identity-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.world-identity-avatar {
+  width: 42px;
+  height: 42px;
+}
+
+.world-identity-copy {
+  min-width: 0;
+}
+
+.world-identity-copy strong,
+.world-identity-copy small {
+  display: block;
+}
+
+.world-identity-copy strong {
+  overflow: hidden;
+  color: #4d3025;
+  font-size: 0.96rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.world-identity-copy small {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .auth-mode-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -960,18 +1020,25 @@ button {
 }
 
 .world-message {
-  padding: 14px;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.68);
 }
 
-.world-message div {
+.world-message-main {
+  min-width: 0;
+}
+
+.world-message-header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 7px;
+  margin-bottom: 6px;
 }
 
 .world-message strong {
@@ -991,7 +1058,6 @@ button {
 
 .world-image-link {
   display: grid;
-  gap: 8px;
   margin-top: 10px;
   color: #6b4d3e;
   text-decoration: none;
@@ -1005,13 +1071,6 @@ button {
   border: 1px solid rgba(80, 45, 24, 0.1);
   border-radius: 18px;
   background: #fff7ef;
-}
-
-.world-image-link span {
-  color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
 }
 
 .chip-cloud {

@@ -1581,11 +1581,14 @@ function renderWorldControls() {
 
   elements.worldAuthPanel.innerHTML = `
     <div class="world-panel identity-panel">
-      <div class="world-panel-header">
-        <strong>已登入：${escapeHtml(currentUser.username)}</strong>
+      <div class="world-identity-card">
+        <span class="world-avatar world-identity-avatar" aria-hidden="true">${escapeHtml(getAvatarText(currentUser.username))}</span>
+        <div class="world-identity-copy">
+          <strong>${escapeHtml(currentUser.username)}</strong>
+          <small data-cloud-sync-identity>${escapeHtml(getCloudIdentityText())}</small>
+        </div>
         <button class="ghost-button compact-ghost" id="logoutButton" type="button">登出</button>
       </div>
-      <p data-cloud-sync-identity>匿名 ID：${escapeHtml(getShortUserId())}。${escapeHtml(getCloudSyncLabel())}；图片上传后会记录到 Firestore uploads。</p>
     </div>
     <form class="world-panel message-panel" id="worldMessageForm">
       <div class="field">
@@ -1919,12 +1922,15 @@ function renderWorldChannel() {
         .map(
           (message) => `
             <article class="world-message">
-              <div>
-                <strong>${escapeHtml(message.user)}</strong>
-                <small>${escapeHtml(message.time)}</small>
+              <span class="world-avatar world-message-avatar" aria-hidden="true">${escapeHtml(getAvatarText(message.user))}</span>
+              <div class="world-message-main">
+                <div class="world-message-header">
+                  <strong>${escapeHtml(message.user)}</strong>
+                  <small>${escapeHtml(message.time)}</small>
+                </div>
+                ${getWorldMessageText(message) ? `<p>${escapeHtml(getWorldMessageText(message))}</p>` : ""}
+                ${renderWorldAttachment(message.attachment)}
               </div>
-              ${message.text ? `<p>${escapeHtml(message.text)}</p>` : ""}
-              ${renderWorldAttachment(message.attachment)}
             </article>
           `,
         )
@@ -1944,12 +1950,9 @@ function renderWorldAttachment(attachment) {
     return "";
   }
 
-  const imageName = attachment.name || "上传图片";
-
   return `
     <a class="world-image-link" href="${escapeHtml(attachment.url)}" target="_blank" rel="noreferrer">
-      <img src="${escapeHtml(attachment.url)}" alt="${escapeHtml(imageName)}" loading="lazy" />
-      <span>${escapeHtml(imageName)}</span>
+      <img src="${escapeHtml(attachment.url)}" alt="聊天图片" loading="lazy" />
     </a>
   `;
 }
@@ -2285,6 +2288,34 @@ function getShortUserId() {
   return `${state.userId.slice(0, 18)}…`;
 }
 
+function getCloudIdentityText() {
+  return `${getCloudSyncLabel()} · ${getShortUserId()}`;
+}
+
+function getAvatarText(name) {
+  return String(name || "游").trim().slice(0, 1).toUpperCase() || "游";
+}
+
+function getWorldMessageText(message) {
+  const text = String(message.text || "");
+
+  if (message.attachment?.type !== "image") {
+    return text;
+  }
+
+  const attachmentName = String(message.attachment.name || "");
+
+  if (attachmentName && text.includes(attachmentName)) {
+    return text.split(attachmentName).join("").replace(/[：:\-\s]+$/g, "").trim() || "上传了一张图片";
+  }
+
+  if (text.startsWith("上传了一张图片")) {
+    return "上传了一张图片";
+  }
+
+  return text;
+}
+
 function toggleWorldChat() {
   state.worldOpen = !state.worldOpen;
   elements.sidebar.classList.remove("is-menu-open");
@@ -2437,10 +2468,9 @@ async function sendWorldMessage() {
       setUploadStatus("正在上传图片并发送到世界频道…");
       attachment = await uploadImageThroughServer(imageToSend.file);
       rememberUpload(attachment, imageToSend.file);
-      messageText = messageText || `上传了一张图片：${imageToSend.file.name}`;
+      messageText = messageText || "上传了一张图片";
       attachment = {
         type: "image",
-        name: imageToSend.file.name,
         contentType: imageToSend.file.type,
         ...attachment,
       };
@@ -2528,7 +2558,7 @@ function updatePendingImagePreview() {
   }
 
   previewImage.src = pendingWorldImage.previewUrl;
-  previewName.textContent = pendingWorldImage.file.name;
+  previewName.textContent = "图片已准备发送";
 }
 
 function clearPendingWorldImage(options = {}) {
@@ -2685,7 +2715,7 @@ function setCloudSyncState(nextState) {
   const identityStatus = document.querySelector("[data-cloud-sync-identity]");
 
   if (identityStatus) {
-    identityStatus.textContent = `匿名 ID：${getShortUserId()}。${getCloudSyncLabel()}；图片上传后会记录到 Firestore uploads。`;
+    identityStatus.textContent = getCloudIdentityText();
   }
 }
 
