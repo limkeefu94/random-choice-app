@@ -1068,6 +1068,7 @@ const state = {
 };
 
 const elements = {
+  appRefreshButton: document.querySelector("#appRefreshButton"),
   modeList: document.querySelector("#modeList"),
   modeMenuToggle: document.querySelector("#modeMenuToggle"),
   modeMenuLabel: document.querySelector("#modeMenuLabel"),
@@ -3022,6 +3023,15 @@ function showToast(message) {
   }, 2400);
 }
 
+function refreshApp(event) {
+  event.preventDefault();
+  showToast("正在刷新应用…");
+  window.setTimeout(() => {
+    window.location.reload();
+  }, 120);
+}
+
+elements.appRefreshButton.addEventListener("click", refreshApp);
 elements.randomButton.addEventListener("click", drawResult);
 elements.favoriteButton.addEventListener("click", favoriteCurrent);
 elements.clearHistoryButton.addEventListener("click", clearHistory);
