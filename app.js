@@ -996,7 +996,11 @@ const DAILY_TIPS = [
 
 const DEFAULT_CUSTOM_TEXT = "看电影\n去散步\n整理书桌\n喝一杯咖啡\n给朋友发消息\n早点睡";
 const USER_ID_STORAGE_KEY = "choiceWheelAnonymousUserId";
+const AUTH_TOKEN_STORAGE_KEY = "choiceWheelAuthToken";
 const CLOUD_SYNC_ENDPOINT = "/api/user-data";
+const AUTH_ENDPOINT = "/api/auth";
+const WORLD_CHANNEL_ENDPOINT = "/api/world-channel";
+const WORLD_SYNC_INTERVAL_MS = 15000;
 const DEFAULT_WORLD_MESSAGES = [
   {
     id: "seed-1",
@@ -1016,6 +1020,11 @@ const APP_NOTIFICATIONS = [
     id: "profile-editor",
     title: "个人资料可以改啦",
     text: "登录后点右上角头像，就能换头像、改显示名字和密码。",
+  },
+  {
+    id: "cloud-account-world",
+    title: "账号和世界频道升级了",
+    text: "现在注册和登录会保存在云端，世界频道的消息也能让其他人一起看到。",
   },
   {
     id: "world-chat-cleanup",
@@ -1067,6 +1076,7 @@ const state = {
   },
   auth: {
     currentUser: "",
+    token: "",
   },
   users: [],
   worldMessages: [...DEFAULT_WORLD_MESSAGES],
@@ -1083,6 +1093,11 @@ const state = {
   uploads: [],
   notificationReadIds: [],
   cloudSync: {
+    loading: false,
+    available: false,
+    lastError: "",
+  },
+  worldSync: {
     loading: false,
     available: false,
     lastError: "",
@@ -1200,9 +1215,14 @@ function loadState() {
     state.number = { ...state.number, ...saved.number };
     state.shopping = { ...state.shopping, ...saved.shopping };
     state.auth = { ...state.auth, ...saved.auth };
+    state.auth.token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || state.auth.token || "";
     state.users = Array.isArray(saved.users)
       ? saved.users.map((user) => ({
-        ...user,
+        id: user.id || "",
+        username: user.username,
+        userId: user.userId || "",
+        createdAt: user.createdAt || "",
+        updatedAt: user.updatedAt || "",
         displayName: user.displayName || user.username,
         avatar: normalizeAvatar(user.avatar, user.displayName || user.username),
         avatarUrl: user.avatarUrl || "",
@@ -1227,6 +1247,12 @@ function loadState() {
 }
 
 function saveState() {
+  if (state.auth.token) {
+    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, state.auth.token);
+  } else {
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  }
+
   const payload = {
     userId: state.userId,
     mode: state.mode,
@@ -1238,7 +1264,16 @@ function saveState() {
     number: state.number,
     shopping: state.shopping,
     auth: state.auth,
-    users: state.users,
+    users: state.users.map((user) => ({
+      id: user.id || "",
+      username: user.username,
+      userId: user.userId || "",
+      displayName: user.displayName || user.username,
+      avatar: normalizeAvatar(user.avatar, user.displayName || user.username),
+      avatarUrl: user.avatarUrl || "",
+      createdAt: user.createdAt || "",
+      updatedAt: user.updatedAt || "",
+    })),
     worldMessages: state.worldMessages,
     locked: state.locked,
     customText: state.customText,
@@ -1704,8 +1739,8 @@ function renderWorldControls() {
         </div>
         <div class="field">
           <label for="authPassword">密码</label>
-          <input id="authPassword" type="password" autocomplete="${isRegisterMode ? "new-password" : "current-password"}" maxlength="40" placeholder="至少 4 个字符" />
-          <small class="field-hint">这是测试版账号，请不要使用重要密码。</small>
+          <input id="authPassword" type="password" autocomplete="${isRegisterMode ? "new-password" : "current-password"}" maxlength="80" placeholder="至少 6 个字符" />
+          <small class="field-hint">账号会保存在云端；请不要使用银行卡、邮箱等重要密码。</small>
         </div>
         ${isRegisterMode ? `
           <div class="field">
@@ -1719,7 +1754,7 @@ function renderWorldControls() {
         </div>
         <ul class="auth-hint-list">
           <li>登入后可以发文字和图片；图片会先预览，点发送才发出。</li>
-          <li>记录会先存在这台设备，网络好了会自动补上。</li>
+          <li>账号、头像、名字和世界频道会同步到云端。</li>
         </ul>
       </form>
       <div class="world-panel gcs-panel is-ready">
@@ -1729,7 +1764,7 @@ function renderWorldControls() {
         </div>
         <div class="cloud-status-list">
           <span class="status-pill">✅ 图片可以发送</span>
-          <span class="status-pill">✅ 记录会自动保存</span>
+          <span class="status-pill">✅ 世界频道已接到云端</span>
           <span class="status-pill" data-cloud-sync-status>${escapeHtml(getCloudSyncLabel())}</span>
           <span class="status-pill">🔒 重要钥匙不会显示给别人</span>
         </div>
@@ -2444,6 +2479,120 @@ function clearCurrentLocks() {
   showToast("当前模式的锁定候选已清除。");
 }
 
+function getAuthHeaders() {
+  return state.auth.token
+    ? { Authorization: `Bearer ${state.auth.token}` }
+    : {};
+}
+
+async function authRequest(action, body = {}) {
+  const response = await fetch(AUTH_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      action,
+      ...body,
+    }),
+  });
+  const payload = await readJsonResponse(response);
+
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.detail || payload.error || "账号暂时处理不了");
+  }
+
+  return payload;
+}
+
+async function fetchCurrentAccount() {
+  const response = await fetch(AUTH_ENDPOINT, {
+    headers: getAuthHeaders(),
+    cache: "no-store",
+  });
+  const payload = await readJsonResponse(response);
+
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.detail || payload.error || "请重新登入");
+  }
+
+  return payload;
+}
+
+function normalizeAccountUser(user) {
+  return {
+    id: user.id || "",
+    username: user.username,
+    userId: user.userId || "",
+    displayName: user.displayName || user.username,
+    avatar: normalizeAvatar(user.avatar, user.displayName || user.username),
+    avatarUrl: user.avatarUrl || "",
+    createdAt: user.createdAt || "",
+    updatedAt: user.updatedAt || "",
+  };
+}
+
+function rememberAuthUser(user) {
+  const normalizedUser = normalizeAccountUser(user);
+  state.users = [
+    normalizedUser,
+    ...state.users.filter((item) => item.username !== normalizedUser.username && item.id !== normalizedUser.id),
+  ].slice(0, 6);
+
+  return normalizedUser;
+}
+
+function applyAuthSession(payload) {
+  const user = rememberAuthUser(payload.user);
+  state.auth.currentUser = user.username;
+  state.auth.token = payload.token || state.auth.token;
+  state.userId = user.userId || state.userId;
+  saveState();
+
+  return user;
+}
+
+function clearAuthSession() {
+  clearPendingWorldImage();
+  state.auth.currentUser = "";
+  state.auth.token = "";
+  state.userId = ensureAnonymousUserId();
+  saveState();
+}
+
+async function restoreAuthSession() {
+  const savedToken = state.auth.token || localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+
+  if (!savedToken) {
+    if (state.auth.currentUser) {
+      clearAuthSession();
+      renderTopUserTools();
+      renderWorldControls();
+    }
+
+    syncFromCloud();
+    return;
+  }
+
+  state.auth.token = savedToken;
+
+  try {
+    const payload = await fetchCurrentAccount();
+    applyAuthSession(payload);
+    renderTopUserTools();
+    renderWorldControls();
+    await syncFromCloud();
+  } catch (error) {
+    console.warn("Auth session restore failed.", error);
+    clearAuthSession();
+    renderTopUserTools();
+    renderWorldControls();
+    syncFromCloud();
+    showToast("登入已经过期，请重新登入。");
+  }
+}
+
 function getCurrentUser() {
   if (!state.auth.currentUser) {
     return null;
@@ -2477,6 +2626,14 @@ function getShortUserId() {
 }
 
 function getCloudIdentityText() {
+  if (getCurrentUser()) {
+    if (state.worldSync.available) {
+      return "账号已登入，世界频道已连接";
+    }
+
+    return "账号已登入，世界频道正在连接";
+  }
+
   return getCloudSyncLabel();
 }
 
@@ -2694,13 +2851,8 @@ async function saveProfileChanges() {
   }
 
   if (newPassword || currentPassword || confirmPassword) {
-    if (currentUser.passwordHash !== hashPassword(currentPassword)) {
-      showToast("现在的密码不正确。");
-      return;
-    }
-
-    if (newPassword.length < 4) {
-      showToast("新密码至少 4 个字符。");
+    if (newPassword.length < 6) {
+      showToast("新密码至少 6 个字符。");
       return;
     }
 
@@ -2708,8 +2860,6 @@ async function saveProfileChanges() {
       showToast("两次输入的新密码不一样。");
       return;
     }
-
-    currentUser.passwordHash = hashPassword(newPassword);
   }
 
   const oldNames = new Set([currentUser.username, currentUser.displayName].filter(Boolean));
@@ -2729,9 +2879,22 @@ async function saveProfileChanges() {
     }
   }
 
-  currentUser.displayName = displayName;
-  currentUser.avatar = avatar;
-  currentUser.avatarUrl = avatarUrl;
+  let updatedUser;
+
+  try {
+    const payload = await authRequest("update-profile", {
+      displayName,
+      avatar,
+      avatarUrl,
+      currentPassword,
+      newPassword,
+      confirmPassword,
+    });
+    updatedUser = applyAuthSession(payload);
+  } catch (error) {
+    showToast(error.message || "个人资料暂时保存不了。");
+    return;
+  }
 
   state.worldMessages = state.worldMessages.map((message) => {
     if (!oldNames.has(message.user)) {
@@ -2740,9 +2903,9 @@ async function saveProfileChanges() {
 
     return {
       ...message,
-      user: displayName,
-      avatar,
-      avatarUrl,
+      user: getUserDisplayName(updatedUser),
+      avatar: getUserAvatar(updatedUser),
+      avatarUrl: getUserAvatarUrl(updatedUser),
     };
   });
 
@@ -2755,16 +2918,17 @@ async function saveProfileChanges() {
   showToast("个人资料已保存。");
 }
 
-function registerUser() {
+async function registerUser() {
   const { username, password, confirmPassword } = getAuthFormValues();
+  const submitButton = document.querySelector("#authSubmitButton");
 
   if (!isValidUsername(username)) {
     showToast("用户名需 2-20 字，只能包含字母、数字、中文、_ 或 -。");
     return;
   }
 
-  if (!password || password.length < 4) {
-    showToast("密码至少 4 个字符；测试版请勿使用重要密码。");
+  if (!password || password.length < 6) {
+    showToast("密码至少 6 个字符。");
     return;
   }
 
@@ -2773,80 +2937,191 @@ function registerUser() {
     return;
   }
 
-  if (state.users.some((user) => user.username.toLowerCase() === username.toLowerCase())) {
-    authMode = "login";
-    renderWorldControls();
-    showToast("这个用户名已经注册，已切换到登入。");
-    return;
-  }
+  try {
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = "正在创建账号…";
+    }
 
-  state.users.push({
-    username,
-    displayName: username,
-    avatar: normalizeAvatar("", username),
-    avatarUrl: "",
-    passwordHash: hashPassword(password),
-    createdAt: new Date().toISOString(),
-  });
-  state.auth.currentUser = username;
-  state.worldOpen = true;
-  saveState();
-  render();
-  showToast(`欢迎加入世界频道，${username}。`);
+    const payload = await authRequest("register", {
+      username,
+      password,
+      confirmPassword,
+    });
+    applyAuthSession(payload);
+    state.worldOpen = true;
+    saveState();
+    await syncFromCloud();
+    await syncWorldMessages();
+    render();
+    showToast(`欢迎加入世界频道，${username}。`);
+  } catch (error) {
+    if (String(error.message || "").includes("已经")) {
+      authMode = "login";
+      renderWorldControls();
+    }
+
+    showToast(error.message || "账号创建失败，请稍后再试。");
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = "创建账号";
+    }
+  }
 }
 
-function loginUser() {
+async function loginUser() {
   const { username, password } = getAuthFormValues();
-  const user = state.users.find((item) => item.username.toLowerCase() === username?.toLowerCase());
+  const submitButton = document.querySelector("#authSubmitButton");
 
   if (!isValidUsername(username)) {
     showToast("请输入正确的用户名。");
     return;
   }
 
-  if (!user) {
-    authMode = "register";
-    renderWorldControls();
-    showToast("还没有这个账号，已切换到注册。");
+  if (!password) {
+    showToast("请输入密码。");
     return;
   }
 
-  if (user.passwordHash !== hashPassword(password || "")) {
-    showToast("密码不正确。");
-    return;
-  }
+  try {
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = "正在登入…";
+    }
 
-  state.auth.currentUser = user.username;
-  state.worldOpen = true;
-  saveState();
-  render();
-  showToast(`欢迎回来，${user.username}。`);
+    const payload = await authRequest("login", {
+      username,
+      password,
+    });
+    const user = applyAuthSession(payload);
+    state.worldOpen = true;
+    saveState();
+    await syncFromCloud();
+    await syncWorldMessages();
+    render();
+    showToast(`欢迎回来，${getUserDisplayName(user)}。`);
+  } catch (error) {
+    showToast(error.message || "登入失败，请稍后再试。");
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = "登入";
+    }
+  }
 }
 
 function logoutUser() {
-  clearPendingWorldImage();
-  state.auth.currentUser = "";
-  saveState();
+  clearAuthSession();
   render();
-  showToast("已登出世界频道。");
+  syncFromCloud();
+  showToast("已登出账号。");
 }
 
-function addWorldMessage({ user, avatar, avatarUrl, text, attachment }) {
-  state.worldMessages = [
-    ...state.worldMessages,
-    {
-      id: `${Date.now()}-${randomInt(1000)}`,
-      user,
-      avatar,
-      avatarUrl,
+function formatWorldTime(createdAt) {
+  const date = createdAt ? new Date(createdAt) : new Date();
+
+  if (Number.isNaN(date.getTime())) {
+    return "刚刚";
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function normalizeWorldMessage(message) {
+  return {
+    id: message.id || `${Date.now()}-${randomInt(1000)}`,
+    accountId: message.accountId || "",
+    userId: message.userId || "",
+    username: message.username || "",
+    user: message.user || "游客",
+    avatar: normalizeAvatar(message.avatar, message.user),
+    avatarUrl: message.avatarUrl || "",
+    text: message.text || "",
+    attachment: message.attachment || null,
+    createdAt: message.createdAt || new Date().toISOString(),
+    time: message.time || formatWorldTime(message.createdAt),
+  };
+}
+
+function mergeWorldMessages(currentMessages, incomingMessages) {
+  const merged = new Map();
+
+  [...currentMessages, ...incomingMessages].forEach((message) => {
+    const normalizedMessage = normalizeWorldMessage(message);
+    merged.set(normalizedMessage.id, normalizedMessage);
+  });
+
+  return [...merged.values()]
+    .sort((left, right) => String(left.createdAt).localeCompare(String(right.createdAt)))
+    .slice(-80);
+}
+
+function setWorldSyncState(nextState) {
+  state.worldSync = {
+    ...state.worldSync,
+    ...nextState,
+  };
+
+  const identityStatus = document.querySelector("[data-cloud-sync-identity]");
+
+  if (identityStatus) {
+    identityStatus.textContent = getCloudIdentityText();
+  }
+}
+
+async function syncWorldMessages() {
+  setWorldSyncState({ loading: true, lastError: "" });
+
+  try {
+    const response = await fetch(`${WORLD_CHANNEL_ENDPOINT}?limit=80`, {
+      cache: "no-store",
+    });
+    const payload = await readJsonResponse(response);
+
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.detail || payload.error || "读取世界频道失败");
+    }
+
+    state.worldMessages = Array.isArray(payload.messages) && payload.messages.length
+      ? mergeWorldMessages([], payload.messages)
+      : [...DEFAULT_WORLD_MESSAGES];
+    setWorldSyncState({ loading: false, available: true, lastError: "" });
+    saveState();
+    renderWorldChannel();
+    window.requestAnimationFrame(scrollWorldChatToBottom);
+  } catch (error) {
+    setWorldSyncState({ loading: false, available: false, lastError: error.message });
+    console.warn("World channel sync failed; using local cache.", error);
+  }
+}
+
+async function postWorldMessage({ text, attachment }) {
+  const response = await fetch(WORLD_CHANNEL_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
       text,
       attachment,
-      time: new Intl.DateTimeFormat("zh-CN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(new Date()),
-    },
-  ].slice(-80);
+    }),
+  });
+  const payload = await readJsonResponse(response);
+
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.detail || payload.error || "消息发送失败");
+  }
+
+  return payload.message;
+}
+
+function addWorldMessage(message) {
+  state.worldMessages = mergeWorldMessages(state.worldMessages, [message]);
   state.worldOpen = true;
   saveState();
   render();
@@ -2892,21 +3167,25 @@ async function sendWorldMessage() {
     }
 
     clearPendingWorldImage({ resetInput: false });
-    addWorldMessage({
-      user: getUserDisplayName(currentUser),
-      avatar: getUserAvatar(currentUser),
-      avatarUrl: getUserAvatarUrl(currentUser),
+    const message = await postWorldMessage({
       text: messageText,
       attachment,
     });
+    addWorldMessage(message);
+    syncWorldMessages();
 
     input.value = "";
     setUploadStatus(imageToSend ? "图片已发送成功，可以继续选择下一张。" : "选择图片后会先预览；点发送才上传。支持 PNG / JPG / WebP / GIF，最大 2.5MB。");
     showToast(imageToSend ? "图片已发送到世界频道。" : "消息已发送到世界频道。");
   } catch (error) {
     console.warn("World image send failed.", error);
-    setUploadStatus("发送失败：图片暂时发不出去，请稍后再试。");
-    showToast("发送失败，请检查图片大小或稍后再试。");
+    if (String(error.message || "").includes("重新登入")) {
+      clearAuthSession();
+      render();
+    }
+
+    setUploadStatus("发送失败：世界频道暂时连不上，请稍后再试。");
+    showToast(error.message || "发送失败，请稍后再试。");
   } finally {
     const currentSendButton = document.querySelector("#worldSendButton");
     const currentImageInput = document.querySelector("#worldImageInput");
@@ -3258,16 +3537,6 @@ function isValidUsername(username) {
   return /^[\w\u4e00-\u9fa5-]{2,20}$/u.test(username || "");
 }
 
-function hashPassword(password) {
-  let hash = 5381;
-
-  for (const character of String(password)) {
-    hash = (hash * 33) ^ character.charCodeAt(0);
-  }
-
-  return `local-${(hash >>> 0).toString(36)}`;
-}
-
 function generateDigits() {
   const availableDigits = state.number.avoidFour
     ? ["0", "1", "2", "3", "5", "6", "7", "8", "9"]
@@ -3512,4 +3781,6 @@ loadState();
 formatDateLabel();
 renderDailyInspiration();
 render();
-syncFromCloud();
+restoreAuthSession();
+syncWorldMessages();
+window.setInterval(syncWorldMessages, WORLD_SYNC_INTERVAL_MS);

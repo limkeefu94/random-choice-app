@@ -81,4 +81,17 @@ Firestore 结构：
 randomChoiceUsers/{userId}/history/{itemId}
 randomChoiceUsers/{userId}/favorites/{itemId}
 randomChoiceUsers/{userId}/uploads/{itemId}
+randomChoiceAccounts/{accountId}
+randomChoiceUsernames/{usernameKey}
+randomChoiceWorldMessages/{messageId}
 ```
+
+## 云端账号和世界频道
+
+登录/注册已经从本地测试版升级为后端账号：
+
+- 前端只保存登录令牌，不再保存密码。
+- 密码会在 Vercel API 里加密后写入 Firestore。
+- 注册后会生成固定的 `userId`，最近决定、收藏、上传记录会跟着这个账号同步。
+- 世界频道会写入 `randomChoiceWorldMessages`，不同设备和不同用户能看到同一个频道。
+- `AUTH_TOKEN_SECRET` 建议加到 Vercel Environment Variables；如果暂时没填，会使用 Google service account private key 当备用登录密钥。

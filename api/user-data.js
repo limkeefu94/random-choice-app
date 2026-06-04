@@ -1,19 +1,8 @@
-const { Firestore } = require("@google-cloud/firestore");
 const crypto = require("node:crypto");
-const { getGoogleServiceAccount } = require("./google-service-account");
+const { getFirestore } = require("./firestore-client");
 
 const ALLOWED_COLLECTIONS = new Set(["history", "favorites", "uploads"]);
 const MAX_ITEMS = 30;
-let firestoreInstance;
-
-function getFirestore() {
-  if (!firestoreInstance) {
-    const { projectId, credentials } = getGoogleServiceAccount();
-    firestoreInstance = new Firestore({ projectId, credentials });
-  }
-
-  return firestoreInstance;
-}
 
 function parseBody(request) {
   if (typeof request.body === "string") {
