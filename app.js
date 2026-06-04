@@ -1136,6 +1136,7 @@ const elements = {
 
 let toastTimer;
 let pendingWorldImage = null;
+let pendingProfileAvatarImage = null;
 let authMode = "login";
 let isProfilePanelOpen = false;
 let isNotificationPanelOpen = false;
@@ -1204,6 +1205,7 @@ function loadState() {
         ...user,
         displayName: user.displayName || user.username,
         avatar: normalizeAvatar(user.avatar, user.displayName || user.username),
+        avatarUrl: user.avatarUrl || "",
       }))
       : [];
     state.worldMessages = Array.isArray(saved.worldMessages) && saved.worldMessages.length
@@ -1401,12 +1403,17 @@ function renderTopUserTools() {
 
   if (currentUser) {
     elements.profileAvatarButton.hidden = false;
-    elements.profileAvatarButton.textContent = getUserAvatar(currentUser);
+    elements.profileAvatarButton.innerHTML = renderAvatarContent({
+      avatar: getUserAvatar(currentUser),
+      avatarUrl: getUserAvatarUrl(currentUser),
+      name: getUserDisplayName(currentUser),
+      className: "profile-avatar-image",
+    });
     elements.profileAvatarButton.setAttribute("aria-label", `编辑 ${getUserDisplayName(currentUser)} 的个人资料`);
     elements.profileAvatarButton.setAttribute("aria-expanded", String(isProfilePanelOpen));
   } else {
     elements.profileAvatarButton.hidden = true;
-    elements.profileAvatarButton.textContent = "";
+    elements.profileAvatarButton.innerHTML = "";
     isProfilePanelOpen = false;
   }
 
@@ -1465,15 +1472,30 @@ function renderProfilePanel() {
         <button class="ghost-button compact-ghost" id="profileCloseButton" type="button">关闭</button>
       </div>
       <div class="profile-preview-row">
-        <span class="world-avatar profile-preview-avatar" id="profilePreviewAvatar" aria-hidden="true">${escapeHtml(getUserAvatar(currentUser))}</span>
+        <span class="world-avatar profile-preview-avatar" id="profilePreviewAvatar" aria-hidden="true">
+          ${renderAvatarContent({
+            avatar: getUserAvatar(currentUser),
+            avatarUrl: getUserAvatarUrl(currentUser),
+            name: getUserDisplayName(currentUser),
+            className: "profile-preview-image",
+          })}
+        </span>
         <div>
           <strong id="profilePreviewName">${escapeHtml(getUserDisplayName(currentUser))}</strong>
           <small>右上角会显示这个头像</small>
         </div>
       </div>
       <div class="field">
-        <label for="profileAvatarInput">头像</label>
-        <input id="profileAvatarInput" maxlength="2" value="${escapeHtml(getUserAvatar(currentUser))}" placeholder="可填 1-2 个字或表情" />
+        <label for="profileAvatarFile">头像图片</label>
+        <label class="profile-image-picker" for="profileAvatarFile">
+          <input id="profileAvatarFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
+          选择图片头像
+        </label>
+        <small class="field-hint" id="profileAvatarStatus">可选 PNG / JPG / WebP / GIF，最大 2.5MB。</small>
+      </div>
+      <div class="field">
+        <label for="profileAvatarInput">文字头像</label>
+        <input id="profileAvatarInput" maxlength="2" value="${escapeHtml(getUserAvatar(currentUser))}" placeholder="不放图片时显示这个" />
       </div>
       <div class="field">
         <label for="profileNameInput">显示名字</label>
@@ -1496,9 +1518,11 @@ function renderProfilePanel() {
   `;
 
   const avatarInput = document.querySelector("#profileAvatarInput");
+  const avatarFileInput = document.querySelector("#profileAvatarFile");
   const nameInput = document.querySelector("#profileNameInput");
 
   avatarInput.addEventListener("input", updateProfilePreview);
+  avatarFileInput.addEventListener("change", prepareProfileAvatarImage);
   nameInput.addEventListener("input", updateProfilePreview);
   document.querySelector("#profileCloseButton").addEventListener("click", closeProfilePanel);
   document.querySelector("#profileForm").addEventListener("submit", (event) => {
@@ -1732,7 +1756,14 @@ function renderWorldControls() {
   elements.worldAuthPanel.innerHTML = `
     <div class="world-panel identity-panel">
       <div class="world-identity-card">
-        <span class="world-avatar world-identity-avatar" aria-hidden="true">${escapeHtml(getUserAvatar(currentUser))}</span>
+        <span class="world-avatar world-identity-avatar" aria-hidden="true">
+          ${renderAvatarContent({
+            avatar: getUserAvatar(currentUser),
+            avatarUrl: getUserAvatarUrl(currentUser),
+            name: getUserDisplayName(currentUser),
+            className: "world-avatar-image",
+          })}
+        </span>
         <div class="world-identity-copy">
           <strong>${escapeHtml(getUserDisplayName(currentUser))}</strong>
           <small data-cloud-sync-identity>${escapeHtml(getCloudIdentityText())}</small>
@@ -2072,7 +2103,14 @@ function renderWorldChannel() {
         .map(
           (message) => `
             <article class="world-message">
-              <span class="world-avatar world-message-avatar" aria-hidden="true">${escapeHtml(normalizeAvatar(message.avatar, message.user))}</span>
+              <span class="world-avatar world-message-avatar" aria-hidden="true">
+                ${renderAvatarContent({
+                  avatar: normalizeAvatar(message.avatar, message.user),
+                  avatarUrl: getMessageAvatarUrl(message),
+                  name: message.user,
+                  className: "world-avatar-image",
+                })}
+              </span>
               <div class="world-message-main">
                 <div class="world-message-header">
                   <strong>${escapeHtml(message.user)}</strong>
@@ -2458,6 +2496,22 @@ function getUserAvatar(user) {
   return normalizeAvatar(user?.avatar, getUserDisplayName(user));
 }
 
+function getUserAvatarUrl(user) {
+  return String(user?.avatarUrl || "").trim();
+}
+
+function renderAvatarContent({ avatar, avatarUrl, name, className = "" }) {
+  if (avatarUrl) {
+    return `<img class="${className}" src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(name || "头像")}" loading="lazy" />`;
+  }
+
+  return escapeHtml(normalizeAvatar(avatar, name));
+}
+
+function getMessageAvatarUrl(message) {
+  return String(message.avatarUrl || "").trim();
+}
+
 function getWorldMessageText(message) {
   const text = String(message.text || "");
 
@@ -2520,6 +2574,7 @@ function toggleProfilePanel() {
 
 function closeProfilePanel() {
   isProfilePanelOpen = false;
+  clearPendingProfileAvatarImage();
   renderTopUserTools();
 }
 
@@ -2541,14 +2596,22 @@ function closeNotificationPanel() {
 }
 
 function updateProfilePreview() {
+  const currentUser = getCurrentUser();
   const avatarInput = document.querySelector("#profileAvatarInput");
   const nameInput = document.querySelector("#profileNameInput");
   const avatarPreview = document.querySelector("#profilePreviewAvatar");
   const namePreview = document.querySelector("#profilePreviewName");
-  const displayName = nameInput?.value.trim() || getUserDisplayName(getCurrentUser());
+  const displayName = nameInput?.value.trim() || getUserDisplayName(currentUser);
+  const avatar = normalizeAvatar(avatarInput?.value, displayName);
+  const avatarUrl = pendingProfileAvatarImage?.previewUrl || getUserAvatarUrl(currentUser);
 
   if (avatarPreview) {
-    avatarPreview.textContent = normalizeAvatar(avatarInput?.value, displayName);
+    avatarPreview.innerHTML = renderAvatarContent({
+      avatar,
+      avatarUrl,
+      name: displayName,
+      className: "profile-preview-image",
+    });
   }
 
   if (namePreview) {
@@ -2556,7 +2619,62 @@ function updateProfilePreview() {
   }
 }
 
-function saveProfileChanges() {
+function setProfileAvatarStatus(message) {
+  const status = document.querySelector("#profileAvatarStatus");
+
+  if (status) {
+    status.textContent = message;
+  }
+}
+
+function prepareProfileAvatarImage(event) {
+  const input = event.target;
+  const file = input.files?.[0];
+
+  if (!file) {
+    return;
+  }
+
+  if (!IMAGE_CONTENT_TYPES.has(file.type)) {
+    input.value = "";
+    showToast("只支持 PNG / JPG / WebP / GIF 图片。");
+    return;
+  }
+
+  if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+    input.value = "";
+    showToast("头像图片不能超过 2.5MB。");
+    return;
+  }
+
+  clearPendingProfileAvatarImage({ resetInput: false });
+  pendingProfileAvatarImage = {
+    file,
+    previewUrl: URL.createObjectURL(file),
+  };
+  setProfileAvatarStatus("图片已选择，点「保存资料」后才会换上。");
+  updateProfilePreview();
+}
+
+function clearPendingProfileAvatarImage(options = {}) {
+  const { resetInput = true } = options;
+
+  if (pendingProfileAvatarImage?.previewUrl) {
+    URL.revokeObjectURL(pendingProfileAvatarImage.previewUrl);
+  }
+
+  pendingProfileAvatarImage = null;
+
+  if (resetInput) {
+    const input = document.querySelector("#profileAvatarFile");
+
+    if (input) {
+      input.value = "";
+    }
+  }
+}
+
+async function saveProfileChanges() {
   const currentUser = getCurrentUser();
 
   if (!currentUser) {
@@ -2595,8 +2713,25 @@ function saveProfileChanges() {
   }
 
   const oldNames = new Set([currentUser.username, currentUser.displayName].filter(Boolean));
+  let avatarUrl = getUserAvatarUrl(currentUser);
+
+  if (pendingProfileAvatarImage) {
+    try {
+      setProfileAvatarStatus("正在保存头像图片…");
+      const upload = await uploadImageThroughServer(pendingProfileAvatarImage.file);
+      rememberUpload(upload, pendingProfileAvatarImage.file);
+      avatarUrl = upload.url || upload.publicUrl || avatarUrl;
+    } catch (error) {
+      console.warn("Profile avatar upload failed.", error);
+      setProfileAvatarStatus("头像图片暂时保存不了，请稍后再试。");
+      showToast("头像图片暂时保存不了。");
+      return;
+    }
+  }
+
   currentUser.displayName = displayName;
   currentUser.avatar = avatar;
+  currentUser.avatarUrl = avatarUrl;
 
   state.worldMessages = state.worldMessages.map((message) => {
     if (!oldNames.has(message.user)) {
@@ -2607,9 +2742,12 @@ function saveProfileChanges() {
       ...message,
       user: displayName,
       avatar,
+      avatarUrl,
     };
   });
 
+  clearPendingProfileAvatarImage();
+  isProfilePanelOpen = false;
   saveState();
   renderWorldChannel();
   renderWorldControls();
@@ -2646,6 +2784,7 @@ function registerUser() {
     username,
     displayName: username,
     avatar: normalizeAvatar("", username),
+    avatarUrl: "",
     passwordHash: hashPassword(password),
     createdAt: new Date().toISOString(),
   });
@@ -2692,13 +2831,14 @@ function logoutUser() {
   showToast("已登出世界频道。");
 }
 
-function addWorldMessage({ user, avatar, text, attachment }) {
+function addWorldMessage({ user, avatar, avatarUrl, text, attachment }) {
   state.worldMessages = [
     ...state.worldMessages,
     {
       id: `${Date.now()}-${randomInt(1000)}`,
       user,
       avatar,
+      avatarUrl,
       text,
       attachment,
       time: new Intl.DateTimeFormat("zh-CN", {
@@ -2755,6 +2895,7 @@ async function sendWorldMessage() {
     addWorldMessage({
       user: getUserDisplayName(currentUser),
       avatar: getUserAvatar(currentUser),
+      avatarUrl: getUserAvatarUrl(currentUser),
       text: messageText,
       attachment,
     });
