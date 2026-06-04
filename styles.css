@@ -130,7 +130,9 @@ button {
 .chip,
 .field select,
 .field input,
-.custom-list textarea {
+.custom-list textarea,
+.notification-button,
+.profile-avatar-button {
   border: 1px solid var(--line);
 }
 
@@ -168,6 +170,53 @@ button {
   font-weight: 850;
   outline: none;
   background: rgba(255, 255, 255, 0.8);
+}
+
+.notification-button,
+.profile-avatar-button {
+  position: relative;
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  cursor: pointer;
+  border-radius: 999px;
+  color: #4d3025;
+  font-weight: 900;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 10px 20px rgba(106, 57, 26, 0.08);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.notification-button:hover,
+.profile-avatar-button:hover {
+  transform: translateY(-1px);
+  background: #fff;
+  box-shadow: 0 14px 28px rgba(106, 57, 26, 0.13);
+}
+
+.profile-avatar-button {
+  color: #fff;
+  background:
+    radial-gradient(circle at 28% 24%, rgba(255, 255, 255, 0.38), transparent 32%),
+    linear-gradient(135deg, var(--accent), var(--mint));
+}
+
+.notification-button small {
+  position: absolute;
+  top: -5px;
+  right: -3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.68rem;
+  line-height: 18px;
+  background: #ff5f45;
 }
 
 .ghost-button,
@@ -1221,6 +1270,95 @@ button {
   line-height: 1.5;
 }
 
+.floating-panel {
+  position: fixed;
+  top: 86px;
+  right: 24px;
+  z-index: 42;
+  width: min(380px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid rgba(80, 45, 24, 0.14);
+  border-radius: 26px;
+  background:
+    linear-gradient(145deg, rgba(255, 122, 61, 0.1), rgba(96, 199, 160, 0.1)),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: 0 26px 70px rgba(106, 57, 26, 0.22);
+  backdrop-filter: blur(22px);
+}
+
+.floating-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.floating-panel-header strong,
+.floating-panel-header small {
+  display: block;
+}
+
+.floating-panel-header small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.notification-list {
+  display: grid;
+  gap: 10px;
+}
+
+.notification-item {
+  padding: 12px;
+  border: 1px solid rgba(80, 45, 24, 0.09);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.notification-item strong {
+  display: block;
+  color: #4d3025;
+}
+
+.notification-item p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.profile-form {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid rgba(96, 199, 160, 0.18);
+  border-radius: 20px;
+  background: rgba(245, 255, 250, 0.72);
+}
+
+.profile-preview-avatar {
+  width: 48px;
+  height: 48px;
+  font-size: 1.08rem;
+}
+
+.profile-preview-row strong,
+.profile-preview-row small {
+  display: block;
+}
+
+.profile-preview-row small {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
 .toast {
   position: fixed;
   right: 24px;
@@ -1297,6 +1435,13 @@ button {
   .top-actions,
   .action-row {
     width: 100%;
+  }
+
+  .floating-panel {
+    top: 92px;
+    right: 16px;
+    max-height: calc(100vh - 116px);
+    overflow: auto;
   }
 
   .ghost-button,

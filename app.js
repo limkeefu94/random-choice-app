@@ -1007,8 +1007,30 @@ const DEFAULT_WORLD_MESSAGES = [
   {
     id: "seed-2",
     user: "小转盘",
-    text: "接上真实后台后，这里可以升级成所有用户实时同步的公共频道。",
+    text: "以后会加入好友和私聊，现在先用世界频道一起聊天。",
     time: "刚刚",
+  },
+];
+const APP_NOTIFICATIONS = [
+  {
+    id: "profile-editor",
+    title: "个人资料可以改啦",
+    text: "登录后点右上角头像，就能换头像、改显示名字和密码。",
+  },
+  {
+    id: "world-chat-cleanup",
+    title: "世界频道更清爽",
+    text: "聊天会显示头像和名字，发送图片时不会再露出文件名。",
+  },
+  {
+    id: "future-friends",
+    title: "好友和私聊先留好位置",
+    text: "通知现在只放应用更新。以后做加好友和一对一聊天时，会再放进来。",
+  },
+  {
+    id: "mobile-mode-hint",
+    title: "手机切换更好找",
+    text: "第一次用手机打开时，会提醒你点「选择模式」切换吃什么、去哪玩和买什么。",
   },
 ];
 const STORAGE_KEY = "choiceWheelState";
@@ -1059,6 +1081,7 @@ const state = {
   history: [],
   favorites: [],
   uploads: [],
+  notificationReadIds: [],
   cloudSync: {
     loading: false,
     available: false,
@@ -1069,6 +1092,11 @@ const state = {
 
 const elements = {
   appRefreshButton: document.querySelector("#appRefreshButton"),
+  notificationButton: document.querySelector("#notificationButton"),
+  notificationBadge: document.querySelector("#notificationBadge"),
+  notificationPanel: document.querySelector("#notificationPanel"),
+  profileAvatarButton: document.querySelector("#profileAvatarButton"),
+  profilePanel: document.querySelector("#profilePanel"),
   modeList: document.querySelector("#modeList"),
   modeMenuToggle: document.querySelector("#modeMenuToggle"),
   modeMenuLabel: document.querySelector("#modeMenuLabel"),
@@ -1109,6 +1137,8 @@ const elements = {
 let toastTimer;
 let pendingWorldImage = null;
 let authMode = "login";
+let isProfilePanelOpen = false;
+let isNotificationPanelOpen = false;
 
 function isValidAnonymousUserId(userId) {
   return /^anon_[a-zA-Z0-9_-]{12,80}$/.test(String(userId || ""));
@@ -1169,7 +1199,13 @@ function loadState() {
     state.number = { ...state.number, ...saved.number };
     state.shopping = { ...state.shopping, ...saved.shopping };
     state.auth = { ...state.auth, ...saved.auth };
-    state.users = Array.isArray(saved.users) ? saved.users : [];
+    state.users = Array.isArray(saved.users)
+      ? saved.users.map((user) => ({
+        ...user,
+        displayName: user.displayName || user.username,
+        avatar: normalizeAvatar(user.avatar, user.displayName || user.username),
+      }))
+      : [];
     state.worldMessages = Array.isArray(saved.worldMessages) && saved.worldMessages.length
       ? saved.worldMessages.slice(-80)
       : [...DEFAULT_WORLD_MESSAGES];
@@ -1182,6 +1218,7 @@ function loadState() {
     state.history = Array.isArray(saved.history) ? saved.history.slice(0, 8) : [];
     state.favorites = Array.isArray(saved.favorites) ? saved.favorites.slice(0, 8) : [];
     state.uploads = Array.isArray(saved.uploads) ? saved.uploads.slice(0, 30) : [];
+    state.notificationReadIds = Array.isArray(saved.notificationReadIds) ? saved.notificationReadIds : [];
   } catch {
     showToast("读取本地记录失败，已使用默认设置。");
   }
@@ -1206,6 +1243,7 @@ function saveState() {
     history: state.history,
     favorites: state.favorites,
     uploads: state.uploads,
+    notificationReadIds: state.notificationReadIds,
   };
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -1355,6 +1393,118 @@ function render() {
   renderWorldControls();
   renderHistory();
   renderFavorites();
+  renderTopUserTools();
+}
+
+function renderTopUserTools() {
+  const currentUser = getCurrentUser();
+
+  if (currentUser) {
+    elements.profileAvatarButton.hidden = false;
+    elements.profileAvatarButton.textContent = getUserAvatar(currentUser);
+    elements.profileAvatarButton.setAttribute("aria-label", `编辑 ${getUserDisplayName(currentUser)} 的个人资料`);
+    elements.profileAvatarButton.setAttribute("aria-expanded", String(isProfilePanelOpen));
+  } else {
+    elements.profileAvatarButton.hidden = true;
+    elements.profileAvatarButton.textContent = "";
+    isProfilePanelOpen = false;
+  }
+
+  elements.profilePanel.hidden = !isProfilePanelOpen || !currentUser;
+  elements.notificationButton.setAttribute("aria-expanded", String(isNotificationPanelOpen));
+  elements.notificationPanel.hidden = !isNotificationPanelOpen;
+
+  const unreadCount = APP_NOTIFICATIONS.filter((item) => !state.notificationReadIds.includes(item.id)).length;
+  elements.notificationBadge.hidden = unreadCount === 0;
+  elements.notificationBadge.textContent = String(unreadCount);
+
+  renderNotificationPanel();
+  renderProfilePanel();
+}
+
+function renderNotificationPanel() {
+  if (elements.notificationPanel.hidden) {
+    return;
+  }
+
+  elements.notificationPanel.innerHTML = `
+    <div class="floating-panel-header">
+      <div>
+        <strong>应用通知</strong>
+        <small>这里只放新功能和更新提醒</small>
+      </div>
+      <button class="ghost-button compact-ghost" id="notificationCloseButton" type="button">关闭</button>
+    </div>
+    <div class="notification-list">
+      ${APP_NOTIFICATIONS.map((item) => `
+        <article class="notification-item">
+          <strong>${escapeHtml(item.title)}</strong>
+          <p>${escapeHtml(item.text)}</p>
+        </article>
+      `).join("")}
+    </div>
+  `;
+
+  document.querySelector("#notificationCloseButton").addEventListener("click", closeNotificationPanel);
+}
+
+function renderProfilePanel() {
+  const currentUser = getCurrentUser();
+
+  if (elements.profilePanel.hidden || !currentUser) {
+    return;
+  }
+
+  elements.profilePanel.innerHTML = `
+    <form class="profile-form" id="profileForm">
+      <div class="floating-panel-header">
+        <div>
+          <strong>个人资料</strong>
+          <small>换头像、改名字或密码</small>
+        </div>
+        <button class="ghost-button compact-ghost" id="profileCloseButton" type="button">关闭</button>
+      </div>
+      <div class="profile-preview-row">
+        <span class="world-avatar profile-preview-avatar" id="profilePreviewAvatar" aria-hidden="true">${escapeHtml(getUserAvatar(currentUser))}</span>
+        <div>
+          <strong id="profilePreviewName">${escapeHtml(getUserDisplayName(currentUser))}</strong>
+          <small>右上角会显示这个头像</small>
+        </div>
+      </div>
+      <div class="field">
+        <label for="profileAvatarInput">头像</label>
+        <input id="profileAvatarInput" maxlength="2" value="${escapeHtml(getUserAvatar(currentUser))}" placeholder="可填 1-2 个字或表情" />
+      </div>
+      <div class="field">
+        <label for="profileNameInput">显示名字</label>
+        <input id="profileNameInput" maxlength="20" value="${escapeHtml(getUserDisplayName(currentUser))}" placeholder="别人看到的名字" />
+      </div>
+      <div class="field">
+        <label for="profileCurrentPassword">现在的密码</label>
+        <input id="profileCurrentPassword" type="password" autocomplete="current-password" placeholder="要改密码时才需要填" />
+      </div>
+      <div class="field">
+        <label for="profileNewPassword">新密码</label>
+        <input id="profileNewPassword" type="password" autocomplete="new-password" placeholder="不改密码就留空" />
+      </div>
+      <div class="field">
+        <label for="profileConfirmPassword">确认新密码</label>
+        <input id="profileConfirmPassword" type="password" autocomplete="new-password" placeholder="再输入一次新密码" />
+      </div>
+      <button class="primary-button compact-primary" type="submit">保存资料</button>
+    </form>
+  `;
+
+  const avatarInput = document.querySelector("#profileAvatarInput");
+  const nameInput = document.querySelector("#profileNameInput");
+
+  avatarInput.addEventListener("input", updateProfilePreview);
+  nameInput.addEventListener("input", updateProfilePreview);
+  document.querySelector("#profileCloseButton").addEventListener("click", closeProfilePanel);
+  document.querySelector("#profileForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveProfileChanges();
+  });
 }
 
 function renderModeStage() {
@@ -1517,7 +1667,7 @@ function renderWorldControls() {
       <form class="world-panel auth-panel" id="authForm">
         <div class="world-panel-header">
           <strong>${isRegisterMode ? "注册新账号" : "登入世界频道"}</strong>
-          <small>匿名 ID：${escapeHtml(getShortUserId())}</small>
+          <small>发消息前先确认是你本人</small>
         </div>
         <div class="auth-mode-tabs" role="tablist" aria-label="登入注册切换">
           <button class="auth-mode-tab${!isRegisterMode ? " is-active" : ""}" type="button" data-auth-mode="login" aria-pressed="${!isRegisterMode}">登入</button>
@@ -1531,7 +1681,7 @@ function renderWorldControls() {
         <div class="field">
           <label for="authPassword">密码</label>
           <input id="authPassword" type="password" autocomplete="${isRegisterMode ? "new-password" : "current-password"}" maxlength="40" placeholder="至少 4 个字符" />
-          <small class="field-hint">目前是本地账号，请不要使用真实重要密码。</small>
+          <small class="field-hint">这是测试版账号，请不要使用重要密码。</small>
         </div>
         ${isRegisterMode ? `
           <div class="field">
@@ -1544,22 +1694,22 @@ function renderWorldControls() {
           <button class="secondary-button" id="authSwitchButton" type="button">${isRegisterMode ? "已有账号？去登入" : "没有账号？去注册"}</button>
         </div>
         <ul class="auth-hint-list">
-          <li>登入后可以发送文字、先预览图片，再点发送上传到 GCS。</li>
-          <li>最近决定、收藏和上传记录会按匿名 ID 测试同步到 Firestore。</li>
+          <li>登入后可以发文字和图片；图片会先预览，点发送才发出。</li>
+          <li>记录会先存在这台设备，网络好了会自动补上。</li>
         </ul>
       </form>
       <div class="world-panel gcs-panel is-ready">
         <div class="world-panel-header">
-          <strong>Google Cloud</strong>
-          <small>Storage + Firestore 测试同步</small>
+          <strong>图片和记录</strong>
+          <small>已准备好</small>
         </div>
         <div class="cloud-status-list">
-          <span class="status-pill">✅ Vercel API 已连接</span>
-          <span class="status-pill">✅ 图片走 GCS 储存</span>
+          <span class="status-pill">✅ 图片可以发送</span>
+          <span class="status-pill">✅ 记录会自动保存</span>
           <span class="status-pill" data-cloud-sync-status>${escapeHtml(getCloudSyncLabel())}</span>
-          <span class="status-pill">🔒 密钥只在后端环境变量</span>
+          <span class="status-pill">🔒 重要钥匙不会显示给别人</span>
         </div>
-        <p>首次打开会自动生成匿名 userId。Firestore 失败时不会影响页面，仍会使用 localStorage 记录。</p>
+        <p>这个版本先测试图片、记录和通知；好友和私聊会放在之后做。</p>
       </div>
     `;
 
@@ -1582,9 +1732,9 @@ function renderWorldControls() {
   elements.worldAuthPanel.innerHTML = `
     <div class="world-panel identity-panel">
       <div class="world-identity-card">
-        <span class="world-avatar world-identity-avatar" aria-hidden="true">${escapeHtml(getAvatarText(currentUser.username))}</span>
+        <span class="world-avatar world-identity-avatar" aria-hidden="true">${escapeHtml(getUserAvatar(currentUser))}</span>
         <div class="world-identity-copy">
-          <strong>${escapeHtml(currentUser.username)}</strong>
+          <strong>${escapeHtml(getUserDisplayName(currentUser))}</strong>
           <small data-cloud-sync-identity>${escapeHtml(getCloudIdentityText())}</small>
         </div>
         <button class="ghost-button compact-ghost" id="logoutButton" type="button">登出</button>
@@ -1922,7 +2072,7 @@ function renderWorldChannel() {
         .map(
           (message) => `
             <article class="world-message">
-              <span class="world-avatar world-message-avatar" aria-hidden="true">${escapeHtml(getAvatarText(message.user))}</span>
+              <span class="world-avatar world-message-avatar" aria-hidden="true">${escapeHtml(normalizeAvatar(message.avatar, message.user))}</span>
               <div class="world-message-main">
                 <div class="world-message-header">
                   <strong>${escapeHtml(message.user)}</strong>
@@ -2266,18 +2416,18 @@ function getCurrentUser() {
 
 function getCloudSyncLabel() {
   if (state.cloudSync.loading) {
-    return "☁️ 正在读取 Firestore";
+    return "正在同步记录";
   }
 
   if (state.cloudSync.available) {
-    return "✅ Firestore 同步已连接";
+    return "记录已同步";
   }
 
   if (state.cloudSync.lastError) {
-    return "⚠️ Firestore 失败，使用本地缓存";
+    return "暂时同步不了，先存在这台设备";
   }
 
-  return "💾 本地缓存已准备";
+  return "记录会先存在这台设备";
 }
 
 function getShortUserId() {
@@ -2289,11 +2439,23 @@ function getShortUserId() {
 }
 
 function getCloudIdentityText() {
-  return `${getCloudSyncLabel()} · ${getShortUserId()}`;
+  return getCloudSyncLabel();
 }
 
 function getAvatarText(name) {
   return String(name || "游").trim().slice(0, 1).toUpperCase() || "游";
+}
+
+function normalizeAvatar(value, fallbackName = "游") {
+  return String(value || "").trim().slice(0, 2) || getAvatarText(fallbackName);
+}
+
+function getUserDisplayName(user) {
+  return user?.displayName || user?.username || "游客";
+}
+
+function getUserAvatar(user) {
+  return normalizeAvatar(user?.avatar, getUserDisplayName(user));
 }
 
 function getWorldMessageText(message) {
@@ -2345,6 +2507,116 @@ function getAuthFormValues() {
   return { username, password, confirmPassword };
 }
 
+function toggleProfilePanel() {
+  if (!getCurrentUser()) {
+    showToast("请先登入，再编辑个人资料。");
+    return;
+  }
+
+  isProfilePanelOpen = !isProfilePanelOpen;
+  isNotificationPanelOpen = false;
+  renderTopUserTools();
+}
+
+function closeProfilePanel() {
+  isProfilePanelOpen = false;
+  renderTopUserTools();
+}
+
+function toggleNotificationPanel() {
+  isNotificationPanelOpen = !isNotificationPanelOpen;
+  isProfilePanelOpen = false;
+
+  if (isNotificationPanelOpen) {
+    state.notificationReadIds = APP_NOTIFICATIONS.map((item) => item.id);
+    saveState();
+  }
+
+  renderTopUserTools();
+}
+
+function closeNotificationPanel() {
+  isNotificationPanelOpen = false;
+  renderTopUserTools();
+}
+
+function updateProfilePreview() {
+  const avatarInput = document.querySelector("#profileAvatarInput");
+  const nameInput = document.querySelector("#profileNameInput");
+  const avatarPreview = document.querySelector("#profilePreviewAvatar");
+  const namePreview = document.querySelector("#profilePreviewName");
+  const displayName = nameInput?.value.trim() || getUserDisplayName(getCurrentUser());
+
+  if (avatarPreview) {
+    avatarPreview.textContent = normalizeAvatar(avatarInput?.value, displayName);
+  }
+
+  if (namePreview) {
+    namePreview.textContent = displayName;
+  }
+}
+
+function saveProfileChanges() {
+  const currentUser = getCurrentUser();
+
+  if (!currentUser) {
+    showToast("请先登入，再编辑个人资料。");
+    return;
+  }
+
+  const avatar = normalizeAvatar(document.querySelector("#profileAvatarInput")?.value, getUserDisplayName(currentUser));
+  const displayName = document.querySelector("#profileNameInput")?.value.trim();
+  const currentPassword = document.querySelector("#profileCurrentPassword")?.value || "";
+  const newPassword = document.querySelector("#profileNewPassword")?.value || "";
+  const confirmPassword = document.querySelector("#profileConfirmPassword")?.value || "";
+
+  if (!displayName || displayName.length > 20) {
+    showToast("名字需要 1-20 个字。");
+    return;
+  }
+
+  if (newPassword || currentPassword || confirmPassword) {
+    if (currentUser.passwordHash !== hashPassword(currentPassword)) {
+      showToast("现在的密码不正确。");
+      return;
+    }
+
+    if (newPassword.length < 4) {
+      showToast("新密码至少 4 个字符。");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      showToast("两次输入的新密码不一样。");
+      return;
+    }
+
+    currentUser.passwordHash = hashPassword(newPassword);
+  }
+
+  const oldNames = new Set([currentUser.username, currentUser.displayName].filter(Boolean));
+  currentUser.displayName = displayName;
+  currentUser.avatar = avatar;
+
+  state.worldMessages = state.worldMessages.map((message) => {
+    if (!oldNames.has(message.user)) {
+      return message;
+    }
+
+    return {
+      ...message,
+      user: displayName,
+      avatar,
+    };
+  });
+
+  saveState();
+  renderWorldChannel();
+  renderWorldControls();
+  renderTopUserTools();
+  showToast("个人资料已保存。");
+}
+
 function registerUser() {
   const { username, password, confirmPassword } = getAuthFormValues();
 
@@ -2354,7 +2626,7 @@ function registerUser() {
   }
 
   if (!password || password.length < 4) {
-    showToast("密码至少 4 个字符；本地原型请勿使用真实密码。");
+    showToast("密码至少 4 个字符；测试版请勿使用重要密码。");
     return;
   }
 
@@ -2372,6 +2644,8 @@ function registerUser() {
 
   state.users.push({
     username,
+    displayName: username,
+    avatar: normalizeAvatar("", username),
     passwordHash: hashPassword(password),
     createdAt: new Date().toISOString(),
   });
@@ -2418,12 +2692,13 @@ function logoutUser() {
   showToast("已登出世界频道。");
 }
 
-function addWorldMessage({ user, text, attachment }) {
+function addWorldMessage({ user, avatar, text, attachment }) {
   state.worldMessages = [
     ...state.worldMessages,
     {
       id: `${Date.now()}-${randomInt(1000)}`,
       user,
+      avatar,
       text,
       attachment,
       time: new Intl.DateTimeFormat("zh-CN", {
@@ -2478,7 +2753,8 @@ async function sendWorldMessage() {
 
     clearPendingWorldImage({ resetInput: false });
     addWorldMessage({
-      user: currentUser.username,
+      user: getUserDisplayName(currentUser),
+      avatar: getUserAvatar(currentUser),
       text: messageText,
       attachment,
     });
@@ -2487,8 +2763,9 @@ async function sendWorldMessage() {
     setUploadStatus(imageToSend ? "图片已发送成功，可以继续选择下一张。" : "选择图片后会先预览；点发送才上传。支持 PNG / JPG / WebP / GIF，最大 2.5MB。");
     showToast(imageToSend ? "图片已发送到世界频道。" : "消息已发送到世界频道。");
   } catch (error) {
-    setUploadStatus(`发送失败：${error.message}`);
-    showToast("发送失败，请检查图片大小或 GCS 权限。");
+    console.warn("World image send failed.", error);
+    setUploadStatus("发送失败：图片暂时发不出去，请稍后再试。");
+    showToast("发送失败，请检查图片大小或稍后再试。");
   } finally {
     const currentSendButton = document.querySelector("#worldSendButton");
     const currentImageInput = document.querySelector("#worldImageInput");
@@ -2609,7 +2886,7 @@ async function uploadImageThroughSignedUrl(file) {
   });
 
   if (!uploadResponse.ok) {
-    throw new Error(`GCS 上传失败：${uploadResponse.status}`);
+    throw new Error(`图片上传失败：${uploadResponse.status}`);
   }
 
   return {
@@ -2733,7 +3010,7 @@ async function syncFromCloud() {
     const payload = await readJsonResponse(response);
 
     if (!response.ok || !payload.ok) {
-      throw new Error(payload.detail || payload.error || "Firestore 读取失败");
+      throw new Error(payload.detail || payload.error || "读取记录失败");
     }
 
     state.history = mergeSyncedItems(state.history, payload.data?.history || [], 8);
@@ -2745,8 +3022,8 @@ async function syncFromCloud() {
     renderFavorites();
   } catch (error) {
     setCloudSyncState({ loading: false, available: false, lastError: error.message });
-    console.warn("Firestore sync unavailable; using local cache.", error);
-    showToast("Firestore 暂时不可用，已使用本地记录。");
+    console.warn("Cloud sync unavailable; using local cache.", error);
+    showToast("暂时同步不了，先显示本地记录。");
   }
 }
 
@@ -2770,14 +3047,14 @@ async function syncCloudItem(collection, item) {
     const payload = await readJsonResponse(response);
 
     if (!response.ok || !payload.ok) {
-      throw new Error(payload.detail || payload.error || "Firestore 写入失败");
+      throw new Error(payload.detail || payload.error || "保存记录失败");
     }
 
     setCloudSyncState({ available: true, lastError: "" });
     return payload.item || item;
   } catch (error) {
     setCloudSyncState({ available: false, lastError: error.message });
-    console.warn(`Firestore ${collection} sync failed; local cache kept.`, error);
+    console.warn(`Cloud ${collection} sync failed; local cache kept.`, error);
     return null;
   }
 }
@@ -2801,13 +3078,13 @@ async function syncCloudClear(collections) {
     const payload = await readJsonResponse(response);
 
     if (!response.ok || !payload.ok) {
-      throw new Error(payload.detail || payload.error || "Firestore 清理失败");
+      throw new Error(payload.detail || payload.error || "清理记录失败");
     }
 
     setCloudSyncState({ available: true, lastError: "" });
   } catch (error) {
     setCloudSyncState({ available: false, lastError: error.message });
-    console.warn("Firestore clear failed; local cache was cleared.", error);
+    console.warn("Cloud clear failed; local cache was cleared.", error);
   }
 }
 
@@ -3062,6 +3339,8 @@ function refreshApp(event) {
 }
 
 elements.appRefreshButton.addEventListener("click", refreshApp);
+elements.notificationButton.addEventListener("click", toggleNotificationPanel);
+elements.profileAvatarButton.addEventListener("click", toggleProfilePanel);
 elements.randomButton.addEventListener("click", drawResult);
 elements.favoriteButton.addEventListener("click", favoriteCurrent);
 elements.clearHistoryButton.addEventListener("click", clearHistory);

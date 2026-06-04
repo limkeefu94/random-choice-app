@@ -31,6 +31,11 @@
               <option value="TWD">TWD</option>
             </select>
           </label>
+          <button class="notification-button" id="notificationButton" type="button" aria-expanded="false" aria-controls="notificationPanel" aria-label="查看应用通知">
+            <span aria-hidden="true">🔔</span>
+            <small id="notificationBadge" hidden>0</small>
+          </button>
+          <button class="profile-avatar-button" id="profileAvatarButton" type="button" aria-expanded="false" aria-controls="profilePanel" aria-label="编辑个人资料" hidden></button>
           <button class="ghost-button" id="clearHistoryButton" type="button">清空记录</button>
         </div>
       </header>
@@ -156,6 +161,8 @@
       </section>
     </div>
 
+    <section class="floating-panel notification-panel" id="notificationPanel" aria-label="应用通知" hidden></section>
+    <section class="floating-panel profile-panel" id="profilePanel" aria-label="编辑个人资料" hidden></section>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="./app.js"></script>
   </body>
