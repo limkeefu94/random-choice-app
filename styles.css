@@ -557,12 +557,46 @@ button {
   line-height: 1.6;
 }
 
+.number-rule-card {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 112, 67, 0.14), transparent 42%),
+    rgba(255, 255, 255, 0.72);
+}
+
+.number-rule-card strong {
+  display: block;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.number-rule-card p {
+  margin: 8px 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.number-rule-card small {
+  color: #9b6f58;
+  line-height: 1.55;
+}
+
 .number-digits {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin: 12px auto 0;
   max-width: 330px;
+}
+
+.number-digits.is-lottery {
+  display: grid;
+  grid-template-columns: 1fr;
+  max-width: min(640px, 100%);
+  gap: 12px;
 }
 
 .digit-box {
@@ -575,6 +609,58 @@ button {
   font-weight: 900;
   background: linear-gradient(160deg, var(--ink), #4b3428);
   box-shadow: 0 14px 25px rgba(35, 27, 23, 0.2);
+}
+
+.lottery-line {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(255, 112, 67, 0.18);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 14px 28px rgba(89, 58, 36, 0.1);
+}
+
+.lottery-line small {
+  color: #9b6f58;
+  font-weight: 800;
+}
+
+.lottery-ticket-number {
+  color: var(--ink);
+  font-size: clamp(2.2rem, 7vw, 4rem);
+  font-weight: 950;
+  letter-spacing: 0.06em;
+}
+
+.lottery-group {
+  display: grid;
+  gap: 8px;
+}
+
+.lottery-group span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.lottery-balls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lottery-balls b {
+  display: inline-grid;
+  place-items: center;
+  min-width: 42px;
+  min-height: 42px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 950;
+  background: linear-gradient(160deg, var(--ink), #ff7043);
+  box-shadow: 0 10px 20px rgba(35, 27, 23, 0.18);
 }
 
 .action-row {
