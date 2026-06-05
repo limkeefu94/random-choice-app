@@ -25,10 +25,10 @@ const MODES = {
   },
   number: {
     icon: "🔢",
-    title: "四位号码怎么选？",
-    short: "4D 娱乐号码",
-    description: "生成 0000 到 9999 的四位号码，可避开重复或特定数字。",
-    hint: "号码仅供娱乐，不构成投注建议",
+    title: "买字 / 彩票号码随机",
+    short: "全球彩票号码实验",
+    description: "按国家和玩法生成 4D、TOTO、Powerball、EuroMillions 等号码型彩票的随机组合。",
+    hint: "仅供娱乐，不构成投注建议。",
     label: "随机号码",
   },
   shopping: {
@@ -986,6 +986,419 @@ const SHOPPING_DATA = {
   ],
 };
 
+const LOTTERY_DISCLAIMER = "仅供娱乐，不构成投注建议。";
+const LOTTERY_SOURCE_NOTE = "资料为初版整理，玩法规则可能变动，后续需人工校对。";
+const LOTTERY_LINE_OPTIONS = [1, 2, 3, 5];
+const LOTTERY_DATA = [
+  {
+    id: "my-4d",
+    country: "马来西亚",
+    name: "4D",
+    type: "digits",
+    digits: 4,
+    summary: "0000-9999 四位数随机。",
+    source: "Sports Toto / 马来西亚 4D 运营商资料",
+  },
+  {
+    id: "my-5d",
+    country: "马来西亚",
+    name: "5D",
+    type: "digits",
+    digits: 5,
+    summary: "00000-99999 五位数随机。",
+    source: "Sports Toto 产品资料",
+  },
+  {
+    id: "my-6d",
+    country: "马来西亚",
+    name: "6D",
+    type: "digits",
+    digits: 6,
+    summary: "000000-999999 六位数随机。",
+    source: "Sports Toto 产品资料",
+  },
+  {
+    id: "my-toto-650",
+    country: "马来西亚",
+    name: "Toto 6/50",
+    type: "groups",
+    summary: "6 个不重复号码，从 1-50。",
+    source: "Sports Toto Star Toto 6/50 资料",
+    groups: [{ label: "主号", count: 6, min: 1, max: 50, sort: true }],
+  },
+  {
+    id: "my-power-toto-655",
+    country: "马来西亚",
+    name: "Power Toto 6/55",
+    type: "groups",
+    summary: "6 个不重复号码，从 1-55。",
+    source: "Sports Toto Power Toto 6/55 资料",
+    groups: [{ label: "主号", count: 6, min: 1, max: 55, sort: true }],
+  },
+  {
+    id: "my-supreme-toto-658",
+    country: "马来西亚",
+    name: "Supreme Toto 6/58",
+    type: "groups",
+    summary: "6 个不重复号码，从 1-58。",
+    source: "Sports Toto Supreme Toto 6/58 资料",
+    groups: [{ label: "主号", count: 6, min: 1, max: 58, sort: true }],
+  },
+  {
+    id: "sg-4d",
+    country: "新加坡",
+    name: "4D",
+    type: "digits",
+    digits: 4,
+    summary: "0000-9999 四位数随机。",
+    source: "Singapore Pools 4D Game Rules",
+  },
+  {
+    id: "sg-toto-649",
+    country: "新加坡",
+    name: "TOTO 6/49",
+    type: "groups",
+    summary: "6 个不重复号码，从 1-49；附加号从剩余号码中抽出。",
+    source: "Singapore Pools TOTO Game Rules",
+    groups: [
+      { label: "主号", count: 6, min: 1, max: 49, sort: true },
+      { label: "附加号", count: 1, min: 1, max: 49, excludePrevious: true },
+    ],
+  },
+  {
+    id: "sg-sweep",
+    country: "新加坡",
+    name: "Singapore Sweep",
+    type: "range",
+    digits: 7,
+    min: 1000000,
+    max: 4499999,
+    summary: "7 位 sweepstakes 号码，范围 1000000-4499999。",
+    source: "Singapore Pools Singapore Sweep Game Rules",
+  },
+  {
+    id: "us-powerball",
+    country: "美国",
+    name: "Powerball",
+    type: "groups",
+    summary: "5 个白球 1-69，加 1 个 Powerball 1-26。",
+    source: "Powerball 官方玩法资料",
+    groups: [
+      { label: "白球", count: 5, min: 1, max: 69, sort: true },
+      { label: "Powerball", count: 1, min: 1, max: 26 },
+    ],
+  },
+  {
+    id: "us-mega-millions",
+    country: "美国",
+    name: "Mega Millions",
+    type: "groups",
+    summary: "5 个白球 1-70，加 1 个 Mega Ball 1-24。",
+    source: "Mega Millions 官方 FAQ",
+    groups: [
+      { label: "白球", count: 5, min: 1, max: 70, sort: true },
+      { label: "Mega Ball", count: 1, min: 1, max: 24 },
+    ],
+  },
+  {
+    id: "us-pick-3",
+    country: "美国",
+    name: "Pick 3",
+    type: "digits",
+    digits: 3,
+    summary: "000-999 三位数随机；各州规则不同，这里做简化版。",
+    source: "美国州彩票 Pick 3 规则资料",
+  },
+  {
+    id: "us-pick-4",
+    country: "美国",
+    name: "Pick 4",
+    type: "digits",
+    digits: 4,
+    summary: "0000-9999 四位数随机；各州规则不同，这里做简化版。",
+    source: "美国州彩票 Pick 4 规则资料",
+  },
+  {
+    id: "us-pick-5",
+    country: "美国",
+    name: "Pick 5",
+    type: "digits",
+    digits: 5,
+    summary: "00000-99999 五位数随机；各州规则不同，这里做简化版。",
+    source: "美国州彩票 Pick 5 规则资料",
+  },
+  {
+    id: "eu-euromillions",
+    country: "欧洲",
+    name: "EuroMillions",
+    type: "groups",
+    summary: "5 个主号 1-50，加 2 个 Lucky Stars 1-12。",
+    source: "EuroMillions 官方 / National Lottery 资料",
+    groups: [
+      { label: "主号", count: 5, min: 1, max: 50, sort: true },
+      { label: "Lucky Stars", count: 2, min: 1, max: 12, sort: true },
+    ],
+  },
+  {
+    id: "eu-uk-lotto",
+    country: "欧洲",
+    name: "UK Lotto",
+    type: "groups",
+    summary: "6 个不重复号码，从 1-59。",
+    source: "The National Lottery UK Lotto 资料",
+    groups: [{ label: "主号", count: 6, min: 1, max: 59, sort: true }],
+  },
+  {
+    id: "eu-irish-lotto",
+    country: "欧洲",
+    name: "Irish Lotto",
+    type: "groups",
+    summary: "6 个主号 1-47，加 1 个 Bonus Ball。",
+    source: "Irish National Lottery Lotto 资料",
+    groups: [
+      { label: "主号", count: 6, min: 1, max: 47, sort: true },
+      { label: "Bonus Ball", count: 1, min: 1, max: 47, excludePrevious: true },
+    ],
+  },
+  {
+    id: "ca-lotto-649",
+    country: "加拿大",
+    name: "Lotto 6/49",
+    type: "groups",
+    summary: "Classic Draw 6 个号码，从 1-49；附 1 个 Bonus。",
+    source: "加拿大 LOTTO 6/49 游戏条件资料",
+    groups: [
+      { label: "主号", count: 6, min: 1, max: 49, sort: true },
+      { label: "Bonus", count: 1, min: 1, max: 49, excludePrevious: true },
+    ],
+  },
+  {
+    id: "ca-lotto-max",
+    country: "加拿大",
+    name: "Lotto Max",
+    type: "groups",
+    summary: "7 个主号 1-50，加 1 个 Bonus。",
+    source: "OLG Lotto Max 游戏条件资料",
+    groups: [
+      { label: "主号", count: 7, min: 1, max: 50, sort: true },
+      { label: "Bonus", count: 1, min: 1, max: 50, excludePrevious: true },
+    ],
+  },
+  {
+    id: "ph-3d",
+    country: "菲律宾",
+    name: "3D Lotto",
+    type: "digits",
+    digits: 3,
+    summary: "000-999 三位数随机。",
+    source: "PCSO 3D Lotto 资料",
+  },
+  {
+    id: "ph-4d",
+    country: "菲律宾",
+    name: "4D Lotto",
+    type: "digits",
+    digits: 4,
+    summary: "0000-9999 四位数随机。",
+    source: "PCSO 4D Lotto 资料",
+  },
+  {
+    id: "ph-642",
+    country: "菲律宾",
+    name: "Lotto 6/42",
+    type: "groups",
+    summary: "6 个不重复号码，从 1-42。",
+    source: "PCSO Lotto 6/42 资料",
+    groups: [{ label: "主号", count: 6, min: 1, max: 42, sort: true }],
+  },
+  {
+    id: "ph-645",
+    country: "菲律宾",
+    name: "MegaLotto 6/45",
+    type: "groups",
+    summary: "6 个不重复号码，从 1-45。",
+    source: "PCSO MegaLotto 6/45 资料",
+    groups: [{ label: "主号", count: 6, min: 1, max: 45, sort: true }],
+  },
+  {
+    id: "ph-649",
+    country: "菲律宾",
+    name: "SuperLotto 6/49",
+    type: "groups",
+    summary: "6 个不重复号码，从 1-49。",
+    source: "PCSO SuperLotto 6/49 资料",
+    groups: [{ label: "主号", count: 6, min: 1, max: 49, sort: true }],
+  },
+  {
+    id: "ph-655",
+    country: "菲律宾",
+    name: "GrandLotto 6/55",
+    type: "groups",
+    summary: "6 个不重复号码，从 1-55。",
+    source: "PCSO GrandLotto 6/55 资料",
+    groups: [{ label: "主号", count: 6, min: 1, max: 55, sort: true }],
+  },
+  {
+    id: "ph-658",
+    country: "菲律宾",
+    name: "UltraLotto 6/58",
+    type: "groups",
+    summary: "6 个不重复号码，从 1-58。",
+    source: "PCSO UltraLotto 6/58 资料",
+    groups: [{ label: "主号", count: 6, min: 1, max: 58, sort: true }],
+  },
+  {
+    id: "tw-power-lottery",
+    country: "台湾",
+    name: "威力彩",
+    type: "groups",
+    summary: "第一區 6 个号码 1-38，第二區 1 个号码 1-8。",
+    source: "台灣彩券电脑型彩券规则资料",
+    groups: [
+      { label: "第一區", count: 6, min: 1, max: 38, sort: true },
+      { label: "第二區", count: 1, min: 1, max: 8 },
+    ],
+  },
+  {
+    id: "tw-lotto-649",
+    country: "台湾",
+    name: "大樂透",
+    type: "groups",
+    summary: "6 个主号 1-49，加 1 个特别号；简化随机版本。",
+    source: "台灣彩券电脑型彩券规则资料",
+    groups: [
+      { label: "主号", count: 6, min: 1, max: 49, sort: true },
+      { label: "特别号", count: 1, min: 1, max: 49, excludePrevious: true },
+    ],
+  },
+  {
+    id: "tw-daily-539",
+    country: "台湾",
+    name: "今彩539",
+    type: "groups",
+    summary: "5 个不重复号码，从 1-39。",
+    source: "台灣彩券资料",
+    groups: [{ label: "主号", count: 5, min: 1, max: 39, sort: true }],
+  },
+  {
+    id: "tw-3star",
+    country: "台湾",
+    name: "3星彩",
+    type: "digits",
+    digits: 3,
+    summary: "000-999 三位数随机；简化随机版本。",
+    source: "台灣彩券资料",
+  },
+  {
+    id: "tw-4star",
+    country: "台湾",
+    name: "4星彩",
+    type: "digits",
+    digits: 4,
+    summary: "0000-9999 四位数随机；简化随机版本。",
+    source: "台灣彩券资料",
+  },
+  {
+    id: "hk-mark-six",
+    country: "香港",
+    name: "六合彩 Mark Six",
+    type: "groups",
+    summary: "6 个主号 1-49，加 1 个特别号；简化随机版本。",
+    source: "HKJC Mark Six 规则资料",
+    groups: [
+      { label: "主号", count: 6, min: 1, max: 49, sort: true },
+      { label: "特别号", count: 1, min: 1, max: 49, excludePrevious: true },
+    ],
+  },
+  {
+    id: "jp-mini-loto",
+    country: "日本",
+    name: "Mini Loto",
+    type: "groups",
+    summary: "5 个主号 1-31，加 1 个 Bonus。",
+    source: "みずほ銀行 ミニロト资料",
+    groups: [
+      { label: "主号", count: 5, min: 1, max: 31, sort: true },
+      { label: "Bonus", count: 1, min: 1, max: 31, excludePrevious: true },
+    ],
+  },
+  {
+    id: "jp-loto-6",
+    country: "日本",
+    name: "Loto 6",
+    type: "groups",
+    summary: "6 个主号 1-43，加 1 个 Bonus。",
+    source: "みずほ銀行 ロト6 规则资料",
+    groups: [
+      { label: "主号", count: 6, min: 1, max: 43, sort: true },
+      { label: "Bonus", count: 1, min: 1, max: 43, excludePrevious: true },
+    ],
+  },
+  {
+    id: "jp-loto-7",
+    country: "日本",
+    name: "Loto 7",
+    type: "groups",
+    summary: "7 个主号 1-37，加 2 个 Bonus。",
+    source: "みずほ銀行 ロト7 规则资料",
+    groups: [
+      { label: "主号", count: 7, min: 1, max: 37, sort: true },
+      { label: "Bonus", count: 2, min: 1, max: 37, excludePrevious: true, sort: true },
+    ],
+  },
+  {
+    id: "jp-numbers-3",
+    country: "日本",
+    name: "Numbers 3",
+    type: "digits",
+    digits: 3,
+    summary: "000-999 三位数随机。",
+    source: "みずほ銀行 ナンバーズ3 规则资料",
+  },
+  {
+    id: "jp-numbers-4",
+    country: "日本",
+    name: "Numbers 4",
+    type: "digits",
+    digits: 4,
+    summary: "0000-9999 四位数随机。",
+    source: "みずほ銀行 ナンバーズ4 规则资料",
+  },
+  {
+    id: "kr-lotto-645",
+    country: "韩国",
+    name: "Lotto 6/45",
+    type: "groups",
+    summary: "6 个主号 1-45，加 1 个 Bonus。",
+    source: "동행복권 Lotto 6/45 资料",
+    groups: [
+      { label: "主号", count: 6, min: 1, max: 45, sort: true },
+      { label: "Bonus", count: 1, min: 1, max: 45, excludePrevious: true },
+    ],
+  },
+  {
+    id: "th-l6",
+    country: "泰国",
+    name: "Government Lottery L6",
+    type: "digits",
+    digits: 6,
+    summary: "6 位政府彩票号码；简化为 000000-999999 随机。",
+    source: "Thailand Government Lottery Office 资料",
+  },
+  {
+    id: "th-n3",
+    country: "泰国",
+    name: "N3 三位数字",
+    type: "digits",
+    digits: 3,
+    summary: "3 位数字玩法；规则较新，先做简化随机版本。",
+    source: "Thailand Government Lottery Office / 官方公告资料",
+  },
+];
+const LOTTERY_COUNTRIES = ["全部", ...new Set(LOTTERY_DATA.map((item) => item.country))].sort((first, second) =>
+  first === "全部" ? -1 : second === "全部" ? 1 : first.localeCompare(second, "zh-CN"),
+);
+
 const DAILY_TIPS = [
   { title: "轻一点的决定", text: "如果抽到的结果让你皱眉，那其实你已经知道自己不想要什么了。" },
   { title: "三秒规则", text: "按下随机后，第一反应通常很诚实。开心就去做，抗拒就重抽。" },
@@ -1067,6 +1480,9 @@ const state = {
     transport: "全部",
   },
   number: {
+    country: "马来西亚",
+    gameId: "my-4d",
+    lines: 1,
     allowRepeat: true,
     avoidFour: false,
   },
@@ -1570,6 +1986,8 @@ function renderModeStage() {
   if (!state.currentResult || state.currentResult.mode !== state.mode) {
     elements.resultValue.textContent = "按下按钮，让今天轻一点";
     elements.resultMeta.textContent = "你可以先选模式，也可以直接随机。";
+    elements.numberDigits.classList.remove("is-lottery");
+    elements.numberDigits.hidden = true;
     elements.numberDigits.innerHTML = "";
   }
 }
@@ -1929,26 +2347,81 @@ function renderTravelControls() {
 }
 
 function renderNumberControls() {
+  const currentCountry = LOTTERY_COUNTRIES.includes(state.number.country) ? state.number.country : "马来西亚";
+  const games = getLotteryGamesForCountry(currentCountry);
+  const currentGame = games.find((game) => game.id === state.number.gameId) || games[0] || LOTTERY_DATA[0];
+  const currentLines = normalizeLotteryLines(state.number.lines);
+
+  state.number.country = currentCountry;
+  state.number.gameId = currentGame.id;
+  state.number.lines = currentLines;
+
   elements.modeControls.innerHTML = `
+    <div class="field">
+      <label for="lotteryCountry">国家 / 地区</label>
+      <select id="lotteryCountry">
+        ${LOTTERY_COUNTRIES.map((country) => `<option value="${escapeHtml(country)}" ${country === currentCountry ? "selected" : ""}>${escapeHtml(country)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="field">
+      <label for="lotteryGame">号码玩法</label>
+      <select id="lotteryGame">
+        ${games.map((game) => `<option value="${escapeHtml(game.id)}" ${game.id === currentGame.id ? "selected" : ""}>${escapeHtml(game.country)} · ${escapeHtml(game.name)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="field">
+      <label for="lotteryLines">生成注数</label>
+      <select id="lotteryLines">
+        ${LOTTERY_LINE_OPTIONS.map((lineCount) => `<option value="${lineCount}" ${lineCount === currentLines ? "selected" : ""}>${lineCount} 组号码</option>`).join("")}
+      </select>
+    </div>
+    <div class="number-rule-card">
+      <strong>${escapeHtml(currentGame.name)}</strong>
+      <p>${escapeHtml(currentGame.summary)}</p>
+      <small>${LOTTERY_DISCLAIMER} ${LOTTERY_SOURCE_NOTE}</small>
+    </div>
     <label class="toggle-field">
       <input id="allowRepeat" type="checkbox" ${state.number.allowRepeat ? "checked" : ""} />
-      允许重复数字
+      数字型玩法允许重复数字
     </label>
     <label class="toggle-field">
       <input id="avoidFour" type="checkbox" ${state.number.avoidFour ? "checked" : ""} />
-      不包含数字 4
+      尽量避开数字 4
     </label>
   `;
+
+  document.querySelector("#lotteryCountry").addEventListener("change", (event) => {
+    state.number.country = event.target.value;
+    state.number.gameId = getLotteryGamesForCountry(state.number.country)[0]?.id || LOTTERY_DATA[0].id;
+    saveState();
+    renderControls();
+    renderPreview();
+  });
+
+  document.querySelector("#lotteryGame").addEventListener("change", (event) => {
+    state.number.gameId = event.target.value;
+    saveState();
+    renderControls();
+    renderPreview();
+  });
+
+  document.querySelector("#lotteryLines").addEventListener("change", (event) => {
+    state.number.lines = normalizeLotteryLines(event.target.value);
+    saveState();
+    renderPreview();
+  });
 
   document.querySelector("#allowRepeat").addEventListener("change", (event) => {
     state.number.allowRepeat = event.target.checked;
     saveState();
+    renderControls();
     renderPreview();
   });
 
   document.querySelector("#avoidFour").addEventListener("change", (event) => {
     state.number.avoidFour = event.target.checked;
     saveState();
+    renderControls();
     renderPreview();
   });
 }
@@ -2072,14 +2545,21 @@ function getCurrentOptions() {
   }
 
   if (state.mode === "number") {
-    const chips = ["0000 - 9999", "四位数补零", "仅供娱乐"];
+    const games = getLotteryGamesForCountry(state.number.country);
+    const currentGame = games.find((game) => game.id === state.number.gameId) || games[0] || LOTTERY_DATA[0];
+    const chips = [
+      `${currentGame.country} · ${currentGame.name}`,
+      currentGame.summary,
+      `${normalizeLotteryLines(state.number.lines)} 组号码`,
+      LOTTERY_DISCLAIMER,
+    ];
 
     if (!state.number.allowRepeat) {
-      chips.push("不重复");
+      chips.push("数字型不重复");
     }
 
     if (state.number.avoidFour) {
-      chips.push("避开 4");
+      chips.push("尽量避开 4");
     }
 
     return chips.map((title) => ({ title }));
@@ -2375,13 +2855,15 @@ function getResult() {
   }
 
   if (state.mode === "number") {
-    const digits = generateDigits();
+    const game = getCurrentLotteryGame();
+    const lines = Array.from({ length: normalizeLotteryLines(state.number.lines) }, () => generateLotteryLine(game));
 
     return {
       mode: state.mode,
-      title: digits.join(""),
-      meta: buildNumberMeta(),
-      digits,
+      title: `${game.country} · ${game.name}`,
+      meta: buildNumberMeta(game, lines),
+      lotteryGameId: game.id,
+      lotteryLines: lines,
     };
   }
 
@@ -3537,14 +4019,32 @@ function isValidUsername(username) {
   return /^[\w\u4e00-\u9fa5-]{2,20}$/u.test(username || "");
 }
 
-function generateDigits() {
+function normalizeLotteryLines(value) {
+  const lineCount = Number(value);
+  return LOTTERY_LINE_OPTIONS.includes(lineCount) ? lineCount : 1;
+}
+
+function getLotteryGamesForCountry(country) {
+  if (country === "全部") {
+    return LOTTERY_DATA;
+  }
+
+  return LOTTERY_DATA.filter((game) => game.country === country);
+}
+
+function getCurrentLotteryGame() {
+  const games = getLotteryGamesForCountry(state.number.country);
+  return games.find((game) => game.id === state.number.gameId) || games[0] || LOTTERY_DATA[0];
+}
+
+function generateDigitString(length) {
   const availableDigits = state.number.avoidFour
     ? ["0", "1", "2", "3", "5", "6", "7", "8", "9"]
     : ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
   const pool = [...availableDigits];
   const digits = [];
 
-  for (let index = 0; index < 4; index += 1) {
+  for (let index = 0; index < length; index += 1) {
     const source = state.number.allowRepeat ? availableDigits : pool;
 
     if (!source.length) {
@@ -3559,21 +4059,128 @@ function generateDigits() {
     }
   }
 
-  return digits;
+  return digits.join("").padEnd(length, "0");
 }
 
-function buildNumberMeta() {
-  const rules = ["四位随机"];
+function generateRangeString(game) {
+  const min = Number(game.min) || 0;
+  const max = Number(game.max) || min;
+  const width = Number(game.digits) || String(max).length;
+
+  for (let attempt = 0; attempt < 2000; attempt += 1) {
+    const value = min + randomInt(max - min + 1);
+    const text = String(value).padStart(width, "0");
+
+    if (!state.number.avoidFour || !text.includes("4")) {
+      return text;
+    }
+  }
+
+  return String(min + randomInt(max - min + 1)).padStart(width, "0");
+}
+
+function generateLotteryLine(game) {
+  if (game.type === "digits") {
+    return {
+      type: "digits",
+      value: generateDigitString(game.digits),
+    };
+  }
+
+  if (game.type === "range") {
+    return {
+      type: "range",
+      value: generateRangeString(game),
+    };
+  }
+
+  const previousValues = [];
+  const groups = (game.groups || []).map((group) => {
+    const exclusions = group.excludePrevious ? previousValues : [];
+    const values = drawUniqueLotteryNumbers(group.count, group.min, group.max, exclusions);
+
+    previousValues.push(...values);
+
+    return {
+      label: group.label,
+      values: group.sort ? [...values].sort((first, second) => first - second) : values,
+      width: String(group.max).length,
+    };
+  });
+
+  return {
+    type: "groups",
+    groups,
+  };
+}
+
+function drawUniqueLotteryNumbers(count, min, max, exclusions = []) {
+  const excluded = new Set(exclusions);
+  let pool = [];
+
+  for (let value = min; value <= max; value += 1) {
+    if (excluded.has(value)) {
+      continue;
+    }
+
+    if (state.number.avoidFour && String(value).includes("4")) {
+      continue;
+    }
+
+    pool.push(value);
+  }
+
+  if (pool.length < count) {
+    pool = [];
+
+    for (let value = min; value <= max; value += 1) {
+      if (!excluded.has(value)) {
+        pool.push(value);
+      }
+    }
+  }
+
+  const values = [];
+
+  for (let index = 0; index < count && pool.length; index += 1) {
+    const valueIndex = randomInt(pool.length);
+    values.push(pool[valueIndex]);
+    pool.splice(valueIndex, 1);
+  }
+
+  return values;
+}
+
+function formatLotteryBall(value, width) {
+  return String(value).padStart(Math.max(2, width), "0");
+}
+
+function formatLotteryLine(line) {
+  if (line.type === "digits" || line.type === "range") {
+    return line.value;
+  }
+
+  return line.groups
+    .map((group) => `${group.label} ${group.values.map((value) => formatLotteryBall(value, group.width)).join(" ")}`)
+    .join(" · ");
+}
+
+function buildNumberMeta(game, lines) {
+  const rules = [
+    game.summary,
+    `${lines.length} 组`,
+    lines.map((line, index) => `#${index + 1} ${formatLotteryLine(line)}`).join(" ｜ "),
+  ];
 
   if (!state.number.allowRepeat) {
-    rules.push("不重复");
+    rules.push("数字型不重复");
   }
 
   if (state.number.avoidFour) {
-    rules.push("不含 4");
+    rules.push("尽量避开 4");
   }
 
-  rules.push("仅供娱乐");
+  rules.push(LOTTERY_DISCLAIMER);
   return rules.join(" · ");
 }
 
@@ -3601,17 +4208,59 @@ function drawResult() {
 
 function renderResult(result) {
   elements.resultLabel.textContent = MODES[result.mode].label;
-  elements.resultValue.textContent = result.mode === "number" ? "你的四位号码" : result.title;
+  elements.resultValue.textContent = result.mode === "number" ? result.title : result.title;
   elements.resultMeta.textContent = formatBudget(result.meta);
+
+  if (result.lotteryLines) {
+    elements.numberDigits.hidden = false;
+    elements.numberDigits.classList.add("is-lottery");
+    elements.numberDigits.innerHTML = renderLotteryLines(result.lotteryLines);
+    return;
+  }
 
   if (result.digits) {
     elements.numberDigits.hidden = false;
+    elements.numberDigits.classList.remove("is-lottery");
     elements.numberDigits.innerHTML = result.digits.map((digit) => `<span class="digit-box">${digit}</span>`).join("");
     return;
   }
 
   elements.numberDigits.hidden = true;
+  elements.numberDigits.classList.remove("is-lottery");
   elements.numberDigits.innerHTML = "";
+}
+
+function renderLotteryLines(lines) {
+  return lines
+    .map((line, index) => {
+      if (line.type === "digits" || line.type === "range") {
+        return `
+          <article class="lottery-line">
+            <small>第 ${index + 1} 组</small>
+            <strong class="lottery-ticket-number">${escapeHtml(line.value)}</strong>
+          </article>
+        `;
+      }
+
+      return `
+        <article class="lottery-line">
+          <small>第 ${index + 1} 组</small>
+          ${line.groups
+            .map(
+              (group) => `
+                <div class="lottery-group">
+                  <span>${escapeHtml(group.label)}</span>
+                  <div class="lottery-balls">
+                    ${group.values.map((value) => `<b>${escapeHtml(formatLotteryBall(value, group.width))}</b>`).join("")}
+                  </div>
+                </div>
+              `,
+            )
+            .join("")}
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function addHistory(result) {
