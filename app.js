@@ -111,9 +111,285 @@ function getShoppingDataFromWindow() {
 }
 
 const SHOPPING_DATA = getShoppingDataFromWindow();
+if (typeof window !== "undefined") {
+  window.SHOPPING_CATEGORY_TREE = [
+    {
+      id: "all",
+      label: "全部",
+      children: [],
+    },
+    {
+      id: "electronics",
+      label: "电子产品",
+      children: [
+        { id: "electronics-all", label: "全部" },
+        { id: "phones", label: "手机" },
+        { id: "computers", label: "电脑" },
+        { id: "tablets", label: "平板" },
+        { id: "cameras", label: "相机" },
+        { id: "audio", label: "耳机 / 音响" },
+        { id: "gaming", label: "游戏设备" },
+        { id: "wearables", label: "智能穿戴" },
+        { id: "pc-parts", label: "电脑配件" },
+        { id: "smart-home", label: "智能家居" },
+      ],
+    },
+    {
+      id: "computers-accessories",
+      label: "电脑与配件",
+      children: [
+        { id: "computers-accessories-all", label: "全部" },
+        { id: "laptops", label: "笔记本电脑" },
+        { id: "desktops", label: "台式电脑" },
+        { id: "monitors", label: "显示器" },
+        { id: "keyboards", label: "键盘 / 鼠标" },
+        { id: "storage", label: "硬盘 / 存储" },
+        { id: "networking", label: "路由器 / 网络" },
+        { id: "printers", label: "打印机" },
+      ],
+    },
+    {
+      id: "phones-accessories",
+      label: "手机与配件",
+      children: [
+        { id: "phones-accessories-all", label: "全部" },
+        { id: "smartphones", label: "智能手机" },
+        { id: "phone-cases", label: "手机壳" },
+        { id: "chargers-cables", label: "充电器 / 线材" },
+        { id: "power-banks", label: "移动电源" },
+        { id: "screen-protectors", label: "保护膜" },
+        { id: "stands-grips", label: "支架 / 手柄" },
+      ],
+    },
+    {
+      id: "home-living",
+      label: "家居生活",
+      children: [
+        { id: "home-living-all", label: "全部" },
+        { id: "bedding", label: "床品" },
+        { id: "lighting", label: "灯具" },
+        { id: "home-decor", label: "家饰" },
+        { id: "bathroom", label: "浴室用品" },
+        { id: "small-appliances", label: "小家电" },
+        { id: "furniture", label: "家具" },
+      ],
+    },
+    {
+      id: "kitchen",
+      label: "厨房用品",
+      children: [
+        { id: "kitchen-all", label: "全部" },
+        { id: "cookware", label: "锅具" },
+        { id: "tableware", label: "餐具" },
+        { id: "bakeware", label: "烘焙" },
+        { id: "coffee-tea", label: "咖啡 / 茶具" },
+        { id: "food-storage", label: "保鲜收纳" },
+        { id: "kitchen-tools", label: "厨房小工具" },
+      ],
+    },
+    {
+      id: "cleaning-storage",
+      label: "清洁收纳",
+      children: [
+        { id: "cleaning-storage-all", label: "全部" },
+        { id: "laundry", label: "洗衣用品" },
+        { id: "cleaning-tools", label: "清洁工具" },
+        { id: "organizers", label: "收纳盒 / 架" },
+        { id: "fragrance", label: "香氛除味" },
+        { id: "trash-recycling", label: "垃圾分类" },
+      ],
+    },
+    {
+      id: "fashion",
+      label: "服饰穿搭",
+      children: [
+        { id: "fashion-all", label: "全部" },
+        { id: "tops", label: "上衣" },
+        { id: "bottoms", label: "裤装 / 裙装" },
+        { id: "shoes", label: "鞋履" },
+        { id: "bags", label: "包袋" },
+        { id: "accessories", label: "配饰" },
+        { id: "innerwear", label: "内衣袜子" },
+      ],
+    },
+    {
+      id: "beauty-care",
+      label: "美妆护理",
+      children: [
+        { id: "beauty-care-all", label: "全部" },
+        { id: "skincare", label: "护肤" },
+        { id: "makeup", label: "彩妆" },
+        { id: "haircare", label: "洗护发" },
+        { id: "fragrance-beauty", label: "香水" },
+        { id: "beauty-tools", label: "美容工具" },
+        { id: "personal-care", label: "个人护理" },
+      ],
+    },
+    {
+      id: "health-sports",
+      label: "健康运动",
+      children: [
+        { id: "health-sports-all", label: "全部" },
+        { id: "fitness", label: "健身器材" },
+        { id: "running", label: "跑步" },
+        { id: "yoga", label: "瑜伽" },
+        { id: "recovery", label: "按摩 / 恢复" },
+        { id: "nutrition", label: "营养补给" },
+        { id: "outdoor-sports", label: "户外运动" },
+      ],
+    },
+    {
+      id: "work-study",
+      label: "工作学习",
+      children: [
+        { id: "work-study-all", label: "全部" },
+        { id: "stationery", label: "文具" },
+        { id: "desk-setup", label: "桌面布置" },
+        { id: "office-chair", label: "办公椅" },
+        { id: "books-courses", label: "书籍 / 课程" },
+        { id: "productivity-tools", label: "效率工具" },
+      ],
+    },
+    {
+      id: "transport",
+      label: "交通工具",
+      children: [
+        { id: "transport-all", label: "全部" },
+        { id: "bicycles", label: "自行车" },
+        { id: "e-scooters", label: "电动滑板车" },
+        { id: "helmets", label: "头盔" },
+        { id: "commute-accessories", label: "通勤配件" },
+        { id: "public-transport", label: "公共交通卡 / 票券" },
+      ],
+    },
+    {
+      id: "car-accessories",
+      label: "汽车用品",
+      children: [
+        { id: "car-accessories-all", label: "全部" },
+        { id: "dashcam", label: "行车记录仪" },
+        { id: "car-care", label: "清洁养护" },
+        { id: "car-chargers", label: "车充 / 支架" },
+        { id: "car-storage", label: "车内收纳" },
+        { id: "tyre-tools", label: "轮胎 / 工具" },
+      ],
+    },
+    {
+      id: "hobbies",
+      label: "兴趣娱乐",
+      children: [
+        { id: "hobbies-all", label: "全部" },
+        { id: "board-games", label: "桌游" },
+        { id: "music", label: "乐器 / 音乐" },
+        { id: "crafts", label: "手作" },
+        { id: "collectibles", label: "收藏品" },
+        { id: "streaming-gear", label: "直播设备" },
+        { id: "toys", label: "玩具" },
+      ],
+    },
+    {
+      id: "travel-outdoor",
+      label: "旅行户外",
+      children: [
+        { id: "travel-outdoor-all", label: "全部" },
+        { id: "luggage", label: "行李箱" },
+        { id: "backpacks", label: "背包" },
+        { id: "camping", label: "露营装备" },
+        { id: "travel-gadgets", label: "旅行小物" },
+        { id: "hiking", label: "徒步装备" },
+        { id: "rain-sun", label: "雨具 / 防晒" },
+      ],
+    },
+    {
+      id: "dive-photo",
+      label: "潜水 / 摄影装备",
+      children: [
+        { id: "dive-photo-all", label: "全部" },
+        { id: "dive-gear", label: "潜水装备" },
+        { id: "snorkeling", label: "浮潜装备" },
+        { id: "action-cameras", label: "运动相机" },
+        { id: "camera-lenses", label: "镜头" },
+        { id: "tripods", label: "脚架 / 稳定器" },
+        { id: "waterproof-bags", label: "防水包" },
+      ],
+    },
+    {
+      id: "pets",
+      label: "宠物用品",
+      children: [
+        { id: "pets-all", label: "全部" },
+        { id: "pet-food", label: "宠物食品" },
+        { id: "pet-toys", label: "玩具" },
+        { id: "pet-cleaning", label: "清洁护理" },
+        { id: "pet-beds", label: "窝垫" },
+        { id: "pet-travel", label: "外出用品" },
+      ],
+    },
+    {
+      id: "gifts",
+      label: "礼物",
+      children: [
+        { id: "gifts-all", label: "全部" },
+        { id: "birthday-gifts", label: "生日礼物" },
+        { id: "couple-gifts", label: "情侣礼物" },
+        { id: "family-gifts", label: "家人礼物" },
+        { id: "corporate-gifts", label: "商务礼物" },
+        { id: "handmade-gifts", label: "手作礼物" },
+      ],
+    },
+    {
+      id: "luxury",
+      label: "奢侈品",
+      children: [
+        { id: "luxury-all", label: "全部" },
+        { id: "designer-bags", label: "设计师包袋" },
+        { id: "watches", label: "腕表" },
+        { id: "jewelry", label: "珠宝" },
+        { id: "luxury-fragrance", label: "高级香水" },
+        { id: "luxury-accessories", label: "奢华配饰" },
+        { id: "luxury-luggage", label: "高端旅行箱" },
+      ],
+    },
+    {
+      id: "software-digital",
+      label: "软件 / 订阅 / 数字产品",
+      children: [
+        { id: "software-digital-all", label: "全部" },
+        { id: "productivity-subscriptions", label: "效率订阅" },
+        { id: "creative-software", label: "创作软件" },
+        { id: "cloud-storage", label: "云存储" },
+        { id: "learning-apps", label: "学习 App" },
+        { id: "gaming-digital", label: "游戏 / DLC" },
+        { id: "security-vpn", label: "安全 / VPN" },
+      ],
+    },
+  ];
+}
 const SHOPPING_CATEGORY_TREE = typeof window !== "undefined" && Array.isArray(window.SHOPPING_CATEGORY_TREE)
   ? window.SHOPPING_CATEGORY_TREE
   : [];
+const SHOPPING_CATEGORY_SOURCE_MAP = {
+  all: Object.keys(SHOPPING_DATA),
+  electronics: ["数码小物"],
+  "computers-accessories": ["数码小物"],
+  "phones-accessories": ["数码小物"],
+  "home-living": ["家里缺的", "生活补给"],
+  kitchen: ["家里缺的"],
+  "cleaning-storage": ["生活补给", "家里缺的"],
+  fashion: ["穿搭"],
+  "beauty-care": ["美妆护肤"],
+  "health-sports": ["运动户外"],
+  "work-study": ["生活补给", "数码小物"],
+  transport: ["运动户外"],
+  "car-accessories": ["数码小物", "生活补给"],
+  hobbies: ["数码小物", "礼物"],
+  "travel-outdoor": ["运动户外", "奢侈品"],
+  "dive-photo": ["运动户外", "数码小物"],
+  pets: ["生活补给"],
+  gifts: ["礼物"],
+  luxury: ["奢侈品"],
+  "software-digital": ["数码小物", "理性提醒"],
+};
 
 const DRINK_MENU_DATA = {
   马来西亚: [
@@ -1430,6 +1706,8 @@ const state = {
     avoidFour: false,
   },
   shopping: {
+    categoryId: "all",
+    subcategoryId: "all",
     category: "生活补给",
     level: "全部",
   },
@@ -2369,19 +2647,81 @@ function renderNumberControls() {
   });
 }
 
+function getShoppingRootNode(categoryId) {
+  return SHOPPING_CATEGORY_TREE.find((category) => category.id === categoryId) || SHOPPING_CATEGORY_TREE[0];
+}
+
+function getShoppingChildren(rootNode) {
+  const children = Array.isArray(rootNode?.children) ? rootNode.children : [];
+  return children.length ? children : [{ id: "all", label: "全部" }];
+}
+
+function getShoppingChildNode(rootNode, childId) {
+  const children = getShoppingChildren(rootNode);
+  return children.find((child) => child.id === childId) || children[0];
+}
+
+function getShoppingCategoryPath(categoryId = state.shopping.categoryId, subcategoryId = state.shopping.subcategoryId) {
+  const rootNode = getShoppingRootNode(categoryId);
+  const childNode = getShoppingChildNode(rootNode, subcategoryId);
+
+  if (rootNode.id === "all" || childNode.label === "全部") {
+    return rootNode.label;
+  }
+
+  return `${rootNode.label} / ${childNode.label}`;
+}
+
+function getShoppingSourceCategories() {
+  const rootNode = getShoppingRootNode(state.shopping.categoryId);
+
+  if (rootNode.id === "all") {
+    return Object.keys(SHOPPING_DATA);
+  }
+
+  return SHOPPING_CATEGORY_SOURCE_MAP[rootNode.id] || Object.keys(SHOPPING_DATA);
+}
+
+function getFilteredShoppingItems() {
+  const sourceCategories = getShoppingSourceCategories();
+  const categoryPath = getShoppingCategoryPath();
+  const items = sourceCategories.flatMap((category) =>
+    (SHOPPING_DATA[category] || []).map((item) => ({
+      ...item,
+      categoryPath,
+      sourceCategory: category,
+    })),
+  );
+
+  if (state.shopping.level === "全部") {
+    return items;
+  }
+
+  return items.filter((item) => item.level === state.shopping.level);
+}
+
 function renderShoppingControls() {
-  const categories = Object.keys(SHOPPING_DATA);
-  const currentCategory = SHOPPING_DATA[state.shopping.category] ? state.shopping.category : categories[0];
+  const currentRoot = getShoppingRootNode(state.shopping.categoryId);
+  const children = getShoppingChildren(currentRoot);
+  const currentChild = getShoppingChildNode(currentRoot, state.shopping.subcategoryId);
   const currentLevel = SHOPPING_LEVELS.includes(state.shopping.level) ? state.shopping.level : "全部";
 
-  state.shopping.category = currentCategory;
+  state.shopping.categoryId = currentRoot.id;
+  state.shopping.subcategoryId = currentChild.id;
+  state.shopping.category = getShoppingCategoryPath(currentRoot.id, currentChild.id);
   state.shopping.level = currentLevel;
 
   elements.modeControls.innerHTML = `
     <div class="field">
-      <label for="shoppingCategory">购物类别</label>
-      <select id="shoppingCategory">
-        ${categories.map((category) => `<option value="${category}" ${category === currentCategory ? "selected" : ""}>${category}</option>`).join("")}
+      <label for="shoppingRootCategory">一级分类</label>
+      <select id="shoppingRootCategory">
+        ${SHOPPING_CATEGORY_TREE.map((category) => `<option value="${escapeHtml(category.id)}" ${category.id === currentRoot.id ? "selected" : ""}>${escapeHtml(category.label)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="field">
+      <label for="shoppingSubcategory">细分分类</label>
+      <select id="shoppingSubcategory" ${currentRoot.id === "all" ? "disabled" : ""}>
+        ${children.map((child) => `<option value="${escapeHtml(child.id)}" ${child.id === currentChild.id ? "selected" : ""}>${escapeHtml(child.label)}</option>`).join("")}
       </select>
     </div>
     <div class="field">
@@ -2392,10 +2732,21 @@ function renderShoppingControls() {
     </div>
   `;
 
-  document.querySelector("#shoppingCategory").addEventListener("change", (event) => {
-    state.shopping.category = event.target.value;
+  document.querySelector("#shoppingRootCategory").addEventListener("change", (event) => {
+    const nextRoot = getShoppingRootNode(event.target.value);
+
+    state.shopping.categoryId = nextRoot.id;
+    state.shopping.subcategoryId = getShoppingChildren(nextRoot)[0].id;
+    state.shopping.category = getShoppingCategoryPath(state.shopping.categoryId, state.shopping.subcategoryId);
     saveState();
     renderControls();
+    renderPreview();
+  });
+
+  document.querySelector("#shoppingSubcategory").addEventListener("change", (event) => {
+    state.shopping.subcategoryId = event.target.value;
+    state.shopping.category = getShoppingCategoryPath(state.shopping.categoryId, state.shopping.subcategoryId);
+    saveState();
     renderPreview();
   });
 
@@ -2509,14 +2860,7 @@ function getCurrentOptions() {
   }
 
   if (state.mode === "shopping") {
-    const fallbackCategory = Object.keys(SHOPPING_DATA)[0];
-    const items = SHOPPING_DATA[state.shopping.category] || SHOPPING_DATA[fallbackCategory] || [];
-
-    if (state.shopping.level === "全部") {
-      return items;
-    }
-
-    return items.filter((item) => item.level === state.shopping.level);
+    return getFilteredShoppingItems();
   }
 
   return parseCustomOptions();
@@ -2817,7 +3161,7 @@ function getResult() {
     return {
       mode: state.mode,
       title: shoppingResult.title,
-      meta: `${state.shopping.category} · ${shoppingResult.level} · 预算约 ${shoppingResult.budget}${poolNote}`,
+      meta: `${shoppingResult.categoryPath || getShoppingCategoryPath()} · ${shoppingResult.level} · 预算约 ${shoppingResult.budget}${poolNote}`,
     };
   }
 
