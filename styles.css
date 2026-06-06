@@ -723,6 +723,10 @@ button {
   gap: 8px;
 }
 
+.shopping-filter-field {
+  min-width: 0;
+}
+
 .field label,
 .custom-list label,
 .toggle-field {
@@ -740,6 +744,7 @@ button {
 .field select,
 .field input {
   width: 100%;
+  min-width: 0;
   min-height: 48px;
   padding: 0 14px;
   border-radius: 16px;
@@ -1848,6 +1853,10 @@ button {
 
   .field {
     gap: 6px;
+  }
+
+  .shopping-filter-field {
+    grid-column: 1 / -1;
   }
 
   .field label,

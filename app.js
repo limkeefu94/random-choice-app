@@ -60,6 +60,7 @@ const TRAVEL_ACTIVITIES = ["全部", "潜水", "浮潜", "海岛跳岛", "爬山
 const TRAVEL_LEVELS = ["全部", "穷游", "低消费", "舒适", "轻奢", "奢华"];
 const TRAVEL_TRANSPORTS = ["全部", "公共交通", "自驾游", "自由行", "跟团", "步行城市"];
 const SHOPPING_LEVELS = ["全部", "低消费", "中等", "高消费", "奢侈品", "理性"];
+const SHOPPING_MINDSETS = ["全部", "真的需要", "升级装备", "奖励自己", "先收藏不买", "工作需要", "旅行需要", "便宜小物", "长期投资"];
 const LOCKABLE_MODES = new Set(["food", "drink", "travel", "shopping", "custom"]);
 const CURRENCY_RATES = {
   MYR: { label: "MYR", perMYR: 1, decimals: 0 },
@@ -1798,6 +1799,7 @@ const state = {
     subcategoryId: "all",
     category: "生活补给",
     level: "全部",
+    mindset: "全部",
   },
   auth: {
     currentUser: "",
@@ -2770,6 +2772,45 @@ function getShoppingSourceCategories() {
   return SHOPPING_CATEGORY_SOURCE_MAP[rootNode.id] || Object.keys(SHOPPING_DATA);
 }
 
+function getShoppingItemMindsets(item) {
+  const text = `${item.title} ${item.category} ${item.subcategory} ${item.level} ${item.budget} ${item.tags.join(" ")} ${item.reason} ${item.priority}`;
+  const mindsets = new Set();
+
+  if (/(补货|日用品|清洁|洗衣|纸巾|牙|保险|安全|保护|需要|备用|通勤|健康|睡眠|维修|轮胎|车险)/i.test(text)) {
+    mindsets.add("真的需要");
+  }
+
+  if (/(升级|高端|旗舰|性能|4K|电竞|NAS|镜头|相机|电脑|笔电|手机|平板|耳机|显示器|电脑表|Wi-Fi 7)/i.test(text)) {
+    mindsets.add("升级装备");
+  }
+
+  if (/(礼物|奖励|香水|珠宝|名牌|奢侈|包|腕表|音响|体验|演唱会|收藏|氛围|游戏|甜点|花束)/i.test(text)) {
+    mindsets.add("奖励自己");
+  }
+
+  if (/(先别买|想清楚|比价|愿望清单|24 小时|理性|收藏|预算|高消费|奢侈品)/i.test(text)) {
+    mindsets.add("先收藏不买");
+  }
+
+  if (/(工作|办公|学习|开发|代码|服务器|域名|会议|打印|桌面|效率|课程|笔记|记账|ChatGPT|Copilot|设计软件|剪辑软件)/i.test(text)) {
+    mindsets.add("工作需要");
+  }
+
+  if (/(旅行|户外|露营|潜水|浮潜|防水|行李|登山|徒步|转换插头|VPN|车载|自行车|滑板车|交通|汽车|GoPro)/i.test(text)) {
+    mindsets.add("旅行需要");
+  }
+
+  if (item.level === "低消费" || /(小物|低消费|RM0|RM8|RM10|RM15|RM20|RM25|RM30|便宜|数据线|手机壳|清洁布|洗衣袋|水杯|拖鞋|雨伞)/i.test(text)) {
+    mindsets.add("便宜小物");
+  }
+
+  if (/(长期|耐用|投资|保值|人体工学|办公椅|洗衣机|冰箱|空调|相机|镜头|电脑|笔电|NAS|腕表|珠宝|车|保险|家电)/i.test(text)) {
+    mindsets.add("长期投资");
+  }
+
+  return [...mindsets];
+}
+
 function getFilteredShoppingItems() {
   const sourceCategories = getShoppingSourceCategories();
   const categoryPath = getShoppingCategoryPath();
@@ -2792,12 +2833,15 @@ function getFilteredShoppingItems() {
   const subcategoryItems = childNode.label === "全部"
     ? items
     : items.filter((item) => item.subcategory === childNode.label || item.tags.includes(childNode.label));
+  const mindsetItems = state.shopping.mindset === "全部"
+    ? subcategoryItems
+    : subcategoryItems.filter((item) => getShoppingItemMindsets(item).includes(state.shopping.mindset));
 
   if (state.shopping.level === "全部") {
-    return subcategoryItems;
+    return mindsetItems;
   }
 
-  return subcategoryItems.filter((item) => item.level === state.shopping.level);
+  return mindsetItems.filter((item) => item.level === state.shopping.level);
 }
 
 function renderShoppingControls() {
@@ -2805,29 +2849,37 @@ function renderShoppingControls() {
   const children = getShoppingChildren(currentRoot);
   const currentChild = getShoppingChildNode(currentRoot, state.shopping.subcategoryId);
   const currentLevel = SHOPPING_LEVELS.includes(state.shopping.level) ? state.shopping.level : "全部";
+  const currentMindset = SHOPPING_MINDSETS.includes(state.shopping.mindset) ? state.shopping.mindset : "全部";
 
   state.shopping.categoryId = currentRoot.id;
   state.shopping.subcategoryId = currentChild.id;
   state.shopping.category = getShoppingCategoryPath(currentRoot.id, currentChild.id);
   state.shopping.level = currentLevel;
+  state.shopping.mindset = currentMindset;
 
   elements.modeControls.innerHTML = `
-    <div class="field">
+    <div class="field shopping-filter-field">
       <label for="shoppingRootCategory">一级分类</label>
       <select id="shoppingRootCategory">
         ${SHOPPING_CATEGORY_TREE.map((category) => `<option value="${escapeHtml(category.id)}" ${category.id === currentRoot.id ? "selected" : ""}>${escapeHtml(category.label)}</option>`).join("")}
       </select>
     </div>
-    <div class="field">
-      <label for="shoppingSubcategory">细分分类</label>
+    <div class="field shopping-filter-field">
+      <label for="shoppingSubcategory">二级分类</label>
       <select id="shoppingSubcategory" ${currentRoot.id === "all" ? "disabled" : ""}>
         ${children.map((child) => `<option value="${escapeHtml(child.id)}" ${child.id === currentChild.id ? "selected" : ""}>${escapeHtml(child.label)}</option>`).join("")}
       </select>
     </div>
-    <div class="field">
+    <div class="field shopping-filter-field">
       <label for="shoppingLevel">消费等级</label>
       <select id="shoppingLevel">
         ${SHOPPING_LEVELS.map((level) => `<option value="${level}" ${level === currentLevel ? "selected" : ""}>${level}</option>`).join("")}
+      </select>
+    </div>
+    <div class="field shopping-filter-field">
+      <label for="shoppingMindset">购买心态</label>
+      <select id="shoppingMindset">
+        ${SHOPPING_MINDSETS.map((mindset) => `<option value="${mindset}" ${mindset === currentMindset ? "selected" : ""}>${mindset}</option>`).join("")}
       </select>
     </div>
   `;
@@ -2852,6 +2904,12 @@ function renderShoppingControls() {
 
   document.querySelector("#shoppingLevel").addEventListener("change", (event) => {
     state.shopping.level = event.target.value;
+    saveState();
+    renderPreview();
+  });
+
+  document.querySelector("#shoppingMindset").addEventListener("change", (event) => {
+    state.shopping.mindset = event.target.value;
     saveState();
     renderPreview();
   });
@@ -3083,8 +3141,8 @@ function getOptionDetails(item) {
   }
 
   if (state.mode === "shopping") {
-    const tagText = item.tags.length ? ` · ${item.tags.slice(0, 2).join(" / ")}` : "";
-    return `${item.categoryPath || `${item.category} / ${item.subcategory}`} · ${item.level} · ${formatBudget(item.budget)} · ${item.priority}${tagText}`;
+    const tagText = item.tags.length ? ` · ${item.tags.slice(0, 3).join(" / ")}` : " · 暂无标签";
+    return `${formatBudget(item.budget)}${tagText}`;
   }
 
   if (state.mode === "custom") {
