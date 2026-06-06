@@ -3320,7 +3320,9 @@ function getResult() {
     return {
       mode: state.mode,
       title: shoppingResult.title,
-      meta: `${shoppingResult.categoryPath || getShoppingCategoryPath()} · ${shoppingResult.level} · 预算约 ${shoppingResult.budget}${poolNote}。${trimSentenceEnding(shoppingResult.reason)}；${trimSentenceEnding(shoppingResult.priority)}。`,
+      meta: buildShoppingResultMeta(shoppingResult, poolNote),
+      reason: normalizeSentence(shoppingResult.reason),
+      priority: normalizeSentence(shoppingResult.priority),
     };
   }
 
@@ -3335,6 +3337,22 @@ function getResult() {
 
 function trimSentenceEnding(text) {
   return String(text || "").replace(/[。；;.\s]+$/u, "");
+}
+
+function normalizeSentence(text) {
+  const sentence = trimSentenceEnding(text);
+  return sentence ? `${sentence}。` : "";
+}
+
+function buildShoppingResultMeta(item, poolNote = "") {
+  const parts = [
+    item.category,
+    item.subcategory,
+    item.level,
+    `预算约 ${item.budget}`,
+  ].filter(Boolean);
+
+  return `${parts.join(" · ")}${poolNote}`;
 }
 
 function getFoodSourceLabel() {
@@ -4660,7 +4678,7 @@ function drawResult() {
 function renderResult(result) {
   elements.resultLabel.textContent = MODES[result.mode].label;
   elements.resultValue.textContent = result.mode === "number" ? result.title : result.title;
-  elements.resultMeta.textContent = formatBudget(result.meta);
+  elements.resultMeta.innerHTML = renderResultMeta(result);
 
   if (result.lotteryLines) {
     elements.numberDigits.hidden = false;
@@ -4679,6 +4697,25 @@ function renderResult(result) {
   elements.numberDigits.hidden = true;
   elements.numberDigits.classList.remove("is-lottery");
   elements.numberDigits.innerHTML = "";
+}
+
+function renderResultMeta(result) {
+  const lines = [formatBudget(result.meta)];
+
+  if (result.mode === "shopping") {
+    if (result.reason) {
+      lines.push(result.reason);
+    }
+
+    if (result.priority) {
+      lines.push(`提醒：${result.priority}`);
+    }
+  }
+
+  return lines
+    .filter(Boolean)
+    .map((line) => `<span>${escapeHtml(line)}</span>`)
+    .join("<br>");
 }
 
 function renderLotteryLines(lines) {
@@ -4780,11 +4817,30 @@ function renderStackItems(items, emptyText) {
       return `
         <article class="stack-item">
           <strong>${escapeHtml(item.title)}</strong>
-          <small>${MODES[item.mode].title}${timeText}<br>${escapeHtml(formatBudget(item.meta))}</small>
+          <small>${renderStackItemMeta(item, timeText)}</small>
         </article>
       `;
     })
     .join("");
+}
+
+function renderStackItemMeta(item, timeText) {
+  const lines = [
+    `${MODES[item.mode].title}${timeText}`,
+    formatBudget(item.meta),
+  ];
+
+  if (item.mode === "shopping") {
+    if (item.reason) {
+      lines.push(item.reason);
+    }
+
+    if (item.priority) {
+      lines.push(`提醒：${item.priority}`);
+    }
+  }
+
+  return lines.filter(Boolean).map((line) => escapeHtml(line)).join("<br>");
 }
 
 function renderDailyInspiration() {
