@@ -3321,8 +3321,7 @@ function getResult() {
       mode: state.mode,
       title: shoppingResult.title,
       meta: buildShoppingResultMeta(shoppingResult, poolNote),
-      reason: normalizeSentence(shoppingResult.reason),
-      priority: normalizeSentence(shoppingResult.priority),
+      shopping: buildShoppingResultDetails(shoppingResult),
     };
   }
 
@@ -3353,6 +3352,53 @@ function buildShoppingResultMeta(item, poolNote = "") {
   ].filter(Boolean);
 
   return `${parts.join(" · ")}${poolNote}`;
+}
+
+function buildShoppingResultDetails(item) {
+  return {
+    category: item.category || "",
+    subcategory: item.subcategory || "",
+    level: item.level || "",
+    mindset: state.shopping.mindset || "全部",
+    budget: item.budget || "",
+    tags: Array.isArray(item.tags) ? [...item.tags] : [],
+    reason: normalizeSentence(item.reason),
+    priority: normalizeSentence(item.priority),
+  };
+}
+
+function getShoppingResultDetails(item) {
+  const shopping = item?.shopping && typeof item.shopping === "object" ? item.shopping : {};
+
+  return {
+    category: shopping.category || item?.category || "",
+    subcategory: shopping.subcategory || item?.subcategory || "",
+    level: shopping.level || item?.level || "",
+    mindset: shopping.mindset || item?.mindset || "",
+    budget: shopping.budget || item?.budget || "",
+    tags: Array.isArray(shopping.tags) ? shopping.tags : Array.isArray(item?.tags) ? item.tags : [],
+    reason: shopping.reason || item?.reason || "",
+    priority: shopping.priority || item?.priority || "",
+  };
+}
+
+function getShoppingReminderText(priority) {
+  const sentence = trimSentenceEnding(String(priority || "").replace(/^提醒[:：]\s*/u, ""));
+  return sentence ? `提醒：${sentence}。` : "";
+}
+
+function getShoppingContextLine(details) {
+  const parts = [];
+
+  if (details.mindset && details.mindset !== "全部") {
+    parts.push(`心态：${details.mindset}`);
+  }
+
+  if (details.tags.length) {
+    parts.push(`标签：${details.tags.slice(0, 4).join(" / ")}`);
+  }
+
+  return parts.join(" · ");
 }
 
 function getFoodSourceLabel() {
@@ -4703,12 +4749,16 @@ function renderResultMeta(result) {
   const lines = [formatBudget(result.meta)];
 
   if (result.mode === "shopping") {
-    if (result.reason) {
-      lines.push(result.reason);
+    const details = getShoppingResultDetails(result);
+    const reason = normalizeSentence(details.reason);
+    const reminder = getShoppingReminderText(details.priority);
+
+    if (reason) {
+      lines.push(reason);
     }
 
-    if (result.priority) {
-      lines.push(`提醒：${result.priority}`);
+    if (reminder) {
+      lines.push(reminder);
     }
   }
 
@@ -4825,18 +4875,28 @@ function renderStackItems(items, emptyText) {
 }
 
 function renderStackItemMeta(item, timeText) {
+  const modeTitle = MODES[item.mode]?.title || "旧记录";
   const lines = [
-    `${MODES[item.mode].title}${timeText}`,
+    `${modeTitle}${timeText}`,
     formatBudget(item.meta),
   ];
 
   if (item.mode === "shopping") {
-    if (item.reason) {
-      lines.push(item.reason);
+    const details = getShoppingResultDetails(item);
+    const contextLine = getShoppingContextLine(details);
+    const reason = normalizeSentence(details.reason);
+    const reminder = getShoppingReminderText(details.priority);
+
+    if (contextLine) {
+      lines.push(contextLine);
     }
 
-    if (item.priority) {
-      lines.push(`提醒：${item.priority}`);
+    if (reason) {
+      lines.push(reason);
+    }
+
+    if (reminder) {
+      lines.push(reminder);
     }
   }
 
