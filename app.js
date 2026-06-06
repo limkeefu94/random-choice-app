@@ -83,34 +83,122 @@ function destination(title, country, days, tags, transports, budgets, note, acti
   return { title, country, days, tags, transports, budgets, note, activities };
 }
 
-function fallbackShop(title, level, budget, tags = []) {
-  return { title, level, budget, tags };
+function createShoppingSuggestion({
+  title,
+  category,
+  subcategory,
+  level,
+  budget,
+  tags = [],
+  reason,
+  priority,
+}) {
+  return {
+    title,
+    category,
+    subcategory,
+    level,
+    budget,
+    tags,
+    reason,
+    priority,
+  };
+}
+
+function fallbackShop(title, category, subcategory, level, budget, tags = [], reason = "适合补齐当前缺口的人", priority = "按预算再买") {
+  return createShoppingSuggestion({
+    title,
+    category,
+    subcategory,
+    level,
+    budget,
+    tags,
+    reason,
+    priority,
+  });
+}
+
+function normalizeShoppingSuggestion(item, sourceCategory = "全部") {
+  const category = item.category || sourceCategory;
+  const subcategory = item.subcategory || item.tags?.[0] || "全部";
+
+  return {
+    title: item.title,
+    category,
+    subcategory,
+    level: item.level || "中等",
+    budget: item.budget || "按实际价格",
+    tags: Array.isArray(item.tags) ? item.tags : [],
+    reason: item.reason || `适合正在考虑${subcategory}的人`,
+    priority: item.priority || "想清楚再买",
+  };
+}
+
+function normalizeShoppingData(data) {
+  return Object.fromEntries(
+    Object.entries(data).map(([category, items]) => [
+      category,
+      Array.isArray(items) ? items.map((item) => normalizeShoppingSuggestion(item, category)) : [],
+    ]),
+  );
 }
 
 const FALLBACK_SHOPPING_DATA = {
-  生活补给: [
-    fallbackShop("洗衣凝珠", "低消费", "RM18-45"),
-    fallbackShop("牙线", "低消费", "RM8-25"),
-    fallbackShop("护手霜", "低消费", "RM12-45"),
+  电子产品: [
+    fallbackShop("iPhone 16 / 17 系列", "电子产品", "手机", "高消费", "RM3500-6500", ["手机", "升级", "长期使用"], "适合想升级主力手机的人", "想清楚再买"),
+    fallbackShop("降噪耳机", "电子产品", "耳机 / 音响", "高消费", "RM500-1800", ["通勤", "专注", "音质"], "适合通勤、办公和想减少环境噪音的人", "确认使用频率再买"),
+    fallbackShop("平板电脑", "电子产品", "平板", "高消费", "RM1200-4800", ["学习", "娱乐", "轻办公"], "适合看课、看剧、手写笔记或轻办公的人", "先确认是否会长期使用"),
+  ],
+  电脑与配件: [
+    fallbackShop("机械键盘", "电脑与配件", "键盘 / 鼠标", "中等", "RM180-650", ["桌面", "打字", "手感"], "适合想改善打字体验和桌面氛围的人", "试轴或看评价后再买"),
+    fallbackShop("人体工学椅", "电脑与配件", "办公椅", "高消费", "RM600-2500", ["久坐", "办公", "健康"], "适合每天久坐工作或学习的人", "优先试坐"),
+  ],
+  家居生活: [
+    fallbackShop("洗衣凝珠", "家居生活", "清洁收纳", "低消费", "RM18-45", ["补货", "清洁", "日用品"], "适合家里洗衣用品快用完的人", "需要就买"),
+    fallbackShop("护手霜", "家居生活", "个人护理", "低消费", "RM12-45", ["保湿", "随身", "日常"], "适合经常洗手或待在冷气房的人", "小额可买"),
+    fallbackShop("收纳盒", "家居生活", "收纳盒 / 架", "低消费", "RM15-60", ["整理", "空间", "家务"], "适合桌面、衣柜或杂物区变乱的人", "先量尺寸"),
+  ],
+  美妆护理: [
+    fallbackShop("防晒霜", "美妆护理", "护肤", "中等", "RM40-180", ["防晒", "日常", "护肤"], "适合每天出门或长时间靠窗工作的人", "需要就买"),
+    fallbackShop("香水小样", "美妆护理", "香水", "中等", "RM45-180", ["试香", "礼物", "气味"], "适合还没确定正装香水前先试味道的人", "先小样再正装"),
+  ],
+  穿搭: [
+    fallbackShop("舒服运动鞋", "服饰穿搭", "鞋履", "中等", "RM180-650", ["通勤", "走路", "日常"], "适合想提升日常走路舒适度的人", "试穿后再买"),
+    fallbackShop("通勤包", "服饰穿搭", "包袋", "中等", "RM120-600", ["上班", "收纳", "穿搭"], "适合需要装电脑、雨伞和日用品的人", "先确认尺寸"),
+  ],
+  运动户外: [
+    fallbackShop("瑜伽垫", "健康运动", "瑜伽", "低消费", "RM35-180", ["运动", "居家", "拉伸"], "适合想在家运动或拉伸的人", "小额可买"),
+    fallbackShop("登山鞋", "旅行户外", "徒步装备", "高消费", "RM450-1600", ["徒步", "户外", "防滑"], "适合准备长距离徒步或爬山的人", "试穿后再买"),
+  ],
+  礼物: [
+    fallbackShop("甜点礼盒", "礼物", "生日礼物", "中等", "RM60-220", ["礼物", "聚会", "分享"], "适合临时需要体面又不太冒险的礼物", "看保质期"),
+    fallbackShop("体验券", "礼物", "情侣礼物", "高消费", "RM200-1200", ["体验", "纪念日", "惊喜"], "适合想送一段体验而不是实物的人", "确认对方时间"),
+  ],
+  奢侈品: [
+    fallbackShop("设计师钱包", "奢侈品", "设计师包袋", "奢侈品", "RM1800-6500", ["入门奢侈品", "长期使用", "配饰"], "适合想买第一件耐用奢侈品的人", "想清楚再买"),
+    fallbackShop("机械腕表", "奢侈品", "腕表", "奢侈品", "RM8000-80000+", ["腕表", "收藏", "长期使用"], "适合明确喜欢腕表并能接受保养成本的人", "确认预算和维护成本"),
   ],
   理性提醒: [
-    fallbackShop("先等 24 小时", "理性", "RM0"),
-    fallbackShop("加入愿望清单", "理性", "RM0"),
-    fallbackShop("比较三家价格", "理性", "RM0"),
+    fallbackShop("先等 24 小时", "软件 / 订阅 / 数字产品", "效率工具", "理性", "RM0", ["冷静", "防冲动"], "适合不确定是不是真的需要时使用", "先别买"),
+    fallbackShop("加入愿望清单", "软件 / 订阅 / 数字产品", "效率工具", "理性", "RM0", ["记录", "复盘", "延迟满足"], "适合把想买的东西先存起来观察", "先别买"),
+    fallbackShop("比较三家价格", "软件 / 订阅 / 数字产品", "效率工具", "理性", "RM0", ["比价", "预算", "理性"], "适合价格波动大或替代品很多的商品", "比价后再买"),
   ],
 };
 
 function getShoppingDataFromWindow() {
   if (typeof window === "undefined" || !window.SHOPPING_DATA || typeof window.SHOPPING_DATA !== "object") {
-    return FALLBACK_SHOPPING_DATA;
+    return normalizeShoppingData(FALLBACK_SHOPPING_DATA);
   }
 
   const categories = Object.keys(window.SHOPPING_DATA);
 
-  return categories.length ? window.SHOPPING_DATA : FALLBACK_SHOPPING_DATA;
+  return normalizeShoppingData(categories.length ? window.SHOPPING_DATA : FALLBACK_SHOPPING_DATA);
 }
 
 const SHOPPING_DATA = getShoppingDataFromWindow();
+if (typeof window !== "undefined") {
+  window.SHOPPING_DATA = SHOPPING_DATA;
+}
 if (typeof window !== "undefined") {
   window.SHOPPING_CATEGORY_TREE = [
     {
@@ -370,25 +458,25 @@ const SHOPPING_CATEGORY_TREE = typeof window !== "undefined" && Array.isArray(wi
   : [];
 const SHOPPING_CATEGORY_SOURCE_MAP = {
   all: Object.keys(SHOPPING_DATA),
-  electronics: ["数码小物"],
-  "computers-accessories": ["数码小物"],
-  "phones-accessories": ["数码小物"],
-  "home-living": ["家里缺的", "生活补给"],
-  kitchen: ["家里缺的"],
-  "cleaning-storage": ["生活补给", "家里缺的"],
+  electronics: ["电子产品", "数码小物"],
+  "computers-accessories": ["电脑与配件", "电子产品", "数码小物"],
+  "phones-accessories": ["电子产品", "数码小物"],
+  "home-living": ["家居生活", "家里缺的", "生活补给"],
+  kitchen: ["家居生活", "家里缺的"],
+  "cleaning-storage": ["家居生活", "生活补给", "家里缺的"],
   fashion: ["穿搭"],
-  "beauty-care": ["美妆护肤"],
+  "beauty-care": ["美妆护理", "美妆护肤"],
   "health-sports": ["运动户外"],
-  "work-study": ["生活补给", "数码小物"],
+  "work-study": ["电脑与配件", "生活补给", "数码小物"],
   transport: ["运动户外"],
-  "car-accessories": ["数码小物", "生活补给"],
+  "car-accessories": ["电子产品", "数码小物", "生活补给"],
   hobbies: ["数码小物", "礼物"],
   "travel-outdoor": ["运动户外", "奢侈品"],
-  "dive-photo": ["运动户外", "数码小物"],
-  pets: ["生活补给"],
+  "dive-photo": ["电子产品", "运动户外", "数码小物"],
+  pets: ["家居生活", "生活补给"],
   gifts: ["礼物"],
   luxury: ["奢侈品"],
-  "software-digital": ["数码小物", "理性提醒"],
+  "software-digital": ["理性提醒", "数码小物"],
 };
 
 const DRINK_MENU_DATA = {
@@ -2685,19 +2773,31 @@ function getShoppingSourceCategories() {
 function getFilteredShoppingItems() {
   const sourceCategories = getShoppingSourceCategories();
   const categoryPath = getShoppingCategoryPath();
+  const rootNode = getShoppingRootNode(state.shopping.categoryId);
+  const childNode = getShoppingChildNode(rootNode, state.shopping.subcategoryId);
   const items = sourceCategories.flatMap((category) =>
-    (SHOPPING_DATA[category] || []).map((item) => ({
-      ...item,
-      categoryPath,
-      sourceCategory: category,
-    })),
+    (SHOPPING_DATA[category] || []).map((item) => {
+      const normalizedItem = normalizeShoppingSuggestion(item, category);
+      const itemCategoryPath = state.shopping.categoryId === "all"
+        ? `${normalizedItem.category} / ${normalizedItem.subcategory}`
+        : categoryPath;
+
+      return {
+        ...normalizedItem,
+        categoryPath: itemCategoryPath,
+        sourceCategory: category,
+      };
+    }),
   );
+  const subcategoryItems = childNode.label === "全部"
+    ? items
+    : items.filter((item) => item.subcategory === childNode.label || item.tags.includes(childNode.label));
 
   if (state.shopping.level === "全部") {
-    return items;
+    return subcategoryItems;
   }
 
-  return items.filter((item) => item.level === state.shopping.level);
+  return subcategoryItems.filter((item) => item.level === state.shopping.level);
 }
 
 function renderShoppingControls() {
@@ -2983,7 +3083,8 @@ function getOptionDetails(item) {
   }
 
   if (state.mode === "shopping") {
-    return `${item.level} · ${formatBudget(item.budget)}`;
+    const tagText = item.tags.length ? ` · ${item.tags.slice(0, 2).join(" / ")}` : "";
+    return `${item.categoryPath || `${item.category} / ${item.subcategory}`} · ${item.level} · ${formatBudget(item.budget)} · ${item.priority}${tagText}`;
   }
 
   if (state.mode === "custom") {
@@ -3161,7 +3262,7 @@ function getResult() {
     return {
       mode: state.mode,
       title: shoppingResult.title,
-      meta: `${shoppingResult.categoryPath || getShoppingCategoryPath()} · ${shoppingResult.level} · 预算约 ${shoppingResult.budget}${poolNote}`,
+      meta: `${shoppingResult.categoryPath || getShoppingCategoryPath()} · ${shoppingResult.level} · 预算约 ${shoppingResult.budget}${poolNote}。${trimSentenceEnding(shoppingResult.reason)}；${trimSentenceEnding(shoppingResult.priority)}。`,
     };
   }
 
@@ -3172,6 +3273,10 @@ function getResult() {
     title: customResult.title,
     meta: `来自你的 ${options.length} 个自定义选项${poolNote}`,
   };
+}
+
+function trimSentenceEnding(text) {
+  return String(text || "").replace(/[。；;.\s]+$/u, "");
 }
 
 function getFoodSourceLabel() {
