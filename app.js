@@ -83,9 +83,37 @@ function destination(title, country, days, tags, transports, budgets, note, acti
   return { title, country, days, tags, transports, budgets, note, activities };
 }
 
-function shop(title, level, budget, tags = []) {
+function fallbackShop(title, level, budget, tags = []) {
   return { title, level, budget, tags };
 }
+
+const FALLBACK_SHOPPING_DATA = {
+  生活补给: [
+    fallbackShop("洗衣凝珠", "低消费", "RM18-45"),
+    fallbackShop("牙线", "低消费", "RM8-25"),
+    fallbackShop("护手霜", "低消费", "RM12-45"),
+  ],
+  理性提醒: [
+    fallbackShop("先等 24 小时", "理性", "RM0"),
+    fallbackShop("加入愿望清单", "理性", "RM0"),
+    fallbackShop("比较三家价格", "理性", "RM0"),
+  ],
+};
+
+function getShoppingDataFromWindow() {
+  if (typeof window === "undefined" || !window.SHOPPING_DATA || typeof window.SHOPPING_DATA !== "object") {
+    return FALLBACK_SHOPPING_DATA;
+  }
+
+  const categories = Object.keys(window.SHOPPING_DATA);
+
+  return categories.length ? window.SHOPPING_DATA : FALLBACK_SHOPPING_DATA;
+}
+
+const SHOPPING_DATA = getShoppingDataFromWindow();
+const SHOPPING_CATEGORY_TREE = typeof window !== "undefined" && Array.isArray(window.SHOPPING_CATEGORY_TREE)
+  ? window.SHOPPING_CATEGORY_TREE
+  : [];
 
 const DRINK_MENU_DATA = {
   马来西亚: [
@@ -900,91 +928,6 @@ const GLOBAL_TRAVEL_DATA = [
 const TRAVEL_COUNTRIES = ["全部", ...new Set(GLOBAL_TRAVEL_DATA.map((item) => item.country))].sort((first, second) =>
   first === "全部" ? -1 : second === "全部" ? 1 : first.localeCompare(second, "zh-CN"),
 );
-
-const SHOPPING_DATA = {
-  生活补给: [
-    shop("洗衣凝珠", "低消费", "RM18-45"),
-    shop("牙线", "低消费", "RM8-25"),
-    shop("护手霜", "低消费", "RM12-45"),
-    shop("收纳盒", "低消费", "RM15-60"),
-    shop("香氛蜡烛", "中等", "RM40-160"),
-    shop("咖啡豆", "中等", "RM35-120"),
-    shop("空气清新机滤芯", "中等", "RM80-220"),
-    shop("扫地机器人耗材", "中等", "RM60-180"),
-  ],
-  数码小物: [
-    shop("手机支架", "低消费", "RM10-45"),
-    shop("机械键盘键帽", "中等", "RM80-260"),
-    shop("快充充电线", "低消费", "RM18-60"),
-    shop("蓝牙追踪器", "中等", "RM90-180"),
-    shop("桌面灯", "中等", "RM90-380"),
-    shop("移动电源", "中等", "RM80-280"),
-    shop("降噪耳机", "高消费", "RM500-1800"),
-    shop("平板电脑", "高消费", "RM1200-4800"),
-  ],
-  穿搭: [
-    shop("基础白 T", "低消费", "RM25-90"),
-    shop("舒服运动鞋", "中等", "RM180-650"),
-    shop("通勤包", "中等", "RM120-600"),
-    shop("防晒外套", "中等", "RM120-450"),
-    shop("帽子", "低消费", "RM25-120"),
-    shop("袜子套装", "低消费", "RM20-80"),
-    shop("羊毛大衣", "高消费", "RM600-2200"),
-    shop("皮鞋", "高消费", "RM450-1800"),
-  ],
-  家里缺的: [
-    shop("床单", "中等", "RM80-350"),
-    shop("浴巾", "低消费", "RM25-120"),
-    shop("厨房剪刀", "低消费", "RM20-80"),
-    shop("空气炸锅纸", "低消费", "RM10-35"),
-    shop("绿植", "低消费", "RM20-150"),
-    shop("小夜灯", "低消费", "RM20-90"),
-    shop("人体工学椅", "高消费", "RM600-2500"),
-    shop("净水器", "高消费", "RM500-3000"),
-  ],
-  美妆护肤: [
-    shop("防晒霜", "中等", "RM40-180"),
-    shop("保湿精华", "中等", "RM80-350"),
-    shop("修眉刀", "低消费", "RM8-35"),
-    shop("唇膏", "低消费", "RM18-90"),
-    shop("香水小样", "中等", "RM45-180"),
-    shop("美容仪", "高消费", "RM500-2600"),
-  ],
-  运动户外: [
-    shop("瑜伽垫", "低消费", "RM35-180"),
-    shop("运动水壶", "低消费", "RM25-120"),
-    shop("跑步腰包", "低消费", "RM25-100"),
-    shop("登山鞋", "高消费", "RM450-1600"),
-    shop("露营椅", "中等", "RM80-380"),
-    shop("运动手表", "高消费", "RM700-3200"),
-  ],
-  礼物: [
-    shop("花束", "中等", "RM80-280"),
-    shop("手写卡片套装", "低消费", "RM10-45"),
-    shop("甜点礼盒", "中等", "RM60-220"),
-    shop("香氛礼盒", "中等", "RM120-500"),
-    shop("体验券", "高消费", "RM200-1200"),
-    shop("定制饰品", "高消费", "RM300-1800"),
-  ],
-  奢侈品: [
-    shop("设计师钱包", "奢侈品", "RM1800-6500", ["入门奢侈品"]),
-    shop("经典丝巾", "奢侈品", "RM1200-4500", ["配饰"]),
-    shop("香水正装", "奢侈品", "RM500-1800", ["入门奢侈品"]),
-    shop("太阳眼镜", "奢侈品", "RM900-3500", ["配饰"]),
-    shop("设计师手袋", "奢侈品", "RM6500-45000+", ["包袋"]),
-    shop("机械腕表", "奢侈品", "RM8000-80000+", ["腕表"]),
-    shop("高级珠宝", "奢侈品", "RM10000-100000+", ["珠宝"]),
-    shop("奢华旅行箱", "奢侈品", "RM4500-18000", ["旅行"]),
-  ],
-  理性提醒: [
-    shop("先等 24 小时", "理性", "RM0"),
-    shop("加入愿望清单", "理性", "RM0"),
-    shop("比较三家价格", "理性", "RM0"),
-    shop("用现有替代品", "理性", "RM0"),
-    shop("这个月先不买", "理性", "RM0"),
-    shop("只买预算内版本", "理性", "按预算上限"),
-  ],
-};
 
 const LOTTERY_DISCLAIMER = "仅供娱乐，不构成投注建议。";
 const LOTTERY_SOURCE_NOTE = "资料为初版整理，玩法规则可能变动，后续需人工校对。";
@@ -2566,7 +2509,8 @@ function getCurrentOptions() {
   }
 
   if (state.mode === "shopping") {
-    const items = SHOPPING_DATA[state.shopping.category];
+    const fallbackCategory = Object.keys(SHOPPING_DATA)[0];
+    const items = SHOPPING_DATA[state.shopping.category] || SHOPPING_DATA[fallbackCategory] || [];
 
     if (state.shopping.level === "全部") {
       return items;
