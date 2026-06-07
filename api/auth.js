@@ -14,6 +14,30 @@ const {
   publicAccount,
   verifyPassword,
 } = require("./auth-utils");
+const { setCors } = require("./cors-utils");
+const { checkRateLimit, recordRateLimitAttempt } = require("./rate-limit");
+
+const CORS_OPTIONS = {
+  methods: ["GET", "POST", "OPTIONS"],
+};
+const LOGIN_RATE_LIMIT = {
+  name: "auth-login",
+  max: 5,
+  devMax: 20,
+  windowMs: 15 * 60 * 1000,
+  devWindowMs: 15 * 60 * 1000,
+  maxEnv: "AUTH_LOGIN_RATE_LIMIT_MAX",
+  windowEnv: "AUTH_LOGIN_RATE_LIMIT_WINDOW_MS",
+};
+const REGISTER_RATE_LIMIT = {
+  name: "auth-register",
+  max: 3,
+  devMax: 20,
+  windowMs: 60 * 60 * 1000,
+  devWindowMs: 60 * 60 * 1000,
+  maxEnv: "AUTH_REGISTER_RATE_LIMIT_MAX",
+  windowEnv: "AUTH_REGISTER_RATE_LIMIT_WINDOW_MS",
+};
 
 function parseBody(request) {
   if (typeof request.body === "string") {
@@ -21,13 +45,6 @@ function parseBody(request) {
   }
 
   return request.body || {};
-}
-
-function setCors(response) {
-  const allowedOrigin = process.env.GCS_ALLOWED_ORIGIN || "*";
-  response.setHeader("Access-Control-Allow-Origin", allowedOrigin);
-  response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
 }
 
 function sendAuthResponse(response, account, status = 200, token = createAuthToken(account)) {
@@ -38,23 +55,52 @@ function sendAuthResponse(response, account, status = 200, token = createAuthTok
   });
 }
 
+function getClientIp(request) {
+  const forwardedFor = request.headers?.["x-forwarded-for"] || request.headers?.["X-Forwarded-For"] || "";
+  const firstForwardedIp = String(forwardedFor).split(",")[0].trim();
+  return firstForwardedIp || request.headers?.["x-real-ip"] || request.socket?.remoteAddress || "unknown";
+}
+
+function getLoginRateLimitKey(request, username) {
+  return `${getClientIp(request)}:${getUsernameKey(username || "")}`;
+}
+
+function sendRateLimitResponse(response) {
+  response.status(429).json({
+    ok: false,
+    error: "Too many attempts. Please try again later.",
+  });
+}
+
 async function registerAccount(request, response) {
   const body = parseBody(request);
   const username = normalizeUsername(body.username);
   const password = String(body.password || "");
   const confirmPassword = String(body.confirmPassword || "");
+  const rateLimit = checkRateLimit(request, response, {
+    ...REGISTER_RATE_LIMIT,
+    key: getClientIp(request),
+  });
+
+  if (!rateLimit.allowed) {
+    sendRateLimitResponse(response);
+    return;
+  }
 
   if (!isValidUsername(username)) {
+    recordRateLimitAttempt(rateLimit);
     response.status(400).json({ ok: false, error: "用户名需要 2-20 个字，只能包含中文、英文、数字、_ 或 -" });
     return;
   }
 
   if (password.length < 6) {
+    recordRateLimitAttempt(rateLimit);
     response.status(400).json({ ok: false, error: "密码至少需要 6 个字符" });
     return;
   }
 
   if (password !== confirmPassword) {
+    recordRateLimitAttempt(rateLimit);
     response.status(400).json({ ok: false, error: "两次输入的密码不一样" });
     return;
   }
@@ -96,6 +142,7 @@ async function registerAccount(request, response) {
     });
   } catch (error) {
     if (error.message === "USERNAME_EXISTS") {
+      recordRateLimitAttempt(rateLimit);
       response.status(409).json({ ok: false, error: "这个用户名已经被注册了" });
       return;
     }
@@ -103,6 +150,7 @@ async function registerAccount(request, response) {
     throw error;
   }
 
+  recordRateLimitAttempt(rateLimit);
   sendAuthResponse(response, account, 201, token);
 }
 
@@ -110,8 +158,18 @@ async function loginAccount(request, response) {
   const body = parseBody(request);
   const username = normalizeUsername(body.username);
   const password = String(body.password || "");
+  const rateLimit = checkRateLimit(request, response, {
+    ...LOGIN_RATE_LIMIT,
+    key: getLoginRateLimitKey(request, username),
+  });
+
+  if (!rateLimit.allowed) {
+    sendRateLimitResponse(response);
+    return;
+  }
 
   if (!isValidUsername(username)) {
+    recordRateLimitAttempt(rateLimit);
     response.status(400).json({ ok: false, error: "请输入正确的用户名" });
     return;
   }
@@ -120,6 +178,7 @@ async function loginAccount(request, response) {
   const usernameSnapshot = await db.collection("randomChoiceUsernames").doc(getUsernameKey(username)).get();
 
   if (!usernameSnapshot.exists) {
+    recordRateLimitAttempt(rateLimit);
     response.status(401).json({ ok: false, error: "用户名或密码不正确" });
     return;
   }
@@ -127,6 +186,7 @@ async function loginAccount(request, response) {
   const accountSnapshot = await db.collection("randomChoiceAccounts").doc(usernameSnapshot.data().accountId).get();
 
   if (!accountSnapshot.exists) {
+    recordRateLimitAttempt(rateLimit);
     response.status(401).json({ ok: false, error: "用户名或密码不正确" });
     return;
   }
@@ -137,6 +197,7 @@ async function loginAccount(request, response) {
   };
 
   if (!verifyPassword(account, password)) {
+    recordRateLimitAttempt(rateLimit);
     response.status(401).json({ ok: false, error: "用户名或密码不正确" });
     return;
   }
@@ -193,7 +254,7 @@ async function updateProfile(request, response) {
 }
 
 module.exports = async function handler(request, response) {
-  setCors(response);
+  setCors(request, response, CORS_OPTIONS);
 
   if (request.method === "OPTIONS") {
     response.status(204).end();

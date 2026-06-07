@@ -30,7 +30,7 @@
 
 - `GCP_PROJECT_ID`：Google Cloud project id。
 - `GCS_BUCKET_NAME`：你的 Cloud Storage bucket 名称。
-- `GCS_ALLOWED_ORIGIN`：你的 Vercel 正式域名，例如 `https://your-app.vercel.app`。
+- `APP_ALLOWED_ORIGIN`：你的 Vercel 正式域名，例如 `https://your-app.vercel.app`。
 - `GCS_SERVICE_ACCOUNT_JSON_BASE64`：推荐放完整 service account JSON 的 base64 字符串。
 
 如果你不想用 base64 JSON，也可以改用：
@@ -102,4 +102,39 @@ randomChoiceWorldMessages/{messageId}
 - 密码会在 Vercel API 里加密后写入 Firestore。
 - 注册后会生成固定的 `userId`，最近决定、收藏、上传记录会跟着这个账号同步。
 - 世界频道会写入 `randomChoiceWorldMessages`，不同设备和不同用户能看到同一个频道。
-- `AUTH_TOKEN_SECRET` 建议加到 Vercel Environment Variables；如果暂时没填，会使用 Google service account private key 当备用登录密钥。
+- `AUTH_TOKEN_SECRET` must be a dedicated random secret in production; do not reuse any Google service account private key.
+
+## `/api/user-data` access control
+
+- Logged-in cloud sync requests must send `Authorization: Bearer <token>`.
+- The requested `userId` must match the logged-in account `userId`; otherwise `/api/user-data` returns `403`.
+- Anonymous sync is opt-in only. Set `ALLOW_ANON_SYNC=true` for local/dev anonymous browser sync.
+- Keep `ALLOW_ANON_SYNC` unset or `false` in production; unauthenticated `/api/user-data` requests return `401`.
+
+## Auth token secret policy
+
+- Production must set `APP_ENV=production` and a dedicated `AUTH_TOKEN_SECRET`.
+- In production, the API refuses to mint or verify auth tokens when `AUTH_TOKEN_SECRET` is missing.
+- Development may use `APP_ENV=development`; only development keeps the legacy fallback to Google service account private key.
+- Do not reuse `GCP_PRIVATE_KEY`, `GCS_PRIVATE_KEY`, or service account JSON private keys as the production auth token secret.
+
+## GCS upload access control
+
+- `/api/gcs-upload` and `/api/gcs-signed-url` require `Authorization: Bearer <token>` by default.
+- Set `ALLOW_PUBLIC_UPLOAD=true` only in local/dev environments that intentionally allow upload testing without login.
+- Upload requests are rate-limited per logged-in account or public client IP. Tune with `UPLOAD_RATE_LIMIT_MAX` and `UPLOAD_RATE_LIMIT_WINDOW_MS`.
+- Requests over the upload limit return `429` with `Retry-After` and `X-RateLimit-*` headers.
+- World channel image messages only accept GCS `world/` objects from the configured bucket.
+
+## API CORS policy
+
+- Production API CORS uses `APP_ALLOWED_ORIGIN`; requests from other origins do not receive `Access-Control-Allow-Origin`.
+- Set `ALLOW_DEV_CORS=true` only in local/dev environments to reflect the request `Origin` for easier testing.
+- `OPTIONS` preflight requests keep returning `204` with the configured method/header allow-list.
+
+## Auth rate limiting
+
+- Failed login attempts are rate-limited per IP + username and return `429` after the configured threshold.
+- Registration attempts are rate-limited per IP to reduce spam signups.
+- Production defaults are stricter; set `ALLOW_DEV_RATE_LIMITS=true` only in local/dev to use wider defaults.
+- Tune with `AUTH_LOGIN_RATE_LIMIT_MAX`, `AUTH_LOGIN_RATE_LIMIT_WINDOW_MS`, `AUTH_REGISTER_RATE_LIMIT_MAX`, and `AUTH_REGISTER_RATE_LIMIT_WINDOW_MS`.

@@ -1,8 +1,13 @@
 const crypto = require("node:crypto");
 const { getFirestore } = require("./firestore-client");
+const { getAccountFromRequest, getBearerToken } = require("./auth-utils");
+const { setCors } = require("./cors-utils");
 
 const ALLOWED_COLLECTIONS = new Set(["history", "favorites", "uploads"]);
 const MAX_ITEMS = 30;
+const CORS_OPTIONS = {
+  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+};
 
 function parseBody(request) {
   if (typeof request.body === "string") {
@@ -21,18 +26,22 @@ function getQueryParam(request, key) {
   return requestUrl.searchParams.get(key);
 }
 
-function setCors(response) {
-  const allowedOrigin = process.env.GCS_ALLOWED_ORIGIN || "*";
-  response.setHeader("Access-Control-Allow-Origin", allowedOrigin);
-  response.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+function createHttpError(statusCode, error, detail = error) {
+  const httpError = new Error(detail);
+  httpError.statusCode = statusCode;
+  httpError.publicError = error;
+  return httpError;
+}
+
+function isAnonSyncAllowed() {
+  return String(process.env.ALLOW_ANON_SYNC || "").toLowerCase() === "true";
 }
 
 function normalizeUserId(userId) {
   const normalized = String(userId || "").trim();
 
   if (!/^anon_[a-zA-Z0-9_-]{12,80}$/.test(normalized)) {
-    throw new Error("Invalid userId");
+    throw createHttpError(400, "Invalid userId");
   }
 
   return normalized;
@@ -42,10 +51,43 @@ function normalizeCollection(collection) {
   const normalized = String(collection || "").trim();
 
   if (!ALLOWED_COLLECTIONS.has(normalized)) {
-    throw new Error("Invalid collection");
+    throw createHttpError(400, "Invalid collection");
   }
 
   return normalized;
+}
+
+async function authorizeUserDataAccess(request, requestedUserId) {
+  if (!getBearerToken(request)) {
+    if (isAnonSyncAllowed()) {
+      return {
+        anonymous: true,
+        userId: requestedUserId,
+      };
+    }
+
+    throw createHttpError(401, "Authentication required");
+  }
+
+  let account;
+
+  try {
+    account = await getAccountFromRequest(request);
+  } catch {
+    throw createHttpError(401, "Invalid or expired token");
+  }
+
+  const accountUserId = normalizeUserId(account.userId);
+
+  if (accountUserId !== requestedUserId) {
+    throw createHttpError(403, "Forbidden");
+  }
+
+  return {
+    accountId: account.id,
+    anonymous: false,
+    userId: accountUserId,
+  };
 }
 
 function collectionRef(userId, collection) {
@@ -140,7 +182,7 @@ async function clearCollections(userId, collections) {
 }
 
 module.exports = async function handler(request, response) {
-  setCors(response);
+  setCors(request, response, CORS_OPTIONS);
 
   if (request.method === "OPTIONS") {
     response.status(204).end();
@@ -150,6 +192,7 @@ module.exports = async function handler(request, response) {
   try {
     if (request.method === "GET") {
       const userId = normalizeUserId(getQueryParam(request, "userId"));
+      await authorizeUserDataAccess(request, userId);
       response.status(200).json({
         ok: true,
         userId,
@@ -161,6 +204,7 @@ module.exports = async function handler(request, response) {
     if (request.method === "POST") {
       const requestBody = parseBody(request);
       const userId = normalizeUserId(requestBody.userId);
+      await authorizeUserDataAccess(request, userId);
       const collection = normalizeCollection(requestBody.collection);
       const item = await writeUserItem(userId, collection, requestBody.item);
 
@@ -176,6 +220,7 @@ module.exports = async function handler(request, response) {
     if (request.method === "DELETE") {
       const requestBody = parseBody(request);
       const userId = normalizeUserId(requestBody.userId);
+      await authorizeUserDataAccess(request, userId);
       const collections = Array.isArray(requestBody.collections) ? requestBody.collections : [];
       await clearCollections(userId, collections);
 
@@ -189,6 +234,14 @@ module.exports = async function handler(request, response) {
 
     response.status(405).json({ error: "Method not allowed" });
   } catch (error) {
+    if (error.statusCode) {
+      response.status(error.statusCode).json({
+        ok: false,
+        error: error.publicError || error.message,
+      });
+      return;
+    }
+
     response.status(500).json({
       ok: false,
       error: "Firestore sync failed",

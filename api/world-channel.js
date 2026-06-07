@@ -1,9 +1,13 @@
 const crypto = require("node:crypto");
 const { getFirestore } = require("./firestore-client");
 const { cleanText, getAccountFromRequest, normalizeAvatar } = require("./auth-utils");
+const { setCors } = require("./cors-utils");
 
 const WORLD_COLLECTION = "randomChoiceWorldMessages";
 const MAX_WORLD_MESSAGES = 80;
+const CORS_OPTIONS = {
+  methods: ["GET", "POST", "OPTIONS"],
+};
 
 function parseBody(request) {
   if (typeof request.body === "string") {
@@ -22,13 +26,6 @@ function getQueryParam(request, key) {
   return requestUrl.searchParams.get(key);
 }
 
-function setCors(response) {
-  const allowedOrigin = process.env.GCS_ALLOWED_ORIGIN || "*";
-  response.setHeader("Access-Control-Allow-Origin", allowedOrigin);
-  response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
-}
-
 function getLimit(request) {
   const limit = Number.parseInt(getQueryParam(request, "limit"), 10);
 
@@ -45,19 +42,44 @@ function cleanAttachment(attachment) {
   }
 
   const url = cleanText(attachment.url || attachment.publicUrl, 1200);
+  const publicUrl = cleanText(attachment.publicUrl || url, 1200);
+  const filePath = cleanText(attachment.filePath || attachment.objectName, 500);
+  const objectName = cleanText(attachment.objectName || attachment.filePath, 500);
 
-  if (!url) {
+  if (!url || !isAllowedGcsAttachment(url, publicUrl, filePath || objectName)) {
     return null;
   }
 
   return {
     type: "image",
     url,
-    publicUrl: cleanText(attachment.publicUrl || url, 1200),
-    filePath: cleanText(attachment.filePath || attachment.objectName, 500),
-    objectName: cleanText(attachment.objectName || attachment.filePath, 500),
+    publicUrl,
+    filePath,
+    objectName,
     contentType: cleanText(attachment.contentType, 80),
   };
+}
+
+function isAllowedGcsAttachment(url, publicUrl, objectName) {
+  if (!objectName || !objectName.startsWith("world/")) {
+    return false;
+  }
+
+  const bucketName = process.env.GCS_BUCKET_NAME;
+
+  if (!bucketName) {
+    return true;
+  }
+
+  return [url, publicUrl].filter(Boolean).some((value) => {
+    try {
+      const parsedUrl = new URL(value);
+      const decodedPath = decodeURIComponent(parsedUrl.pathname);
+      return parsedUrl.protocol === "https:" && parsedUrl.hostname === "storage.googleapis.com" && decodedPath === `/${bucketName}/${objectName}`;
+    } catch {
+      return false;
+    }
+  });
 }
 
 function toWorldMessage(documentSnapshot) {
@@ -130,7 +152,7 @@ async function writeWorldMessage(request, response) {
 }
 
 module.exports = async function handler(request, response) {
-  setCors(response);
+  setCors(request, response, CORS_OPTIONS);
 
   if (request.method === "OPTIONS") {
     response.status(204).end();

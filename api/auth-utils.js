@@ -3,9 +3,17 @@ const crypto = require("node:crypto");
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30;
 const USERNAME_PATTERN = /^[\w\u4e00-\u9fa5-]{2,20}$/u;
 
+function isProductionAppEnv() {
+  return String(process.env.APP_ENV || "").toLowerCase() === "production";
+}
+
 function getAuthSecret() {
   if (process.env.AUTH_TOKEN_SECRET) {
     return process.env.AUTH_TOKEN_SECRET;
+  }
+
+  if (isProductionAppEnv()) {
+    throw new Error("Missing AUTH_TOKEN_SECRET in production");
   }
 
   if (process.env.GCS_SERVICE_ACCOUNT_JSON_BASE64) {
@@ -94,7 +102,8 @@ function verifyAuthToken(token) {
 }
 
 function getBearerToken(request) {
-  const header = request.headers.authorization || request.headers.Authorization || "";
+  const headers = request.headers || {};
+  const header = headers.authorization || headers.Authorization || "";
   const match = /^Bearer\s+(.+)$/i.exec(header);
   return match ? match[1].trim() : "";
 }
@@ -201,6 +210,7 @@ module.exports = {
   createCloudUserId,
   createPasswordRecord,
   getAccountFromRequest,
+  getBearerToken,
   getUsernameKey,
   isValidUsername,
   normalizeAvatar,

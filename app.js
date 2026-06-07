@@ -4535,6 +4535,7 @@ async function uploadImageThroughSignedUrl(file) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...getAuthHeaders(),
     },
     body: JSON.stringify({
       fileName: file.name,
@@ -4574,6 +4575,7 @@ async function uploadImageThroughServer(file) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...getAuthHeaders(),
     },
     body: JSON.stringify({
       fileName: file.name,
@@ -4676,6 +4678,7 @@ async function syncFromCloud() {
 
   try {
     const response = await fetch(`${CLOUD_SYNC_ENDPOINT}?userId=${encodeURIComponent(state.userId)}`, {
+      headers: getAuthHeaders(),
       cache: "no-store",
     });
     const payload = await readJsonResponse(response);
@@ -4708,6 +4711,7 @@ async function syncCloudItem(collection, item) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeaders(),
       },
       body: JSON.stringify({
         userId: state.userId,
@@ -4740,6 +4744,7 @@ async function syncCloudClear(collections) {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeaders(),
       },
       body: JSON.stringify({
         userId: state.userId,
