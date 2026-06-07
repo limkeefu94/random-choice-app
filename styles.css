@@ -1352,6 +1352,32 @@ button {
   padding-left: 0;
 }
 
+.shopping-chip-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+}
+
+.shopping-chip-budget,
+.shopping-chip-tags {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.shopping-chip-budget {
+  flex: 0 1 auto;
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1.1;
+}
+
+.shopping-chip-tags {
+  flex: 1 1 110px;
+  font-size: 0.7rem;
+  line-height: 1.15;
+}
+
 .preview-overflow-chip {
   color: var(--muted);
   background: rgba(255, 255, 255, 0.5);
@@ -1948,7 +1974,7 @@ button {
   .shopping-option-chip {
     width: 100%;
     max-width: 100%;
-    min-height: 36px;
+    min-height: 44px;
     padding: 7px 9px;
     column-gap: 7px;
     row-gap: 1px;
@@ -1962,6 +1988,19 @@ button {
   .shopping-option-chip .chip-detail {
     font-size: 0.68rem;
     line-height: 1.15;
+  }
+
+  .shopping-chip-detail {
+    gap: 1px 6px;
+  }
+
+  .shopping-chip-budget {
+    font-size: 0.63rem;
+  }
+
+  .shopping-chip-tags {
+    flex-basis: 96px;
+    font-size: 0.65rem;
   }
 
   .preview-overflow-chip,

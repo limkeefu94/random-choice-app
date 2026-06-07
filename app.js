@@ -3168,8 +3168,28 @@ function renderOptionChip(item) {
     <button class="chip option-chip${shoppingClass}${lockedClass}" type="button" data-lock-title="${escapeHtml(item.title)}" aria-pressed="${locked}">
       <span class="chip-pin">${lockedIcon}</span>
       <span class="chip-title">${escapeHtml(item.title)}</span>
-      ${details ? `<small class="chip-detail">${escapeHtml(details)}</small>` : ""}
+      ${renderOptionChipDetail(item, details)}
     </button>
+  `;
+}
+
+function renderOptionChipDetail(item, details) {
+  if (!details) {
+    return "";
+  }
+
+  if (state.mode !== "shopping") {
+    return `<small class="chip-detail">${escapeHtml(details)}</small>`;
+  }
+
+  const budgetText = formatBudget(item.budget);
+  const tagText = item.tags.length ? item.tags.slice(0, 3).join(" / ") : "暂无标签";
+
+  return `
+    <small class="chip-detail shopping-chip-detail">
+      <span class="shopping-chip-budget">${escapeHtml(budgetText)}</span>
+      <span class="shopping-chip-tags">${escapeHtml(tagText)}</span>
+    </small>
   `;
 }
 
