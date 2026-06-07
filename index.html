@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#ff7a3d" />
     <title>随心转盘｜随机选择应用</title>
-    <link rel="icon" type="image/png" href="/assets/icons/favicon.png" />
-    <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" href="./assets/icons/app-icon.png" />
+    <link rel="apple-touch-icon" href="./assets/icons/app-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -14,7 +14,9 @@
     <div class="app">
       <header class="topbar" aria-label="应用顶部导航">
         <a class="brand" id="appRefreshButton" href="./" aria-label="刷新随心转盘" title="点击刷新应用">
-          <span class="brand-mark" aria-hidden="true">转</span>
+          <span class="brand-mark" aria-hidden="true">
+            <img src="./assets/icons/app-icon.png" alt="" onerror="this.parentElement.textContent='转';" />
+          </span>
           <span>
             <strong>随心转盘</strong>
             <small>把选择困难交给一点点随机</small>
