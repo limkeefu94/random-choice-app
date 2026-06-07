@@ -1768,29 +1768,59 @@ const DEFAULT_WORLD_MESSAGES = [
 ];
 const APP_NOTIFICATIONS = [
   {
-    id: "profile-editor",
-    title: "个人资料可以改啦",
-    text: "登录后点右上角头像，就能换头像、改显示名字和密码。",
+    id: "recent-language-mobile-updates",
+    type: "新功能 + 优化",
+    title: "语言和手机页面变好用了",
+    text: "最近加了语言切换，也把手机上的按钮、菜单和间距整理得更顺手。",
+    details: [
+      "可以在「更多」里面切换中文、英文和马来文。",
+      "手机上第一次打开会提醒你点「选择模式」，比较不容易找不到吃什么、喝什么、去哪玩。",
+      "顶部按钮在小屏幕上更不容易挤在一起，通知数字也不会被切掉。",
+    ],
   },
   {
-    id: "cloud-account-world",
+    id: "recent-shopping-updates",
+    type: "内容 + 优化",
+    title: "购物随机内容更多了",
+    text: "购物页补了更多选择，也把可点的小标签整理得更清楚。",
+    details: [
+      "现在可以按购物类别、花费高低和购买心情来抽建议。",
+      "结果会附上大概预算、为什么适合你、以及先买不买的小提醒。",
+      "手机上的购物标签更好点，不会因为太长而挤坏画面。",
+    ],
+  },
+  {
+    id: "recent-account-world-updates",
+    type: "新功能",
     title: "账号和世界频道升级了",
-    text: "现在注册和登录会保存在云端，世界频道的消息也能让其他人一起看到。",
+    text: "登录、资料和世界频道都补齐了，换设备也更方便。",
+    details: [
+      "可以注册和登录账号，名字、头像、最近记录和收藏会跟着账号保存。",
+      "点右上角头像可以改显示名字、头像和密码。",
+      "世界频道可以发文字和图片，大家能看到同一个聊天频道。",
+    ],
   },
   {
-    id: "world-chat-cleanup",
+    id: "recent-world-chat-polish",
+    type: "优化",
     title: "世界频道更清爽",
-    text: "聊天会显示头像和名字，发送图片时不会再露出文件名。",
+    text: "聊天画面做了整理，看起来更像正常聊天。",
+    details: [
+      "消息会显示头像和名字，比较容易分清是谁发的。",
+      "发图片前会先预览，确认后才送出去。",
+      "图片发出去后不会露出原本的文件名。",
+    ],
   },
   {
-    id: "future-friends",
-    title: "好友和私聊先留好位置",
-    text: "通知现在只放应用更新。以后做加好友和一对一聊天时，会再放进来。",
-  },
-  {
-    id: "mobile-mode-hint",
-    title: "手机切换更好找",
-    text: "第一次用手机打开时，会提醒你点「选择模式」切换吃什么、去哪玩和买什么。",
+    id: "recent-notification-plan",
+    type: "通知整理",
+    title: "通知以后只讲更新内容",
+    text: "之后每次加内容或优化，通知里都会用大白话写清楚改了什么。",
+    details: [
+      "每条通知都会写是新功能、内容增加，还是体验变好。",
+      "不会写太专业的词，只写你打开后能感受到的变化。",
+      "好友和私聊以后做好时，也会在这里说明能怎么用。",
+    ],
   },
 ];
 const STORAGE_KEY = "choiceWheelState";
@@ -2296,15 +2326,23 @@ function renderNotificationPanel() {
     <div class="floating-panel-header">
         <div>
           <strong>${escapeHtml(t("top.notification", "通知"))}</strong>
-          <small>这里只放新功能和更新提醒</small>
+          <small>这里会用大白话说明最近加了什么、哪里变好用</small>
         </div>
       <button class="ghost-button compact-ghost" id="notificationCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
     </div>
     <div class="notification-list">
       ${APP_NOTIFICATIONS.map((item) => `
         <article class="notification-item">
-          <strong>${escapeHtml(item.title)}</strong>
+          <div class="notification-item-title">
+            <strong>${escapeHtml(item.title)}</strong>
+            <span>${escapeHtml(item.type || "更新")}</span>
+          </div>
           <p>${escapeHtml(item.text)}</p>
+          ${Array.isArray(item.details) && item.details.length ? `
+            <ul class="notification-details">
+              ${item.details.map((detail) => `<li>${escapeHtml(detail)}</li>`).join("")}
+            </ul>
+          ` : ""}
         </article>
       `).join("")}
     </div>
