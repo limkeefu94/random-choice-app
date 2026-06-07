@@ -36,7 +36,10 @@
             <small id="notificationBadge" hidden>0</small>
           </button>
           <button class="profile-avatar-button" id="profileAvatarButton" type="button" aria-expanded="false" aria-controls="profilePanel" aria-label="编辑个人资料" hidden></button>
-          <button class="ghost-button" id="clearHistoryButton" type="button">清空记录</button>
+          <button class="more-menu-button" id="moreMenuButton" type="button" aria-expanded="false" aria-controls="moreMenuPanel" aria-label="打开更多菜单">
+            <span aria-hidden="true">⋯</span>
+            <strong>更多</strong>
+          </button>
         </div>
       </header>
 
@@ -163,6 +166,7 @@
 
     <section class="floating-panel notification-panel" id="notificationPanel" aria-label="应用通知" hidden></section>
     <section class="floating-panel profile-panel" id="profilePanel" aria-label="编辑个人资料" hidden></section>
+    <section class="floating-panel more-menu-panel" id="moreMenuPanel" aria-label="更多菜单" hidden></section>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="./data/shopping-data.js"></script>
     <script src="./app.js"></script>

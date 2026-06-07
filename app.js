@@ -1863,6 +1863,8 @@ const elements = {
   notificationPanel: document.querySelector("#notificationPanel"),
   profileAvatarButton: document.querySelector("#profileAvatarButton"),
   profilePanel: document.querySelector("#profilePanel"),
+  moreMenuButton: document.querySelector("#moreMenuButton"),
+  moreMenuPanel: document.querySelector("#moreMenuPanel"),
   modeList: document.querySelector("#modeList"),
   modeMenuToggle: document.querySelector("#modeMenuToggle"),
   modeMenuLabel: document.querySelector("#modeMenuLabel"),
@@ -1891,7 +1893,6 @@ const elements = {
   randomButton: document.querySelector("#randomButton"),
   favoriteButton: document.querySelector("#favoriteButton"),
   surpriseModeButton: document.querySelector("#surpriseModeButton"),
-  clearHistoryButton: document.querySelector("#clearHistoryButton"),
   dailyInspiration: document.querySelector("#dailyInspiration"),
   historyList: document.querySelector("#historyList"),
   historyCount: document.querySelector("#historyCount"),
@@ -1906,6 +1907,7 @@ let pendingProfileAvatarImage = null;
 let authMode = "login";
 let isProfilePanelOpen = false;
 let isNotificationPanelOpen = false;
+let isMoreMenuOpen = false;
 
 function isValidAnonymousUserId(userId) {
   return /^anon_[a-zA-Z0-9_-]{12,80}$/.test(String(userId || ""));
@@ -2206,6 +2208,8 @@ function renderTopUserTools() {
   elements.profilePanel.hidden = !isProfilePanelOpen || !currentUser;
   elements.notificationButton.setAttribute("aria-expanded", String(isNotificationPanelOpen));
   elements.notificationPanel.hidden = !isNotificationPanelOpen;
+  elements.moreMenuButton.setAttribute("aria-expanded", String(isMoreMenuOpen));
+  elements.moreMenuPanel.hidden = !isMoreMenuOpen;
 
   const unreadCount = APP_NOTIFICATIONS.filter((item) => !state.notificationReadIds.includes(item.id)).length;
   elements.notificationBadge.hidden = unreadCount === 0;
@@ -2213,6 +2217,7 @@ function renderTopUserTools() {
 
   renderNotificationPanel();
   renderProfilePanel();
+  renderMoreMenuPanel();
 }
 
 function renderNotificationPanel() {
@@ -2321,6 +2326,34 @@ function renderProfilePanel() {
   document.querySelector("#profileForm").addEventListener("submit", (event) => {
     event.preventDefault();
     saveProfileChanges();
+  });
+}
+
+function renderMoreMenuPanel() {
+  if (elements.moreMenuPanel.hidden) {
+    return;
+  }
+
+  elements.moreMenuPanel.innerHTML = `
+    <div class="more-menu-list" role="menu" aria-label="更多操作">
+      <button class="more-menu-item" id="menuClearHistoryButton" type="button" role="menuitem">
+        <strong>清空记录</strong>
+        <small>清空最近决定和收藏</small>
+      </button>
+      <button class="more-menu-item" type="button" role="menuitem" disabled>
+        <strong>设置</strong>
+        <small>未来预留</small>
+      </button>
+      <button class="more-menu-item" type="button" role="menuitem" disabled>
+        <strong>语言</strong>
+        <small>未来预留</small>
+      </button>
+    </div>
+  `;
+
+  document.querySelector("#menuClearHistoryButton").addEventListener("click", () => {
+    closeMoreMenu();
+    clearHistory();
   });
 }
 
@@ -3795,6 +3828,7 @@ function toggleProfilePanel() {
 
   isProfilePanelOpen = !isProfilePanelOpen;
   isNotificationPanelOpen = false;
+  isMoreMenuOpen = false;
   renderTopUserTools();
 }
 
@@ -3807,6 +3841,7 @@ function closeProfilePanel() {
 function toggleNotificationPanel() {
   isNotificationPanelOpen = !isNotificationPanelOpen;
   isProfilePanelOpen = false;
+  isMoreMenuOpen = false;
 
   if (isNotificationPanelOpen) {
     state.notificationReadIds = APP_NOTIFICATIONS.map((item) => item.id);
@@ -3819,6 +3854,40 @@ function toggleNotificationPanel() {
 function closeNotificationPanel() {
   isNotificationPanelOpen = false;
   renderTopUserTools();
+}
+
+function toggleMoreMenu() {
+  isMoreMenuOpen = !isMoreMenuOpen;
+  isNotificationPanelOpen = false;
+  isProfilePanelOpen = false;
+  renderTopUserTools();
+}
+
+function closeMoreMenu() {
+  if (!isMoreMenuOpen) {
+    return;
+  }
+
+  isMoreMenuOpen = false;
+  renderTopUserTools();
+}
+
+function handleDocumentClick(event) {
+  if (!isMoreMenuOpen) {
+    return;
+  }
+
+  if (event.target.closest("#moreMenuButton") || event.target.closest("#moreMenuPanel")) {
+    return;
+  }
+
+  closeMoreMenu();
+}
+
+function handleGlobalKeydown(event) {
+  if (event.key === "Escape" && isMoreMenuOpen) {
+    closeMoreMenu();
+  }
 }
 
 function updateProfilePreview() {
@@ -5039,9 +5108,9 @@ function refreshApp(event) {
 elements.appRefreshButton.addEventListener("click", refreshApp);
 elements.notificationButton.addEventListener("click", toggleNotificationPanel);
 elements.profileAvatarButton.addEventListener("click", toggleProfilePanel);
+elements.moreMenuButton.addEventListener("click", toggleMoreMenu);
 elements.randomButton.addEventListener("click", drawResult);
 elements.favoriteButton.addEventListener("click", favoriteCurrent);
-elements.clearHistoryButton.addEventListener("click", clearHistory);
 elements.surpriseModeButton.addEventListener("click", surpriseMode);
 elements.modeMenuToggle.addEventListener("click", () => {
   const expanded = !elements.sidebar.classList.contains("is-menu-open");
@@ -5064,6 +5133,8 @@ elements.optionPreview.addEventListener("click", (event) => {
     toggleLock(lockButton.dataset.lockTitle);
   }
 });
+document.addEventListener("click", handleDocumentClick);
+document.addEventListener("keydown", handleGlobalKeydown);
 
 loadState();
 formatDateLabel();
