@@ -183,7 +183,6 @@ button {
   border-radius: 999px;
   color: #4d3025;
   font-weight: 900;
-  overflow: hidden;
   background: rgba(255, 255, 255, 0.68);
   box-shadow: 0 10px 20px rgba(106, 57, 26, 0.08);
   transition:
@@ -199,7 +198,12 @@ button {
   box-shadow: 0 14px 28px rgba(106, 57, 26, 0.13);
 }
 
+.notification-button {
+  overflow: visible;
+}
+
 .profile-avatar-button {
+  overflow: hidden;
   color: #fff;
   background:
     radial-gradient(circle at 28% 24%, rgba(255, 255, 255, 0.38), transparent 32%),
@@ -208,16 +212,22 @@ button {
 
 .notification-button small {
   position: absolute;
-  top: -5px;
+  z-index: 1;
+  top: -3px;
   right: -3px;
-  min-width: 18px;
+  box-sizing: border-box;
+  min-width: 22px;
   height: 18px;
-  padding: 0 5px;
+  padding: 0 6px;
   border-radius: 999px;
   color: #fff;
   font-size: 0.68rem;
+  font-weight: 900;
   line-height: 18px;
+  text-align: center;
+  white-space: nowrap;
   background: #ff5f45;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.82);
 }
 
 .ghost-button,
@@ -1895,6 +1905,16 @@ button {
   .profile-avatar-button {
     width: 38px;
     height: 38px;
+  }
+
+  .notification-button small {
+    top: -2px;
+    right: -2px;
+    min-width: 21px;
+    height: 17px;
+    padding: 0 5px;
+    font-size: 0.64rem;
+    line-height: 17px;
   }
 
   .ghost-button,
