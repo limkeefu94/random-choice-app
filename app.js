@@ -1831,6 +1831,7 @@ const state = {
   mode: "food",
   worldOpen: false,
   language: "zh-CN",
+  languageManuallySelected: false,
   currency: "MYR",
   food: {
     country: "马来西亚",
@@ -2007,7 +2008,8 @@ function loadState() {
 
     state.mode = MODES[saved.mode] ? saved.mode : state.mode;
     state.worldOpen = Boolean(saved.worldOpen);
-    state.language = normalizeLanguage(saved.language);
+    state.languageManuallySelected = saved.languageManuallySelected === true;
+    state.language = state.languageManuallySelected ? normalizeLanguage(saved.language) : "zh-CN";
     state.currency = CURRENCY_RATES[saved.currency] ? saved.currency : state.currency;
     state.food = { ...state.food, ...saved.food };
     state.travel = { ...state.travel, ...saved.travel };
@@ -2057,6 +2059,7 @@ function saveState() {
     mode: state.mode,
     worldOpen: state.worldOpen,
     language: state.language,
+    languageManuallySelected: state.languageManuallySelected,
     currency: state.currency,
     food: state.food,
     drink: state.drink,
@@ -5221,6 +5224,7 @@ function changeLanguage(language) {
   }
 
   state.language = nextLanguage;
+  state.languageManuallySelected = true;
   saveState();
   render();
   showToast(`${t("menu.language", "语言")}：${LANGUAGE_LABELS[nextLanguage]}`);
