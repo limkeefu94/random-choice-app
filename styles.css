@@ -1680,15 +1680,45 @@ button {
   background: rgba(255, 255, 255, 0.72);
 }
 
+.notification-item-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .notification-item strong {
   display: block;
   color: #4d3025;
+}
+
+.notification-item-title span {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #7a4b25;
+  font-size: 0.68rem;
+  font-weight: 900;
+  background: rgba(255, 212, 116, 0.4);
 }
 
 .notification-item p {
   margin: 5px 0 0;
   color: var(--muted);
   line-height: 1.5;
+}
+
+.notification-details {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: #6f4d36;
+  line-height: 1.45;
+}
+
+.notification-details li::marker {
+  color: var(--accent);
 }
 
 .profile-form {
