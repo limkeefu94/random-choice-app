@@ -33,10 +33,10 @@
     "mode.travel.description": "按想去国家、活动、消费等级和出行方式抽一个目的地，随机后会给出预算范围。",
     "mode.travel.hint": "可按国家、潜水/浮潜/爬山/滑雪等活动筛选",
     "mode.travel.label": "旅行目的地",
-    "mode.number.title": "买字 / 彩票号码随机",
-    "mode.number.short": "全球彩票号码实验",
-    "mode.number.description": "按国家和玩法生成 4D、TOTO、Powerball、EuroMillions 等号码型彩票的随机组合。",
-    "mode.number.hint": "仅供娱乐，不构成投注建议。",
+    "mode.number.title": "娱乐号码随机",
+    "mode.number.short": "4D / 6D / TOTO 等格式",
+    "mode.number.description": "按国家和玩法生成 4D、6D、TOTO、Powerball、EuroMillions 等格式的随机组合。",
+    "mode.number.hint": "号码由随机算法生成，仅供娱乐，不构成投注建议。",
     "mode.number.label": "随机号码",
     "mode.shopping.title": "今天买什么？",
     "mode.shopping.short": "购物小决定",
@@ -50,6 +50,6 @@
     "mode.custom.label": "自定义结果",
     "world.title": "世界频道",
     "world.subtitle": "打开独立聊天窗口",
-    "lottery.disclaimer": "仅供娱乐，不构成投注建议。"
+    "lottery.disclaimer": "号码由随机算法生成，仅供娱乐，不构成投注建议。"
   };
 })();

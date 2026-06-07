@@ -33,10 +33,10 @@
     "mode.travel.description": "Pilih destinasi mengikut negara, aktiviti, tahap bajet, dan gaya perjalanan dengan anggaran bajet.",
     "mode.travel.hint": "Tapis mengikut negara dan aktiviti seperti menyelam, hiking, ski, dan banyak lagi",
     "mode.travel.label": "Destinasi Perjalanan",
-    "mode.number.title": "Rawak Nombor Loteri",
-    "mode.number.short": "Eksperimen loteri global",
-    "mode.number.description": "Jana gabungan nombor rawak untuk 4D, TOTO, Powerball, EuroMillions, dan permainan seumpamanya.",
-    "mode.number.hint": "Untuk hiburan sahaja. Bukan nasihat pertaruhan.",
+    "mode.number.title": "Rawak Nombor Hiburan",
+    "mode.number.short": "Format 4D / 6D / TOTO",
+    "mode.number.description": "Jana gabungan nombor rawak untuk format seperti 4D, 6D, TOTO, Powerball, dan EuroMillions.",
+    "mode.number.hint": "Nombor dijana secara rawak untuk hiburan sahaja. Bukan nasihat pertaruhan.",
     "mode.number.label": "Nombor Rawak",
     "mode.shopping.title": "Beli apa hari ini?",
     "mode.shopping.short": "Keputusan membeli-belah",
@@ -50,6 +50,6 @@
     "mode.custom.label": "Keputusan Sendiri",
     "world.title": "Saluran Dunia",
     "world.subtitle": "Buka chat berasingan",
-    "lottery.disclaimer": "Untuk hiburan sahaja. Bukan nasihat pertaruhan."
+    "lottery.disclaimer": "Nombor dijana secara rawak untuk hiburan sahaja. Bukan nasihat pertaruhan."
   };
 })();

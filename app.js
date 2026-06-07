@@ -25,10 +25,10 @@ const MODES = {
   },
   number: {
     icon: "🔢",
-    title: "买字 / 彩票号码随机",
-    short: "全球彩票号码实验",
-    description: "按国家和玩法生成 4D、TOTO、Powerball、EuroMillions 等号码型彩票的随机组合。",
-    hint: "仅供娱乐，不构成投注建议。",
+    title: "娱乐号码随机",
+    short: "4D / 6D / TOTO 等格式",
+    description: "按国家和玩法生成 4D、6D、TOTO、Powerball、EuroMillions 等格式的随机组合。",
+    hint: "号码由随机算法生成，仅供娱乐，不构成投注建议。",
     label: "随机号码",
   },
   shopping: {
@@ -49,6 +49,7 @@ const MODES = {
   },
 };
 
+const MODE_DISPLAY_ORDER = ["food", "shopping", "custom", "drink", "travel", "number"];
 const FOOD_CATEGORIES = ["全部", "Mamak", "快餐连锁", "外卖平台热门", "油炸类", "素食类", "低卡类", "快餐", "嘴馋零嘴类", "高热量", "健康类"];
 const SPECIAL_FOOD_CATEGORIES = new Set(["Mamak", "快餐连锁", "外卖平台热门"]);
 const SPECIAL_REGION_KEYS = new Set(["全国 Mamak", "快餐连锁", "外卖平台热门"]);
@@ -1324,7 +1325,7 @@ const TRAVEL_COUNTRIES = ["全部", ...new Set(GLOBAL_TRAVEL_DATA.map((item) => 
   first === "全部" ? -1 : second === "全部" ? 1 : first.localeCompare(second, "zh-CN"),
 );
 
-const LOTTERY_DISCLAIMER = "仅供娱乐，不构成投注建议。";
+const LOTTERY_DISCLAIMER = "号码由随机算法生成，仅供娱乐，不构成投注建议。";
 const LOTTERY_SOURCE_NOTE = "资料为初版整理，玩法规则可能变动，后续需人工校对。";
 const LOTTERY_LINE_OPTIONS = [1, 2, 3, 5];
 const LOTTERY_DATA = [
@@ -2114,6 +2115,12 @@ function getLotteryDisclaimer() {
   return t("lottery.disclaimer", LOTTERY_DISCLAIMER);
 }
 
+function getDisplayModeEntries() {
+  const orderedKeys = [...MODE_DISPLAY_ORDER, ...Object.keys(MODES).filter((key) => !MODE_DISPLAY_ORDER.includes(key))];
+
+  return orderedKeys.map((key) => [key, MODES[key]]).filter(([, mode]) => mode);
+}
+
 function randomInt(max) {
   if (max <= 0) {
     return 0;
@@ -2220,7 +2227,7 @@ function applyStaticTranslations() {
 }
 
 function renderModes() {
-  elements.modeList.innerHTML = Object.entries(MODES)
+  elements.modeList.innerHTML = getDisplayModeEntries()
     .map(([key, mode]) => {
       const activeClass = key === state.mode ? " is-active" : "";
       return `

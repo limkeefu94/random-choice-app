@@ -33,10 +33,10 @@
     "mode.travel.description": "Pick a destination by country, activity, budget level, and travel style with an estimated budget.",
     "mode.travel.hint": "Filter by country and activities such as diving, hiking, skiing, and more",
     "mode.travel.label": "Travel Destination",
-    "mode.number.title": "Lottery Number Randomizer",
-    "mode.number.short": "Global lottery experiment",
-    "mode.number.description": "Generate random number combinations for 4D, TOTO, Powerball, EuroMillions, and similar games.",
-    "mode.number.hint": "For entertainment only. Not betting advice.",
+    "mode.number.title": "Entertainment Number Randomizer",
+    "mode.number.short": "4D / 6D / TOTO formats",
+    "mode.number.description": "Generate random number combinations for formats such as 4D, 6D, TOTO, Powerball, and EuroMillions.",
+    "mode.number.hint": "Numbers are generated randomly for entertainment only. Not betting advice.",
     "mode.number.label": "Random Numbers",
     "mode.shopping.title": "What to buy today?",
     "mode.shopping.short": "Shopping decisions",
@@ -50,6 +50,6 @@
     "mode.custom.label": "Custom Result",
     "world.title": "World Channel",
     "world.subtitle": "Open standalone chat",
-    "lottery.disclaimer": "For entertainment only. Not betting advice."
+    "lottery.disclaimer": "Numbers are generated randomly for entertainment only. Not betting advice."
   };
 })();
