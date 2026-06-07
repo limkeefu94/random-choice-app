@@ -64,6 +64,12 @@ const SHOPPING_MINDSETS = ["全部", "真的需要", "升级装备", "奖励自�
 const DEFAULT_PREVIEW_LIMIT = 24;
 const SHOPPING_PREVIEW_LIMIT = 30;
 const LOCKABLE_MODES = new Set(["food", "drink", "travel", "shopping", "custom"]);
+const SUPPORTED_LANGUAGES = ["zh-CN", "en", "ms"];
+const LANGUAGE_LABELS = {
+  "zh-CN": "中文",
+  en: "English",
+  ms: "Bahasa Melayu",
+};
 const CURRENCY_RATES = {
   MYR: { label: "MYR", perMYR: 1, decimals: 0 },
   SGD: { label: "SGD", perMYR: 1 / 3.1044, decimals: 2 },
@@ -1793,6 +1799,7 @@ const state = {
   userId: "",
   mode: "food",
   worldOpen: false,
+  language: "zh-CN",
   currency: "MYR",
   food: {
     country: "马来西亚",
@@ -1858,12 +1865,15 @@ const state = {
 
 const elements = {
   appRefreshButton: document.querySelector("#appRefreshButton"),
+  brandTitle: document.querySelector(".brand strong"),
+  brandSubtitle: document.querySelector(".brand small"),
   notificationButton: document.querySelector("#notificationButton"),
   notificationBadge: document.querySelector("#notificationBadge"),
   notificationPanel: document.querySelector("#notificationPanel"),
   profileAvatarButton: document.querySelector("#profileAvatarButton"),
   profilePanel: document.querySelector("#profilePanel"),
   moreMenuButton: document.querySelector("#moreMenuButton"),
+  moreMenuButtonLabel: document.querySelector("#moreMenuButton strong"),
   moreMenuPanel: document.querySelector("#moreMenuPanel"),
   modeList: document.querySelector("#modeList"),
   modeMenuToggle: document.querySelector("#modeMenuToggle"),
@@ -1872,6 +1882,7 @@ const elements = {
   worldChannelButton: document.querySelector("#worldChannelButton"),
   worldCloseButton: document.querySelector("#worldCloseButton"),
   todayLabel: document.querySelector("#todayLabel"),
+  currencyLabel: document.querySelector(".currency-switch span"),
   currencySelect: document.querySelector("#currencySelect"),
   actionRow: document.querySelector(".action-row"),
   modeTitle: document.querySelector("#modeTitle"),
@@ -1891,8 +1902,11 @@ const elements = {
   resultMeta: document.querySelector("#resultMeta"),
   numberDigits: document.querySelector("#numberDigits"),
   randomButton: document.querySelector("#randomButton"),
+  randomButtonLabel: document.querySelector("#randomButton span"),
   favoriteButton: document.querySelector("#favoriteButton"),
   surpriseModeButton: document.querySelector("#surpriseModeButton"),
+  worldChannelTitle: document.querySelector("#worldChannelButton strong"),
+  worldChannelSubtitle: document.querySelector("#worldChannelButton small"),
   dailyInspiration: document.querySelector("#dailyInspiration"),
   historyList: document.querySelector("#historyList"),
   historyCount: document.querySelector("#historyCount"),
@@ -1962,6 +1976,7 @@ function loadState() {
 
     state.mode = MODES[saved.mode] ? saved.mode : state.mode;
     state.worldOpen = Boolean(saved.worldOpen);
+    state.language = normalizeLanguage(saved.language);
     state.currency = CURRENCY_RATES[saved.currency] ? saved.currency : state.currency;
     state.food = { ...state.food, ...saved.food };
     state.travel = { ...state.travel, ...saved.travel };
@@ -2010,6 +2025,7 @@ function saveState() {
     userId: state.userId,
     mode: state.mode,
     worldOpen: state.worldOpen,
+    language: state.language,
     currency: state.currency,
     food: state.food,
     drink: state.drink,
@@ -2037,6 +2053,35 @@ function saveState() {
   };
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+}
+
+function normalizeLanguage(language) {
+  return SUPPORTED_LANGUAGES.includes(language) ? language : "zh-CN";
+}
+
+function getLocaleDictionary(language = state.language) {
+  const locales = window.APP_LOCALES || {};
+  return locales[normalizeLanguage(language)] || locales["zh-CN"] || {};
+}
+
+function t(key, fallback = "") {
+  const currentDictionary = getLocaleDictionary();
+  const fallbackDictionary = getLocaleDictionary("zh-CN");
+  const translated = currentDictionary[key] ?? fallbackDictionary[key] ?? fallback;
+
+  return translated === undefined || translated === null ? String(fallback || key) : String(translated);
+}
+
+function getModeText(modeKey, field) {
+  return t(`mode.${modeKey}.${field}`, MODES[modeKey]?.[field] || "");
+}
+
+function getModeTitle(modeKey) {
+  return getModeText(modeKey, "title");
+}
+
+function getLotteryDisclaimer() {
+  return t("lottery.disclaimer", LOTTERY_DISCLAIMER);
 }
 
 function randomInt(max) {
@@ -2114,13 +2159,34 @@ function parseCustomOptions() {
 }
 
 function formatDateLabel() {
-  const formatter = new Intl.DateTimeFormat("zh-CN", {
+  const formatter = new Intl.DateTimeFormat(normalizeLanguage(state.language), {
     month: "long",
     day: "numeric",
     weekday: "long",
   });
 
   elements.todayLabel.textContent = formatter.format(new Date());
+}
+
+function applyStaticTranslations() {
+  document.documentElement.lang = normalizeLanguage(state.language);
+  document.title = t("app.title", "随心转盘｜随机选择应用");
+  elements.appRefreshButton.setAttribute("aria-label", t("top.refresh", "刷新随心转盘"));
+  elements.appRefreshButton.title = t("top.refresh", "刷新随心转盘");
+  elements.brandTitle.textContent = t("app.name", "随心转盘");
+  elements.brandSubtitle.textContent = t("app.tagline", "把选择困难交给一点点随机");
+  elements.currencyLabel.textContent = t("top.currency", "货币");
+  elements.notificationButton.setAttribute("aria-label", t("top.notification", "通知"));
+  elements.profileAvatarButton.setAttribute("aria-label", t("top.profile", "个人资料"));
+  elements.moreMenuButton.setAttribute("aria-label", t("top.more", "更多"));
+  elements.moreMenuButtonLabel.textContent = t("top.more", "更多");
+  elements.randomButtonLabel.textContent = t("actions.random", "随机决定");
+  elements.favoriteButton.textContent = t("actions.favorite", "收藏结果");
+  elements.worldChannelTitle.textContent = t("world.title", "世界频道");
+  elements.worldChannelSubtitle.textContent = t("world.subtitle", "打开独立聊天窗口");
+  elements.notificationPanel.setAttribute("aria-label", t("top.notification", "通知"));
+  elements.profilePanel.setAttribute("aria-label", t("top.profile", "个人资料"));
+  elements.moreMenuPanel.setAttribute("aria-label", t("menu.more", "更多菜单"));
 }
 
 function renderModes() {
@@ -2131,8 +2197,8 @@ function renderModes() {
         <button class="mode-button${activeClass}" type="button" data-mode="${key}" aria-pressed="${key === state.mode}">
           <span class="mode-icon">${mode.icon}</span>
           <span class="mode-copy">
-            <strong>${mode.title}</strong>
-            <small>${mode.short}</small>
+            <strong>${getModeText(key, "title")}</strong>
+            <small>${getModeText(key, "short")}</small>
           </span>
         </button>
       `;
@@ -2143,7 +2209,7 @@ function renderModes() {
     button.addEventListener("click", () => switchMode(button.dataset.mode));
   });
 
-  elements.modeMenuLabel.textContent = MODES[state.mode].title;
+  elements.modeMenuLabel.textContent = getModeTitle(state.mode);
   elements.worldChannelButton.classList.toggle("is-active", state.worldOpen);
   elements.worldChannelButton.setAttribute("aria-pressed", String(state.worldOpen));
   elements.worldChannelButton.onclick = toggleWorldChat;
@@ -2160,19 +2226,20 @@ function switchMode(mode) {
   elements.modeMenuToggle.setAttribute("aria-expanded", "false");
   saveState();
   render();
-  showToast(`已切换到「${MODES[mode].title}」`);
+  showToast(`已切换到「${getModeTitle(mode)}」`);
 }
 
 function render() {
-  const mode = MODES[state.mode];
   elements.currencySelect.value = state.currency;
+  applyStaticTranslations();
+  formatDateLabel();
   elements.actionRow.hidden = false;
   elements.previewPanel.hidden = false;
   elements.worldChatPanel.hidden = !state.worldOpen;
-  elements.modeTitle.textContent = mode.title;
-  elements.modeDescription.textContent = mode.description;
-  elements.controlHint.textContent = mode.hint;
-  elements.resultLabel.textContent = mode.label;
+  elements.modeTitle.textContent = getModeText(state.mode, "title");
+  elements.modeDescription.textContent = getModeText(state.mode, "description");
+  elements.controlHint.textContent = getModeText(state.mode, "hint");
+  elements.resultLabel.textContent = getModeText(state.mode, "label");
   elements.numberDigits.hidden = true;
 
   renderModes();
@@ -2197,7 +2264,7 @@ function renderTopUserTools() {
       name: getUserDisplayName(currentUser),
       className: "profile-avatar-image",
     });
-    elements.profileAvatarButton.setAttribute("aria-label", `编辑 ${getUserDisplayName(currentUser)} 的个人资料`);
+    elements.profileAvatarButton.setAttribute("aria-label", `${t("top.profile", "个人资料")}：${getUserDisplayName(currentUser)}`);
     elements.profileAvatarButton.setAttribute("aria-expanded", String(isProfilePanelOpen));
   } else {
     elements.profileAvatarButton.hidden = true;
@@ -2227,11 +2294,11 @@ function renderNotificationPanel() {
 
   elements.notificationPanel.innerHTML = `
     <div class="floating-panel-header">
-      <div>
-        <strong>应用通知</strong>
-        <small>这里只放新功能和更新提醒</small>
-      </div>
-      <button class="ghost-button compact-ghost" id="notificationCloseButton" type="button">关闭</button>
+        <div>
+          <strong>${escapeHtml(t("top.notification", "通知"))}</strong>
+          <small>这里只放新功能和更新提醒</small>
+        </div>
+      <button class="ghost-button compact-ghost" id="notificationCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
     </div>
     <div class="notification-list">
       ${APP_NOTIFICATIONS.map((item) => `
@@ -2257,10 +2324,10 @@ function renderProfilePanel() {
     <form class="profile-form" id="profileForm">
       <div class="floating-panel-header">
         <div>
-          <strong>个人资料</strong>
+          <strong>${escapeHtml(t("top.profile", "个人资料"))}</strong>
           <small>换头像、改名字或密码</small>
         </div>
-        <button class="ghost-button compact-ghost" id="profileCloseButton" type="button">关闭</button>
+        <button class="ghost-button compact-ghost" id="profileCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
       </div>
       <div class="profile-preview-row">
         <span class="world-avatar profile-preview-avatar" id="profilePreviewAvatar" aria-hidden="true">
@@ -2335,19 +2402,26 @@ function renderMoreMenuPanel() {
   }
 
   elements.moreMenuPanel.innerHTML = `
-    <div class="more-menu-list" role="menu" aria-label="更多操作">
+    <div class="more-menu-list" role="menu" aria-label="${escapeHtml(t("menu.more", "更多操作"))}">
       <button class="more-menu-item" id="menuClearHistoryButton" type="button" role="menuitem">
-        <strong>清空记录</strong>
-        <small>清空最近决定和收藏</small>
+        <strong>${escapeHtml(t("actions.clearHistory", "清空记录"))}</strong>
+        <small>${escapeHtml(t("menu.clearHistory.desc", "清空最近决定和收藏"))}</small>
       </button>
       <button class="more-menu-item" type="button" role="menuitem" disabled>
-        <strong>设置</strong>
-        <small>未来预留</small>
+        <strong>${escapeHtml(t("menu.settings", "设置"))}</strong>
+        <small>${escapeHtml(t("menu.future", "未来预留"))}</small>
       </button>
-      <button class="more-menu-item" type="button" role="menuitem" disabled>
-        <strong>语言</strong>
-        <small>未来预留</small>
-      </button>
+      <label class="more-menu-language" for="languageSelect">
+        <span>
+          <strong>${escapeHtml(t("menu.language", "语言"))}</strong>
+          <small>${escapeHtml(t("menu.future", "未来预留"))}</small>
+        </span>
+        <select id="languageSelect" aria-label="${escapeHtml(t("menu.language", "语言"))}">
+          ${SUPPORTED_LANGUAGES.map((language) => `
+            <option value="${language}" ${language === state.language ? "selected" : ""}>${LANGUAGE_LABELS[language]}</option>
+          `).join("")}
+        </select>
+      </label>
     </div>
   `;
 
@@ -2355,6 +2429,7 @@ function renderMoreMenuPanel() {
     closeMoreMenu();
     clearHistory();
   });
+  document.querySelector("#languageSelect").addEventListener("change", (event) => changeLanguage(event.target.value));
 }
 
 function renderModeStage() {
@@ -2751,7 +2826,7 @@ function renderNumberControls() {
     <div class="number-rule-card">
       <strong>${escapeHtml(currentGame.name)}</strong>
       <p>${escapeHtml(currentGame.summary)}</p>
-      <small>${LOTTERY_DISCLAIMER} ${LOTTERY_SOURCE_NOTE}</small>
+      <small>${escapeHtml(getLotteryDisclaimer())} ${LOTTERY_SOURCE_NOTE}</small>
     </div>
     <label class="toggle-field">
       <input id="allowRepeat" type="checkbox" ${state.number.allowRepeat ? "checked" : ""} />
@@ -3082,7 +3157,7 @@ function getCurrentOptions() {
       `${currentGame.country} · ${currentGame.name}`,
       currentGame.summary,
       `${normalizeLotteryLines(state.number.lines)} 组号码`,
-      LOTTERY_DISCLAIMER,
+      getLotteryDisclaimer(),
     ];
 
     if (!state.number.allowRepeat) {
@@ -4836,7 +4911,7 @@ function buildNumberMeta(game, lines) {
     rules.push("尽量避开 4");
   }
 
-  rules.push(LOTTERY_DISCLAIMER);
+  rules.push(getLotteryDisclaimer());
   return rules.join(" · ");
 }
 
@@ -4863,7 +4938,7 @@ function drawResult() {
 }
 
 function renderResult(result) {
-  elements.resultLabel.textContent = MODES[result.mode].label;
+  elements.resultLabel.textContent = getModeText(result.mode, "label");
   elements.resultValue.textContent = result.mode === "number" ? result.title : result.title;
   elements.resultMeta.innerHTML = renderResultMeta(result);
 
@@ -5016,7 +5091,7 @@ function renderStackItems(items, emptyText) {
 }
 
 function renderStackItemMeta(item, timeText) {
-  const modeTitle = MODES[item.mode]?.title || "旧记录";
+  const modeTitle = MODES[item.mode] ? getModeTitle(item.mode) : "旧记录";
   const lines = [
     `${modeTitle}${timeText}`,
     formatBudget(item.meta),
@@ -5086,6 +5161,19 @@ function changeCurrency(currency) {
   }
 
   showToast(`预算已切换为 ${currency}`);
+}
+
+function changeLanguage(language) {
+  const nextLanguage = normalizeLanguage(language);
+
+  if (state.language === nextLanguage) {
+    return;
+  }
+
+  state.language = nextLanguage;
+  saveState();
+  render();
+  showToast(`${t("menu.language", "语言")}：${LANGUAGE_LABELS[nextLanguage]}`);
 }
 
 function showToast(message) {

@@ -212,6 +212,7 @@ button {
 .notification-button,
 .profile-avatar-button {
   position: relative;
+  box-sizing: border-box;
   display: inline-grid;
   width: 42px;
   height: 42px;
@@ -244,11 +245,30 @@ button {
 }
 
 .profile-avatar-button {
+  padding: 0;
   overflow: hidden;
   color: #fff;
+  font-size: 0.96rem;
+  line-height: 1;
+  text-align: center;
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 2px rgba(77, 48, 37, 0.24);
+  -webkit-font-smoothing: antialiased;
   background:
     radial-gradient(circle at 28% 24%, rgba(255, 255, 255, 0.38), transparent 32%),
     linear-gradient(135deg, var(--accent), var(--mint));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.52),
+    0 10px 20px rgba(106, 57, 26, 0.08);
+}
+
+.profile-avatar-button:hover {
+  background:
+    radial-gradient(circle at 28% 24%, rgba(255, 255, 255, 0.42), transparent 32%),
+    linear-gradient(135deg, var(--accent), var(--mint));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.58),
+    0 14px 28px rgba(106, 57, 26, 0.13);
 }
 
 .notification-button small {
@@ -900,6 +920,7 @@ button {
 
 .world-avatar {
   display: inline-grid;
+  box-sizing: border-box;
   width: 38px;
   height: 38px;
   flex: 0 0 auto;
@@ -908,18 +929,30 @@ button {
   color: #fff;
   font-size: 0.98rem;
   font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(77, 48, 37, 0.22);
   background:
     radial-gradient(circle at 28% 24%, rgba(255, 255, 255, 0.36), transparent 32%),
     linear-gradient(135deg, var(--accent), var(--mint));
-  box-shadow: 0 10px 22px rgba(96, 199, 160, 0.24);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.48),
+    0 10px 22px rgba(96, 199, 160, 0.24);
   overflow: hidden;
 }
 
 .world-avatar img,
 .profile-avatar-button img {
+  display: block;
   width: 100%;
   height: 100%;
+  min-width: 100%;
+  min-height: 100%;
+  border-radius: inherit;
   object-fit: cover;
+  object-position: center;
+  image-rendering: auto;
+  pointer-events: none;
 }
 
 .identity-panel {
@@ -1597,6 +1630,44 @@ button {
   opacity: 0.62;
 }
 
+.more-menu-language {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(80, 45, 24, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.more-menu-language span,
+.more-menu-language strong,
+.more-menu-language small {
+  display: block;
+}
+
+.more-menu-language strong {
+  color: #4d3025;
+  font-size: 0.9rem;
+  font-weight: 850;
+}
+
+.more-menu-language small {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.more-menu-language select {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-weight: 800;
+  outline: none;
+  background: rgba(255, 255, 255, 0.86);
+}
+
 .notification-list {
   display: grid;
   gap: 10px;
@@ -1657,9 +1728,12 @@ button {
 }
 
 .profile-preview-avatar {
-  width: 48px;
-  height: 48px;
-  font-size: 1.08rem;
+  width: 58px;
+  height: 58px;
+  font-size: 1.22rem;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.56),
+    0 12px 26px rgba(96, 199, 160, 0.24);
 }
 
 .profile-preview-row strong,
@@ -1857,23 +1931,36 @@ button {
   }
 
   .topbar {
-    gap: 8px;
-    margin-bottom: 10px;
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-bottom: 8px;
   }
 
   .brand {
     align-items: center;
-    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 6px;
+  }
+
+  .brand > span {
+    min-width: 0;
   }
 
   .brand-mark {
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
     border-radius: 15px;
+    flex: 0 0 auto;
   }
 
   .brand strong {
-    font-size: 0.98rem;
+    max-width: clamp(72px, 25vw, 118px);
+    overflow: hidden;
+    font-size: 0.95rem;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .brand small,
@@ -1887,14 +1974,19 @@ button {
   }
 
   .top-actions {
-    width: 100%;
-    gap: 6px;
-    justify-content: space-between;
+    width: auto;
+    max-width: 100%;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    gap: 5px;
+    justify-content: flex-end;
+    margin-left: auto;
   }
 
   .currency-switch {
-    min-height: 38px;
-    padding: 5px 6px 5px 10px;
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 5px 5px;
   }
 
   .currency-switch span {
@@ -1902,14 +1994,16 @@ button {
   }
 
   .currency-switch select {
-    min-height: 28px;
-    padding: 0 8px;
-    font-size: 0.82rem;
+    max-width: 62px;
+    min-height: 30px;
+    padding: 0 6px;
+    font-size: 0.8rem;
   }
 
   .more-menu-button {
-    min-height: 38px;
-    padding: 0 11px;
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 0 9px;
   }
 
   .more-menu-button strong {
@@ -1918,13 +2012,14 @@ button {
 
   .notification-button,
   .profile-avatar-button {
-    width: 38px;
-    height: 38px;
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
   }
 
   .notification-button small {
-    top: -4px;
-    right: -4px;
+    top: -3px;
+    right: -3px;
     min-width: 20px;
     height: 20px;
     padding: 0 5px;
@@ -2327,5 +2422,35 @@ button {
     line-height: 1.25;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+  }
+}
+
+@media (max-width: 380px) {
+  .topbar {
+    gap: 5px;
+  }
+
+  .top-actions {
+    gap: 4px;
+  }
+
+  .brand strong {
+    max-width: 78px;
+    font-size: 0.9rem;
+  }
+
+  .currency-switch select {
+    max-width: 56px;
+    padding: 0 4px;
+    font-size: 0.76rem;
+  }
+
+  .more-menu-button {
+    width: 40px;
+    padding: 0;
+  }
+
+  .more-menu-button strong {
+    display: none;
   }
 }
