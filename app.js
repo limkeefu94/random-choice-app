@@ -61,6 +61,8 @@ const TRAVEL_LEVELS = ["全部", "穷游", "低消费", "舒适", "轻奢", "奢
 const TRAVEL_TRANSPORTS = ["全部", "公共交通", "自驾游", "自由行", "跟团", "步行城市"];
 const SHOPPING_LEVELS = ["全部", "低消费", "中等", "高消费", "奢侈品", "理性"];
 const SHOPPING_MINDSETS = ["全部", "真的需要", "升级装备", "奖励自己", "先收藏不买", "工作需要", "旅行需要", "便宜小物", "长期投资"];
+const DEFAULT_PREVIEW_LIMIT = 24;
+const SHOPPING_PREVIEW_LIMIT = 30;
 const LOCKABLE_MODES = new Set(["food", "drink", "travel", "shopping", "custom"]);
 const CURRENCY_RATES = {
   MYR: { label: "MYR", perMYR: 1, decimals: 0 },
@@ -228,6 +230,7 @@ if (typeof window !== "undefined") {
       label: "电脑与配件",
       children: [
         { id: "computers-accessories-all", label: "全部" },
+        { id: "computer-devices", label: "电脑" },
         { id: "laptops", label: "笔记本电脑" },
         { id: "desktops", label: "台式电脑" },
         { id: "monitors", label: "显示器" },
@@ -248,6 +251,17 @@ if (typeof window !== "undefined") {
         { id: "power-banks", label: "移动电源" },
         { id: "screen-protectors", label: "保护膜" },
         { id: "stands-grips", label: "支架 / 手柄" },
+      ],
+    },
+    {
+      id: "daily-essentials",
+      label: "生活用品",
+      children: [
+        { id: "daily-essentials-all", label: "全部" },
+        { id: "cleaning-supplies", label: "清洁用品" },
+        { id: "daily-paper", label: "纸巾 / 消耗品" },
+        { id: "daily-storage", label: "收纳小物" },
+        { id: "daily-laundry", label: "洗衣用品" },
       ],
     },
     {
@@ -344,6 +358,7 @@ if (typeof window !== "undefined") {
       label: "交通工具",
       children: [
         { id: "transport-all", label: "全部" },
+        { id: "cars", label: "汽车" },
         { id: "bicycles", label: "自行车" },
         { id: "e-scooters", label: "电动滑板车" },
         { id: "helmets", label: "头盔" },
@@ -462,6 +477,7 @@ const SHOPPING_CATEGORY_SOURCE_MAP = {
   electronics: ["电子产品", "手机与配件", "电脑与配件", "数码小物"],
   "computers-accessories": ["电脑与配件", "电子产品", "数码小物"],
   "phones-accessories": ["手机与配件", "电子产品", "数码小物"],
+  "daily-essentials": ["生活补给", "清洁收纳", "家居生活"],
   "home-living": ["家居生活", "生活补给", "家里缺的"],
   kitchen: ["厨房用品", "家居生活", "家里缺的"],
   "cleaning-storage": ["清洁收纳", "家居生活", "生活补给", "家里缺的"],
@@ -478,6 +494,14 @@ const SHOPPING_CATEGORY_SOURCE_MAP = {
   gifts: ["礼物"],
   luxury: ["奢侈品"],
   "software-digital": ["软件 / 订阅 / 数字产品", "理性提醒", "数码小物"],
+};
+const SHOPPING_SUBCATEGORY_ALIAS_MAP = {
+  "computer-devices": ["笔记本电脑", "台式电脑"],
+  cars: ["汽车"],
+  "cleaning-supplies": ["清洁工具", "清洁养护", "清洁护理"],
+  "daily-paper": ["家居用品"],
+  "daily-storage": ["收纳盒 / 架", "家居用品"],
+  "daily-laundry": ["洗衣用品"],
 };
 
 const DRINK_MENU_DATA = {
@@ -2811,6 +2835,23 @@ function getShoppingItemMindsets(item) {
   return [...mindsets];
 }
 
+function getShoppingSubcategoryLabels(childNode) {
+  return [
+    childNode.label,
+    ...(SHOPPING_SUBCATEGORY_ALIAS_MAP[childNode.id] || []),
+  ].filter(Boolean);
+}
+
+function matchesShoppingSubcategory(item, childNode) {
+  const labels = getShoppingSubcategoryLabels(childNode);
+
+  return labels.some((label) =>
+    item.subcategory === label
+    || item.tags.includes(label)
+    || item.title.includes(label),
+  );
+}
+
 function getFilteredShoppingItems() {
   const sourceCategories = getShoppingSourceCategories();
   const categoryPath = getShoppingCategoryPath();
@@ -2832,7 +2873,7 @@ function getFilteredShoppingItems() {
   );
   const subcategoryItems = childNode.label === "全部"
     ? items
-    : items.filter((item) => item.subcategory === childNode.label || item.tags.includes(childNode.label));
+    : items.filter((item) => matchesShoppingSubcategory(item, childNode));
   const mindsetItems = state.shopping.mindset === "全部"
     ? subcategoryItems
     : subcategoryItems.filter((item) => getShoppingItemMindsets(item).includes(state.shopping.mindset));
@@ -3041,10 +3082,15 @@ function renderPreview() {
     return;
   }
 
+  const previewLimit = state.mode === "shopping" ? SHOPPING_PREVIEW_LIMIT : DEFAULT_PREVIEW_LIMIT;
+  const hiddenCount = Math.max(options.length - previewLimit, 0);
   const optionMarkup = options
-    .slice(0, 24)
+    .slice(0, previewLimit)
     .map((item) => renderOptionChip(item))
     .join("");
+  const overflowHint = hiddenCount
+    ? `<span class="chip preview-overflow-chip">还有 ${hiddenCount} 个候选未显示</span>`
+    : "";
   const lockHint = LOCKABLE_MODES.has(state.mode)
     ? `<span class="chip lock-note">${lockedOptions.length ? "已启用锁定随机" : "点候选可锁定"}</span>`
     : "";
@@ -3052,7 +3098,7 @@ function renderPreview() {
     ? `<button class="chip clear-locks-chip" type="button" data-clear-locks="true">清除锁定</button>`
     : "";
 
-  elements.optionPreview.innerHTML = `${optionMarkup}${lockHint}${clearLockButton}`;
+  elements.optionPreview.innerHTML = `${optionMarkup}${overflowHint}${lockHint}${clearLockButton}`;
 }
 
 function renderWorldChannel() {
@@ -3115,12 +3161,13 @@ function renderOptionChip(item) {
 
   const locked = isLocked(item.title);
   const lockedClass = locked ? " is-locked" : "";
+  const shoppingClass = state.mode === "shopping" ? " shopping-option-chip" : "";
   const lockedIcon = locked ? "🔒" : "＋";
 
   return `
-    <button class="chip option-chip${lockedClass}" type="button" data-lock-title="${escapeHtml(item.title)}" aria-pressed="${locked}">
+    <button class="chip option-chip${shoppingClass}${lockedClass}" type="button" data-lock-title="${escapeHtml(item.title)}" aria-pressed="${locked}">
       <span class="chip-pin">${lockedIcon}</span>
-      <span>${escapeHtml(item.title)}</span>
+      <span class="chip-title">${escapeHtml(item.title)}</span>
       ${details ? `<small class="chip-detail">${escapeHtml(details)}</small>` : ""}
     </button>
   `;
