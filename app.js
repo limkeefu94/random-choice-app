@@ -2299,7 +2299,10 @@ function renderProfilePanel() {
         <label for="profileConfirmPassword">确认新密码</label>
         <input id="profileConfirmPassword" type="password" autocomplete="new-password" placeholder="再输入一次新密码" />
       </div>
-      <button class="primary-button compact-primary" type="submit">保存资料</button>
+      <div class="profile-form-actions">
+        <button class="primary-button compact-primary" type="submit">保存资料</button>
+        <button class="secondary-button profile-logout-button" id="profileLogoutButton" type="button">登出账号</button>
+      </div>
     </form>
   `;
 
@@ -2311,6 +2314,10 @@ function renderProfilePanel() {
   avatarFileInput.addEventListener("change", prepareProfileAvatarImage);
   nameInput.addEventListener("input", updateProfilePreview);
   document.querySelector("#profileCloseButton").addEventListener("click", closeProfilePanel);
+  document.querySelector("#profileLogoutButton").addEventListener("click", () => {
+    closeProfilePanel();
+    logoutUser();
+  });
   document.querySelector("#profileForm").addEventListener("submit", (event) => {
     event.preventDefault();
     saveProfileChanges();
@@ -2556,7 +2563,6 @@ function renderWorldControls() {
           <strong>${escapeHtml(getUserDisplayName(currentUser))}</strong>
           <small data-cloud-sync-identity>${escapeHtml(getCloudIdentityText())}</small>
         </div>
-        <button class="ghost-button compact-ghost" id="logoutButton" type="button">登出</button>
       </div>
     </div>
     <form class="world-panel message-panel" id="worldMessageForm">
@@ -2583,7 +2589,6 @@ function renderWorldControls() {
     </form>
   `;
 
-  document.querySelector("#logoutButton").addEventListener("click", logoutUser);
   document.querySelector("#worldMessageForm").addEventListener("submit", (event) => {
     event.preventDefault();
     sendWorldMessage();

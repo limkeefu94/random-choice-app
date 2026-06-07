@@ -202,6 +202,10 @@ button {
   overflow: visible;
 }
 
+.notification-button > span {
+  line-height: 1;
+}
+
 .profile-avatar-button {
   overflow: hidden;
   color: #fff;
@@ -212,18 +216,21 @@ button {
 
 .notification-button small {
   position: absolute;
-  z-index: 1;
-  top: -3px;
-  right: -3px;
+  z-index: 2;
+  top: -5px;
+  right: -5px;
   box-sizing: border-box;
-  min-width: 22px;
-  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 21px;
+  height: 21px;
   padding: 0 6px;
   border-radius: 999px;
   color: #fff;
   font-size: 0.68rem;
   font-weight: 900;
-  line-height: 18px;
+  line-height: 1;
   text-align: center;
   white-space: nowrap;
   background: #ff5f45;
@@ -886,7 +893,7 @@ button {
 
 .world-identity-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 10px;
   align-items: center;
 }
@@ -1527,6 +1534,21 @@ button {
   gap: 12px;
 }
 
+.profile-form-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-form-actions > button {
+  width: 100%;
+}
+
+.profile-logout-button {
+  border-color: rgba(80, 45, 24, 0.14);
+  color: #6b4d3e;
+  background: rgba(255, 255, 255, 0.72);
+}
+
 .profile-preview-row {
   display: flex;
   align-items: center;
@@ -1795,13 +1817,12 @@ button {
   }
 
   .notification-button small {
-    top: -2px;
-    right: -2px;
-    min-width: 21px;
-    height: 17px;
+    top: -4px;
+    right: -4px;
+    min-width: 20px;
+    height: 20px;
     padding: 0 5px;
-    font-size: 0.64rem;
-    line-height: 17px;
+    font-size: 0.62rem;
   }
 
   .ghost-button,
@@ -2135,7 +2156,7 @@ button {
   }
 
   .world-identity-card {
-    grid-template-columns: 36px minmax(0, 1fr) auto;
+    grid-template-columns: 36px minmax(0, 1fr);
     gap: 8px;
   }
 
