@@ -92,6 +92,7 @@ randomChoiceUsers/{userId}/uploads/{itemId}
 randomChoiceAccounts/{accountId}
 randomChoiceUsernames/{usernameKey}
 randomChoiceWorldMessages/{messageId}
+randomChoiceFeedback/{feedbackId}
 ```
 
 ## 云端账号和世界频道
@@ -110,6 +111,12 @@ randomChoiceWorldMessages/{messageId}
 - Account API responses now include safe default `privacy` and `worldPreferences` fields for old and new accounts.
 - `publicAccount` only returns whitelisted public profile fields and does not expose password hashes, salts, token secrets, service-account data, or private relationship data.
 - The implementation plan is documented in `docs/social-privacy-plan.md`.
+
+## 用户反馈入口
+
+- 更多菜单里的「反馈问题」会提交到 `/api/feedback`。
+- 反馈写入 Firestore `randomChoiceFeedback` collection，允许未登录用户提交。
+- 接口只保存反馈白名单字段，不保存密码、登录 token、private key 或请求原始 headers。
 
 ## `/api/user-data` access control
 

@@ -1752,6 +1752,7 @@ const AUTH_TOKEN_STORAGE_KEY = "choiceWheelAuthToken";
 const CLOUD_SYNC_ENDPOINT = "/api/user-data";
 const AUTH_ENDPOINT = "/api/auth";
 const WORLD_CHANNEL_ENDPOINT = "/api/world-channel";
+const FEEDBACK_ENDPOINT = "/api/feedback";
 const SOCIAL_FEATURES_ENABLED = window.SOCIAL_FEATURES_ENABLED === true || window.SOCIAL_FEATURES_ENABLED === "true";
 const DEFAULT_PRIVACY_SETTINGS = Object.freeze({
   discoverable: false,
@@ -1766,6 +1767,7 @@ const DEFAULT_WORLD_PREFERENCES = Object.freeze({
   hideLottery: false,
 });
 const DIRECT_MESSAGE_POLICIES = new Set(["friendsOnly", "everyone", "none"]);
+const FEEDBACK_TYPES = ["Bug / 错误", "功能建议", "UI 不好用", "内容错误", "其他"];
 const WORLD_SYNC_INTERVAL_MS = 15000;
 const DEFAULT_WORLD_MESSAGES = [
   {
@@ -1924,6 +1926,7 @@ const elements = {
   moreMenuButton: document.querySelector("#moreMenuButton"),
   moreMenuButtonLabel: document.querySelector("#moreMenuButton strong"),
   moreMenuPanel: document.querySelector("#moreMenuPanel"),
+  feedbackPanel: document.querySelector("#feedbackPanel"),
   modeList: document.querySelector("#modeList"),
   modeMenuToggle: document.querySelector("#modeMenuToggle"),
   modeMenuLabel: document.querySelector("#modeMenuLabel"),
@@ -1973,6 +1976,7 @@ let authMode = "login";
 let isProfilePanelOpen = false;
 let isNotificationPanelOpen = false;
 let isMoreMenuOpen = false;
+let isFeedbackPanelOpen = false;
 
 function isValidAnonymousUserId(userId) {
   return /^anon_[a-zA-Z0-9_-]{12,80}$/.test(String(userId || ""));
@@ -2318,6 +2322,7 @@ function renderTopUserTools() {
   elements.notificationPanel.hidden = !isNotificationPanelOpen;
   elements.moreMenuButton.setAttribute("aria-expanded", String(isMoreMenuOpen));
   elements.moreMenuPanel.hidden = !isMoreMenuOpen;
+  elements.feedbackPanel.hidden = !isFeedbackPanelOpen;
 
   const unreadCount = APP_NOTIFICATIONS.filter((item) => !state.notificationReadIds.includes(item.id)).length;
   elements.notificationBadge.hidden = unreadCount === 0;
@@ -2326,6 +2331,7 @@ function renderTopUserTools() {
   renderNotificationPanel();
   renderProfilePanel();
   renderMoreMenuPanel();
+  renderFeedbackPanel();
 }
 
 function renderNotificationPanel() {
@@ -2451,6 +2457,10 @@ function renderMoreMenuPanel() {
         <strong>${escapeHtml(t("actions.clearHistory", "清空记录"))}</strong>
         <small>${escapeHtml(t("menu.clearHistory.desc", "清空最近决定和收藏"))}</small>
       </button>
+      <button class="more-menu-item" id="menuFeedbackButton" type="button" role="menuitem">
+        <strong>反馈问题</strong>
+        <small>提交 Bug、建议或内容错误</small>
+      </button>
       <button class="more-menu-item" type="button" role="menuitem" disabled>
         <strong>${escapeHtml(t("menu.settings", "设置"))}</strong>
         <small>${escapeHtml(t("menu.future", "未来预留"))}</small>
@@ -2473,7 +2483,56 @@ function renderMoreMenuPanel() {
     closeMoreMenu();
     clearHistory();
   });
+  document.querySelector("#menuFeedbackButton").addEventListener("click", openFeedbackPanel);
   document.querySelector("#languageSelect").addEventListener("change", (event) => changeLanguage(event.target.value));
+}
+
+function renderFeedbackPanel() {
+  if (elements.feedbackPanel.hidden) {
+    return;
+  }
+
+  elements.feedbackPanel.innerHTML = `
+    <form class="feedback-form" id="feedbackForm">
+      <div class="floating-panel-header">
+        <div>
+          <strong>反馈问题</strong>
+          <small>Bug、建议、UI 或内容错误都可以告诉我</small>
+        </div>
+        <button class="ghost-button compact-ghost" id="feedbackCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
+      </div>
+      <div class="field">
+        <label for="feedbackType">反馈类型</label>
+        <select id="feedbackType" name="type" required>
+          ${FEEDBACK_TYPES.map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field">
+        <label for="feedbackTitle">标题</label>
+        <input id="feedbackTitle" name="title" maxlength="80" required placeholder="一句话说明问题" />
+        <small class="field-hint">最多 80 字，不要填写密码或密钥。</small>
+      </div>
+      <div class="field">
+        <label for="feedbackMessage">详细说明</label>
+        <textarea id="feedbackMessage" name="message" maxlength="1000" required placeholder="发生了什么？你期待它怎么工作？"></textarea>
+        <small class="field-hint">最多 1000 字，请不要提交密码、token 或 private key。</small>
+      </div>
+      <div class="field">
+        <label for="feedbackContact">联系方式（可选）</label>
+        <input id="feedbackContact" name="contact" maxlength="160" autocomplete="off" placeholder="Email / IG / Telegram，方便需要时追问" />
+      </div>
+      <div class="feedback-context">
+        <span>当前模式：${escapeHtml(getModeTitle(state.mode))}</span>
+        <span>设备：${window.innerWidth}×${window.innerHeight}</span>
+      </div>
+      <div class="feedback-form-actions">
+        <button class="primary-button compact-primary" id="feedbackSubmitButton" type="submit">提交反馈</button>
+      </div>
+    </form>
+  `;
+
+  document.querySelector("#feedbackCloseButton").addEventListener("click", closeFeedbackPanel);
+  document.querySelector("#feedbackForm").addEventListener("submit", submitFeedback);
 }
 
 function renderModeStage() {
@@ -4000,6 +4059,7 @@ function toggleProfilePanel() {
   isProfilePanelOpen = !isProfilePanelOpen;
   isNotificationPanelOpen = false;
   isMoreMenuOpen = false;
+  isFeedbackPanelOpen = false;
   renderTopUserTools();
 }
 
@@ -4013,6 +4073,7 @@ function toggleNotificationPanel() {
   isNotificationPanelOpen = !isNotificationPanelOpen;
   isProfilePanelOpen = false;
   isMoreMenuOpen = false;
+  isFeedbackPanelOpen = false;
 
   if (isNotificationPanelOpen) {
     state.notificationReadIds = APP_NOTIFICATIONS.map((item) => item.id);
@@ -4031,6 +4092,7 @@ function toggleMoreMenu() {
   isMoreMenuOpen = !isMoreMenuOpen;
   isNotificationPanelOpen = false;
   isProfilePanelOpen = false;
+  isFeedbackPanelOpen = false;
   renderTopUserTools();
 }
 
@@ -4043,8 +4105,26 @@ function closeMoreMenu() {
   renderTopUserTools();
 }
 
+function openFeedbackPanel() {
+  isFeedbackPanelOpen = true;
+  isMoreMenuOpen = false;
+  isNotificationPanelOpen = false;
+  isProfilePanelOpen = false;
+  renderTopUserTools();
+  window.setTimeout(() => document.querySelector("#feedbackTitle")?.focus(), 0);
+}
+
+function closeFeedbackPanel() {
+  if (!isFeedbackPanelOpen) {
+    return;
+  }
+
+  isFeedbackPanelOpen = false;
+  renderTopUserTools();
+}
+
 function handleDocumentClick(event) {
-  if (!isMoreMenuOpen) {
+  if (!isMoreMenuOpen && !isFeedbackPanelOpen) {
     return;
   }
 
@@ -4052,12 +4132,21 @@ function handleDocumentClick(event) {
     return;
   }
 
+  if (event.target.closest("#feedbackPanel")) {
+    return;
+  }
+
   closeMoreMenu();
+  closeFeedbackPanel();
 }
 
 function handleGlobalKeydown(event) {
   if (event.key === "Escape" && isMoreMenuOpen) {
     closeMoreMenu();
+  }
+
+  if (event.key === "Escape" && isFeedbackPanelOpen) {
+    closeFeedbackPanel();
   }
 }
 
@@ -4664,6 +4753,74 @@ async function readJsonResponse(response) {
     return JSON.parse(text || "{}");
   } catch {
     return { error: text || response.statusText };
+  }
+}
+
+function getFeedbackPayload(form) {
+  const formData = new FormData(form);
+
+  return {
+    type: String(formData.get("type") || "其他"),
+    title: String(formData.get("title") || "").trim().slice(0, 80),
+    message: String(formData.get("message") || "").trim().slice(0, 1000),
+    contact: String(formData.get("contact") || "").trim().slice(0, 160),
+    pageMode: `${state.mode} · ${getModeTitle(state.mode)}`,
+    url: window.location.href,
+    userAgent: navigator.userAgent,
+    screenWidth: window.screen?.width || window.innerWidth,
+    screenHeight: window.screen?.height || window.innerHeight,
+    userId: state.userId || "",
+  };
+}
+
+async function submitFeedback(event) {
+  event.preventDefault();
+
+  const form = event.currentTarget;
+  const submitButton = document.querySelector("#feedbackSubmitButton");
+  const payload = getFeedbackPayload(form);
+
+  if (!payload.title) {
+    showToast("请先写一个反馈标题。");
+    return;
+  }
+
+  if (!payload.message) {
+    showToast("请补充详细说明。");
+    return;
+  }
+
+  try {
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = "正在提交…";
+    }
+
+    const response = await fetch(FEEDBACK_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(payload),
+    });
+    const result = await readJsonResponse(response);
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.detail || result.error || "反馈暂时提交不了");
+    }
+
+    form.reset();
+    closeFeedbackPanel();
+    showToast("已收到反馈，谢谢你");
+  } catch (error) {
+    console.warn("Feedback submit failed.", error);
+    showToast("反馈暂时提交不了，请稍后再试。");
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = "提交反馈";
+    }
   }
 }
 
