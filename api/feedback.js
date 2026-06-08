@@ -1,7 +1,7 @@
-const crypto = require("node:crypto");
-const { getFirestore } = require("./firestore-client");
-const { cleanText, getAccountFromRequest, getBearerToken } = require("./auth-utils");
-const { setCors } = require("./cors-utils");
+﻿const crypto = require("node:crypto");
+const { getFirestore } = require("../server/firestore-client");
+const { cleanText, getAccountFromRequest, getBearerToken } = require("../server/auth-utils");
+const { setCors } = require("../server/cors-utils");
 
 const FEEDBACK_COLLECTION = "randomChoiceFeedback";
 const FEEDBACK_TYPES = new Set(["Bug / 错误", "功能建议", "UI 不好用", "内容错误", "其他"]);

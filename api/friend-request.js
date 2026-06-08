@@ -1,6 +1,6 @@
-const { getFirestore } = require("./firestore-client");
-const { cleanText, getAccountById, getAccountFromRequest, normalizeAvatar } = require("./auth-utils");
-const { setCors } = require("./cors-utils");
+﻿const { getFirestore } = require("../server/firestore-client");
+const { cleanText, getAccountById, getAccountFromRequest, normalizeAvatar } = require("../server/auth-utils");
+const { setCors } = require("../server/cors-utils");
 
 const REQUEST_COLLECTION = "randomChoiceFriendRequests";
 const FRIENDSHIP_COLLECTION = "randomChoiceFriendships";

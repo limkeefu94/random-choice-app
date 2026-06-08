@@ -5,6 +5,7 @@
 ## Unreleased
 
 - 建立正式开发流程文档：`AGENTS.md`、roadmap、release checklist 和任务模板。
+- 修复 Vercel Hobby 部署函数数量上限：将 API helper 移出 `api/`，并移除未使用的旧上传 demo。
 
 ## 已完成大功能
 

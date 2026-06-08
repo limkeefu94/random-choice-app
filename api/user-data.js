@@ -1,7 +1,7 @@
-const crypto = require("node:crypto");
-const { getFirestore } = require("./firestore-client");
-const { getAccountFromRequest, getBearerToken } = require("./auth-utils");
-const { setCors } = require("./cors-utils");
+﻿const crypto = require("node:crypto");
+const { getFirestore } = require("../server/firestore-client");
+const { getAccountFromRequest, getBearerToken } = require("../server/auth-utils");
+const { setCors } = require("../server/cors-utils");
 
 const ALLOWED_COLLECTIONS = new Set(["history", "favorites", "uploads"]);
 const MAX_ITEMS = 30;
