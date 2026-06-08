@@ -24,6 +24,7 @@ function cleanFeedbackText(value, maxLength) {
 function redactSensitiveText(value) {
   return String(value || "")
     .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/gi, "[redacted private key]")
+    .replace(/([?&](?:auth[_-]?token|token|password|private[_-]?key|api[_-]?key|gcp[_-]?key)=)[^&#\s]*/gi, "$1[redacted]")
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{12,}/gi, "Bearer [redacted token]")
     .replace(/\b(password|passcode|token|private[_\s-]?key|api[_\s-]?key)\s*[:=]\s*\S+/gi, "$1=[redacted]");
 }

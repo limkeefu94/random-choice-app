@@ -4451,6 +4451,10 @@ function formatWorldTime(createdAt) {
 function normalizeWorldMessage(message) {
   return {
     id: message.id || `${Date.now()}-${randomInt(1000)}`,
+    channelId: message.channelId || "world",
+    topic: message.topic || "general",
+    language: message.language || "zh-CN",
+    region: message.region || "global",
     accountId: message.accountId || "",
     userId: message.userId || "",
     username: message.username || "",
@@ -4495,6 +4499,7 @@ async function syncWorldMessages() {
 
   try {
     const response = await fetch(`${WORLD_CHANNEL_ENDPOINT}?limit=80`, {
+      headers: getAuthHeaders(),
       cache: "no-store",
     });
     const payload = await readJsonResponse(response);
@@ -4801,6 +4806,7 @@ async function readJsonResponse(response) {
 function redactClientErrorText(value) {
   return String(value || "")
     .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/gi, "[redacted private key]")
+    .replace(/([?&](?:auth[_-]?token|token|password|private[_-]?key|api[_-]?key|gcp[_-]?key)=)[^&#\s]*/gi, "$1[redacted]")
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{12,}/gi, "Bearer [redacted token]")
     .replace(/\b(password|passcode|token|private[_\s-]?key|api[_\s-]?key|gcp[_\s-]?key)\s*[:=]\s*\S+/gi, "$1=[redacted]");
 }
@@ -4888,22 +4894,37 @@ function shouldReportCloudSyncError(error) {
 }
 
 function installClientErrorHandlers() {
-  window.addEventListener("error", (event) => {
-    reportClientError(event.error || event.message, {
-      type: "js-error",
-      message: event.message,
-      source: event.filename,
-      line: event.lineno,
-      column: event.colno,
-    });
-  });
+  const previousOnError = window.onerror;
+  const previousUnhandledRejection = window.onunhandledrejection;
 
-  window.addEventListener("unhandledrejection", (event) => {
+  window.onerror = function handleWindowError(message, source, line, column, error) {
+    reportClientError(error || message, {
+      type: "js-error",
+      message,
+      source,
+      line,
+      column,
+    });
+
+    if (typeof previousOnError === "function") {
+      return previousOnError.apply(this, arguments);
+    }
+
+    return false;
+  };
+
+  window.onunhandledrejection = function handleUnhandledRejection(event) {
     reportClientError(event.reason, {
       type: "promise-error",
       source: "window.unhandledrejection",
     });
-  });
+
+    if (typeof previousUnhandledRejection === "function") {
+      return previousUnhandledRejection.call(this, event);
+    }
+
+    return undefined;
+  };
 }
 
 function getFeedbackPayload(form) {

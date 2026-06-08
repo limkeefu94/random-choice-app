@@ -282,6 +282,7 @@ module.exports = {
   createPasswordRecord,
   DEFAULT_PRIVACY,
   DEFAULT_WORLD_PREFERENCES,
+  getAccountById,
   getAccountFromRequest,
   getBearerToken,
   getUsernameKey,

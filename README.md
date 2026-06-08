@@ -92,6 +92,10 @@ randomChoiceUsers/{userId}/uploads/{itemId}
 randomChoiceAccounts/{accountId}
 randomChoiceUsernames/{usernameKey}
 randomChoiceWorldMessages/{messageId}
+randomChoiceReports/{reportId}
+randomChoiceBlocks/{blockId}
+randomChoiceFriendRequests/{requestId}
+randomChoiceFriendships/{friendshipId}
 randomChoiceFeedback/{feedbackId}
 randomChoiceClientErrors/{errorId}
 ```
@@ -104,6 +108,8 @@ randomChoiceClientErrors/{errorId}
 - 密码会在 Vercel API 里加密后写入 Firestore。
 - 注册后会生成固定的 `userId`，最近决定、收藏、上传记录会跟着这个账号同步。
 - 世界频道会写入 `randomChoiceWorldMessages`，不同设备和不同用户能看到同一个频道。
+- 世界频道发送有基础频率限制，并预留 `channelId`、`topic`、`language`、`region` 字段。
+- 举报世界频道消息会写入 `randomChoiceReports`；封锁用户会写入 `randomChoiceBlocks`。
 - `AUTH_TOKEN_SECRET` must be a dedicated random secret in production; do not reuse any Google service account private key.
 
 ## 社交功能底层预留
@@ -111,6 +117,8 @@ randomChoiceClientErrors/{errorId}
 - `SOCIAL_FEATURES_ENABLED=false` keeps future friends, direct messages, friend circle, and world-channel filter UI hidden.
 - Account API responses now include safe default `privacy` and `worldPreferences` fields for old and new accounts.
 - `publicAccount` only returns whitelisted public profile fields and does not expose password hashes, salts, token secrets, service-account data, or private relationship data.
+- 好友 API 骨架已预留在 `/api/friend-request` 和 `/api/friends`；开发期不显示 UI 入口。
+- 好友申请写入 `randomChoiceFriendRequests`，接受后写入 `randomChoiceFriendships`，并会检查登录、自我申请、重复申请和封锁关系。
 - The implementation plan is documented in `docs/social-privacy-plan.md`.
 
 ## 用户反馈入口
