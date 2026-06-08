@@ -1753,6 +1753,7 @@ const CLOUD_SYNC_ENDPOINT = "/api/user-data";
 const AUTH_ENDPOINT = "/api/auth";
 const WORLD_CHANNEL_ENDPOINT = "/api/world-channel";
 const FEEDBACK_ENDPOINT = "/api/feedback";
+const CLIENT_ERROR_ENDPOINT = "/api/client-error";
 const SOCIAL_FEATURES_ENABLED = window.SOCIAL_FEATURES_ENABLED === true || window.SOCIAL_FEATURES_ENABLED === "true";
 const DEFAULT_PRIVACY_SETTINGS = Object.freeze({
   discoverable: false,
@@ -1768,6 +1769,7 @@ const DEFAULT_WORLD_PREFERENCES = Object.freeze({
 });
 const DIRECT_MESSAGE_POLICIES = new Set(["friendsOnly", "everyone", "none"]);
 const FEEDBACK_TYPES = ["Bug / 错误", "功能建议", "UI 不好用", "内容错误", "其他"];
+const CLIENT_ERROR_THROTTLE_MS = 60 * 1000;
 const WORLD_SYNC_INTERVAL_MS = 15000;
 const DEFAULT_WORLD_MESSAGES = [
   {
@@ -1977,6 +1979,7 @@ let isProfilePanelOpen = false;
 let isNotificationPanelOpen = false;
 let isMoreMenuOpen = false;
 let isFeedbackPanelOpen = false;
+const clientErrorThrottle = new Map();
 
 function isValidAnonymousUserId(userId) {
   return /^anon_[a-zA-Z0-9_-]{12,80}$/.test(String(userId || ""));
@@ -4271,6 +4274,10 @@ async function saveProfileChanges() {
       avatarUrl = upload.url || upload.publicUrl || avatarUrl;
     } catch (error) {
       console.warn("Profile avatar upload failed.", error);
+      reportClientError(error, {
+        type: "gcs-upload-failed",
+        source: "/api/gcs-upload",
+      });
       setProfileAvatarStatus("头像图片暂时保存不了，请稍后再试。");
       showToast("头像图片暂时保存不了。");
       return;
@@ -4290,6 +4297,10 @@ async function saveProfileChanges() {
     });
     updatedUser = applyAuthSession(payload);
   } catch (error) {
+    reportClientError(error, {
+      type: "auth-profile-update-failed",
+      source: AUTH_ENDPOINT,
+    });
     showToast(error.message || "个人资料暂时保存不了。");
     return;
   }
@@ -4354,6 +4365,10 @@ async function registerUser() {
     render();
     showToast(`欢迎加入世界频道，${username}。`);
   } catch (error) {
+    reportClientError(error, {
+      type: "auth-register-failed",
+      source: AUTH_ENDPOINT,
+    });
     if (String(error.message || "").includes("已经")) {
       authMode = "login";
       renderWorldControls();
@@ -4400,6 +4415,10 @@ async function loginUser() {
     render();
     showToast(`欢迎回来，${getUserDisplayName(user)}。`);
   } catch (error) {
+    reportClientError(error, {
+      type: "auth-login-failed",
+      source: AUTH_ENDPOINT,
+    });
     showToast(error.message || "登入失败，请稍后再试。");
   } finally {
     if (submitButton) {
@@ -4493,6 +4512,10 @@ async function syncWorldMessages() {
     window.requestAnimationFrame(scrollWorldChatToBottom);
   } catch (error) {
     setWorldSyncState({ loading: false, available: false, lastError: error.message });
+    reportClientError(error, {
+      type: "world-channel-sync-failed",
+      source: WORLD_CHANNEL_ENDPOINT,
+    });
     console.warn("World channel sync failed; using local cache.", error);
   }
 }
@@ -4577,6 +4600,10 @@ async function sendWorldMessage() {
     showToast(imageToSend ? "图片已发送到世界频道。" : "消息已发送到世界频道。");
   } catch (error) {
     console.warn("World image send failed.", error);
+    reportClientError(error, {
+      type: imageToSend ? "world-message-image-send-failed" : "world-message-send-failed",
+      source: WORLD_CHANNEL_ENDPOINT,
+    });
     if (String(error.message || "").includes("重新登入")) {
       clearAuthSession();
       render();
@@ -4693,7 +4720,12 @@ async function uploadImageThroughSignedUrl(file) {
   const signedPayload = await readJsonResponse(signedResponse);
 
   if (!signedResponse.ok || !signedPayload.uploadUrl) {
-    throw new Error(signedPayload.detail || signedPayload.error || "无法生成上传授权");
+    const error = new Error(signedPayload.detail || signedPayload.error || "无法生成上传授权");
+    reportClientError(error, {
+      type: "gcs-signed-url-failed",
+      source: "/api/gcs-signed-url",
+    });
+    throw error;
   }
 
   const uploadResponse = await fetch(signedPayload.uploadUrl, {
@@ -4705,7 +4737,12 @@ async function uploadImageThroughSignedUrl(file) {
   });
 
   if (!uploadResponse.ok) {
-    throw new Error(`图片上传失败：${uploadResponse.status}`);
+    const error = new Error(`图片上传失败：${uploadResponse.status}`);
+    reportClientError(error, {
+      type: "gcs-upload-failed",
+      source: signedPayload.uploadUrl ? "gcs-signed-upload" : "/api/gcs-signed-url",
+    });
+    throw error;
   }
 
   return {
@@ -4734,7 +4771,12 @@ async function uploadImageThroughServer(file) {
   const uploadPayload = await readJsonResponse(uploadResponse);
 
   if (!uploadResponse.ok || !uploadPayload.url) {
-    throw new Error(uploadPayload.detail || uploadPayload.error || "备用上传失败");
+    const error = new Error(uploadPayload.detail || uploadPayload.error || "备用上传失败");
+    reportClientError(error, {
+      type: "gcs-upload-failed",
+      source: "/api/gcs-upload",
+    });
+    throw error;
   }
 
   return {
@@ -4754,6 +4796,114 @@ async function readJsonResponse(response) {
   } catch {
     return { error: text || response.statusText };
   }
+}
+
+function redactClientErrorText(value) {
+  return String(value || "")
+    .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/gi, "[redacted private key]")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{12,}/gi, "Bearer [redacted token]")
+    .replace(/\b(password|passcode|token|private[_\s-]?key|api[_\s-]?key|gcp[_\s-]?key)\s*[:=]\s*\S+/gi, "$1=[redacted]");
+}
+
+function cleanClientErrorText(value, maxLength) {
+  return redactClientErrorText(value).trim().slice(0, maxLength);
+}
+
+function getErrorMessage(error) {
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error?.message) {
+    return error.message;
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error || "Unknown client error");
+  }
+}
+
+function getErrorStack(error) {
+  if (error?.stack) {
+    return error.stack;
+  }
+
+  if (error?.reason?.stack) {
+    return error.reason.stack;
+  }
+
+  return "";
+}
+
+function getClientErrorPayload(error, context = {}) {
+  return {
+    message: cleanClientErrorText(context.message || getErrorMessage(error), 500) || "Unknown client error",
+    stack: cleanClientErrorText(context.stack || getErrorStack(error), 4000),
+    source: cleanClientErrorText(context.source, 500),
+    line: Number.isFinite(Number(context.line)) ? Number(context.line) : 0,
+    column: Number.isFinite(Number(context.column)) ? Number(context.column) : 0,
+    type: cleanClientErrorText(context.type || "client-error", 80),
+    url: cleanClientErrorText(window.location.href, 1200),
+    pageMode: cleanClientErrorText(`${state.mode} · ${getModeTitle(state.mode)}`, 80),
+    userAgent: cleanClientErrorText(navigator.userAgent, 500),
+    screenWidth: window.screen?.width || window.innerWidth,
+    screenHeight: window.screen?.height || window.innerHeight,
+  };
+}
+
+function reportClientError(error, context = {}) {
+  try {
+    const payload = getClientErrorPayload(error, context);
+    const key = `${payload.type}:${payload.message}`;
+    const now = Date.now();
+    const lastSentAt = clientErrorThrottle.get(key) || 0;
+
+    if (now - lastSentAt < CLIENT_ERROR_THROTTLE_MS) {
+      return;
+    }
+
+    clientErrorThrottle.set(key, now);
+
+    fetch(CLIENT_ERROR_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+  }
+}
+
+function shouldReportCloudSyncError(error) {
+  if (state.auth.token) {
+    return true;
+  }
+
+  return !/Authentication required|Invalid or expired token/i.test(String(error?.message || ""));
+}
+
+function installClientErrorHandlers() {
+  window.addEventListener("error", (event) => {
+    reportClientError(event.error || event.message, {
+      type: "js-error",
+      message: event.message,
+      source: event.filename,
+      line: event.lineno,
+      column: event.colno,
+    });
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    reportClientError(event.reason, {
+      type: "promise-error",
+      source: "window.unhandledrejection",
+    });
+  });
 }
 
 function getFeedbackPayload(form) {
@@ -4911,6 +5061,12 @@ async function syncFromCloud() {
     renderFavorites();
   } catch (error) {
     setCloudSyncState({ loading: false, available: false, lastError: error.message });
+    if (shouldReportCloudSyncError(error)) {
+      reportClientError(error, {
+        type: "cloud-sync-read-failed",
+        source: CLOUD_SYNC_ENDPOINT,
+      });
+    }
     console.warn("Cloud sync unavailable; using local cache.", error);
     showToast("暂时同步不了，先显示本地记录。");
   }
@@ -4944,6 +5100,13 @@ async function syncCloudItem(collection, item) {
     return payload.item || item;
   } catch (error) {
     setCloudSyncState({ available: false, lastError: error.message });
+    if (shouldReportCloudSyncError(error)) {
+      reportClientError(error, {
+        type: "cloud-sync-write-failed",
+        source: CLOUD_SYNC_ENDPOINT,
+        message: `Cloud ${collection} sync failed: ${error.message || error}`,
+      });
+    }
     console.warn(`Cloud ${collection} sync failed; local cache kept.`, error);
     return null;
   }
@@ -4975,6 +5138,12 @@ async function syncCloudClear(collections) {
     setCloudSyncState({ available: true, lastError: "" });
   } catch (error) {
     setCloudSyncState({ available: false, lastError: error.message });
+    if (shouldReportCloudSyncError(error)) {
+      reportClientError(error, {
+        type: "cloud-sync-clear-failed",
+        source: CLOUD_SYNC_ENDPOINT,
+      });
+    }
     console.warn("Cloud clear failed; local cache was cleared.", error);
   }
 }
@@ -5624,6 +5793,7 @@ elements.optionPreview.addEventListener("click", (event) => {
 document.addEventListener("click", handleDocumentClick);
 document.addEventListener("keydown", handleGlobalKeydown);
 
+installClientErrorHandlers();
 loadState();
 formatDateLabel();
 renderDailyInspiration();

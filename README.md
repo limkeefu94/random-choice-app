@@ -93,6 +93,7 @@ randomChoiceAccounts/{accountId}
 randomChoiceUsernames/{usernameKey}
 randomChoiceWorldMessages/{messageId}
 randomChoiceFeedback/{feedbackId}
+randomChoiceClientErrors/{errorId}
 ```
 
 ## 云端账号和世界频道
@@ -117,6 +118,12 @@ randomChoiceFeedback/{feedbackId}
 - 更多菜单里的「反馈问题」会提交到 `/api/feedback`。
 - 反馈写入 Firestore `randomChoiceFeedback` collection，允许未登录用户提交。
 - 接口只保存反馈白名单字段，不保存密码、登录 token、private key 或请求原始 headers。
+
+## 前端错误记录
+
+- 全局 JS 错误、Promise 错误和关键 API 失败会提交到 `/api/client-error`。
+- 错误写入 Firestore `randomChoiceClientErrors` collection，用于后续排查 Bug。
+- 客户端和接口都会脱敏常见密码、token、GCP key、private key；同一错误 60 秒内最多上报一次。
 
 ## `/api/user-data` access control
 
