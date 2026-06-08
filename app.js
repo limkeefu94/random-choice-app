@@ -1772,7 +1772,7 @@ const APP_NOTIFICATIONS = [
     id: "recent-language-mobile-updates",
     type: "新功能 + 优化",
     title: "语言和手机页面变好用了",
-    text: "最近加了语言切换，也把手机上的按钮、菜单和间距整理得更顺手。",
+    text: "语言入口和手机按钮位置整理得更清楚。",
     details: [
       "可以在「更多」里面切换中文、英文和马来文。",
       "手机上第一次打开会提醒你点「选择模式」，比较不容易找不到吃什么、喝什么、去哪玩。",
@@ -1783,7 +1783,7 @@ const APP_NOTIFICATIONS = [
     id: "recent-shopping-updates",
     type: "内容 + 优化",
     title: "购物随机内容更多了",
-    text: "购物页补了更多选择，也把可点的小标签整理得更清楚。",
+    text: "新增更多购物分类、预算和购买提醒。",
     details: [
       "现在可以按购物类别、花费高低和购买心情来抽建议。",
       "结果会附上大概预算、为什么适合你、以及先买不买的小提醒。",
@@ -1794,7 +1794,7 @@ const APP_NOTIFICATIONS = [
     id: "recent-account-world-updates",
     type: "新功能",
     title: "账号和世界频道升级了",
-    text: "登录、资料和世界频道都补齐了，换设备也更方便。",
+    text: "登录、头像、记录和世界频道已支持云端同步。",
     details: [
       "可以注册和登录账号，名字、头像、最近记录和收藏会跟着账号保存。",
       "点右上角头像可以改显示名字、头像和密码。",
@@ -1805,7 +1805,7 @@ const APP_NOTIFICATIONS = [
     id: "recent-world-chat-polish",
     type: "优化",
     title: "世界频道更清爽",
-    text: "聊天画面做了整理，看起来更像正常聊天。",
+    text: "聊天头像、图片预览和消息显示更直观。",
     details: [
       "消息会显示头像和名字，比较容易分清是谁发的。",
       "发图片前会先预览，确认后才送出去。",
@@ -1816,7 +1816,7 @@ const APP_NOTIFICATIONS = [
     id: "recent-notification-plan",
     type: "通知整理",
     title: "通知以后只讲更新内容",
-    text: "之后每次加内容或优化，通知里都会用大白话写清楚改了什么。",
+    text: "之后只保留简短摘要，方便快速看完。",
     details: [
       "每条通知都会写是新功能、内容增加，还是体验变好。",
       "不会写太专业的词，只写你打开后能感受到的变化。",
@@ -2336,7 +2336,7 @@ function renderNotificationPanel() {
     <div class="floating-panel-header">
         <div>
           <strong>${escapeHtml(t("top.notification", "通知"))}</strong>
-          <small>这里会用大白话说明最近加了什么、哪里变好用</small>
+          <small>简短通知和更新摘要</small>
         </div>
       <button class="ghost-button compact-ghost" id="notificationCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
     </div>
@@ -2348,11 +2348,6 @@ function renderNotificationPanel() {
             <span>${escapeHtml(item.type || "更新")}</span>
           </div>
           <p>${escapeHtml(item.text)}</p>
-          ${Array.isArray(item.details) && item.details.length ? `
-            <ul class="notification-details">
-              ${item.details.map((detail) => `<li>${escapeHtml(detail)}</li>`).join("")}
-            </ul>
-          ` : ""}
         </article>
       `).join("")}
     </div>
