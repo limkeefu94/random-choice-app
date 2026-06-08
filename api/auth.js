@@ -13,6 +13,7 @@ const {
   normalizeUsername,
   publicAccount,
   verifyPassword,
+  withAccountSocialDefaults,
 } = require("./auth-utils");
 const { setCors } = require("./cors-utils");
 const { checkRateLimit, recordRateLimitAttempt } = require("./rate-limit");
@@ -109,7 +110,7 @@ async function registerAccount(request, response) {
   const accountId = crypto.randomUUID();
   const usernameKey = getUsernameKey(username);
   const now = new Date().toISOString();
-  const account = {
+  const account = withAccountSocialDefaults({
     id: accountId,
     username,
     usernameKey,
@@ -120,7 +121,7 @@ async function registerAccount(request, response) {
     ...createPasswordRecord(password),
     createdAt: now,
     updatedAt: now,
-  };
+  });
   const token = createAuthToken(account);
 
   try {
@@ -191,10 +192,10 @@ async function loginAccount(request, response) {
     return;
   }
 
-  const account = {
+  const account = withAccountSocialDefaults({
     id: accountSnapshot.id,
     ...accountSnapshot.data(),
-  };
+  });
 
   if (!verifyPassword(account, password)) {
     recordRateLimitAttempt(rateLimit);

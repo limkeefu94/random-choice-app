@@ -104,6 +104,13 @@ randomChoiceWorldMessages/{messageId}
 - 世界频道会写入 `randomChoiceWorldMessages`，不同设备和不同用户能看到同一个频道。
 - `AUTH_TOKEN_SECRET` must be a dedicated random secret in production; do not reuse any Google service account private key.
 
+## 社交功能底层预留
+
+- `SOCIAL_FEATURES_ENABLED=false` keeps future friends, direct messages, friend circle, and world-channel filter UI hidden.
+- Account API responses now include safe default `privacy` and `worldPreferences` fields for old and new accounts.
+- `publicAccount` only returns whitelisted public profile fields and does not expose password hashes, salts, token secrets, service-account data, or private relationship data.
+- The implementation plan is documented in `docs/social-privacy-plan.md`.
+
 ## `/api/user-data` access control
 
 - Logged-in cloud sync requests must send `Authorization: Bearer <token>`.

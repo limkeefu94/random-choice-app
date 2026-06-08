@@ -2,6 +2,19 @@ const crypto = require("node:crypto");
 
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30;
 const USERNAME_PATTERN = /^[\w\u4e00-\u9fa5-]{2,20}$/u;
+const DEFAULT_PRIVACY = Object.freeze({
+  discoverable: false,
+  showOnlineStatus: false,
+  allowFriendRequests: false,
+  allowDirectMessages: "friendsOnly",
+});
+const DEFAULT_WORLD_PREFERENCES = Object.freeze({
+  language: "zh-CN",
+  region: "global",
+  topics: [],
+  hideLottery: false,
+});
+const DIRECT_MESSAGE_POLICIES = new Set(["friendsOnly", "everyone", "none"]);
 
 function isProductionAppEnv() {
   return String(process.env.APP_ENV || "").toLowerCase() === "production";
@@ -136,6 +149,60 @@ function normalizeAvatar(value, fallbackName) {
   return cleanText(value, 2) || getAvatarText(fallbackName);
 }
 
+function normalizeBooleanSetting(value, fallback) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (value === "true") {
+    return true;
+  }
+
+  if (value === "false") {
+    return false;
+  }
+
+  return fallback;
+}
+
+function normalizePrivacy(privacy) {
+  const source = privacy && typeof privacy === "object" ? privacy : {};
+  const allowDirectMessages = DIRECT_MESSAGE_POLICIES.has(source.allowDirectMessages)
+    ? source.allowDirectMessages
+    : DEFAULT_PRIVACY.allowDirectMessages;
+
+  return {
+    discoverable: normalizeBooleanSetting(source.discoverable, DEFAULT_PRIVACY.discoverable),
+    showOnlineStatus: normalizeBooleanSetting(source.showOnlineStatus, DEFAULT_PRIVACY.showOnlineStatus),
+    allowFriendRequests: normalizeBooleanSetting(source.allowFriendRequests, DEFAULT_PRIVACY.allowFriendRequests),
+    allowDirectMessages,
+  };
+}
+
+function normalizeWorldPreferences(worldPreferences) {
+  const source = worldPreferences && typeof worldPreferences === "object" ? worldPreferences : {};
+  const topics = Array.isArray(source.topics)
+    ? [...new Set(source.topics.map((topic) => cleanText(topic, 40)).filter(Boolean))].slice(0, 12)
+    : [...DEFAULT_WORLD_PREFERENCES.topics];
+
+  return {
+    language: cleanText(source.language, 20) || DEFAULT_WORLD_PREFERENCES.language,
+    region: cleanText(source.region, 60) || DEFAULT_WORLD_PREFERENCES.region,
+    topics,
+    hideLottery: normalizeBooleanSetting(source.hideLottery, DEFAULT_WORLD_PREFERENCES.hideLottery),
+  };
+}
+
+function withAccountSocialDefaults(account) {
+  const source = account && typeof account === "object" ? account : {};
+
+  return {
+    ...source,
+    privacy: normalizePrivacy(source.privacy),
+    worldPreferences: normalizeWorldPreferences(source.worldPreferences),
+  };
+}
+
 function createCloudUserId() {
   return `anon_${Date.now().toString(36)}_${crypto.randomUUID().replace(/-/g, "").slice(0, 32)}`;
 }
@@ -165,15 +232,19 @@ function verifyPassword(account, password) {
 }
 
 function publicAccount(account) {
+  const normalizedAccount = withAccountSocialDefaults(account);
+
   return {
-    id: account.id,
-    username: account.username,
-    displayName: account.displayName || account.username,
-    avatar: normalizeAvatar(account.avatar, account.displayName || account.username),
-    avatarUrl: cleanText(account.avatarUrl, 1200),
-    userId: account.userId,
-    createdAt: account.createdAt,
-    updatedAt: account.updatedAt,
+    id: normalizedAccount.id,
+    username: normalizedAccount.username,
+    displayName: normalizedAccount.displayName || normalizedAccount.username,
+    avatar: normalizeAvatar(normalizedAccount.avatar, normalizedAccount.displayName || normalizedAccount.username),
+    avatarUrl: cleanText(normalizedAccount.avatarUrl, 1200),
+    userId: normalizedAccount.userId,
+    privacy: normalizedAccount.privacy,
+    worldPreferences: normalizedAccount.worldPreferences,
+    createdAt: normalizedAccount.createdAt,
+    updatedAt: normalizedAccount.updatedAt,
   };
 }
 
@@ -185,10 +256,10 @@ async function getAccountById(accountId) {
     return null;
   }
 
-  return {
+  return withAccountSocialDefaults({
     id: snapshot.id,
     ...snapshot.data(),
-  };
+  });
 }
 
 async function getAccountFromRequest(request) {
@@ -209,12 +280,17 @@ module.exports = {
   createAuthToken,
   createCloudUserId,
   createPasswordRecord,
+  DEFAULT_PRIVACY,
+  DEFAULT_WORLD_PREFERENCES,
   getAccountFromRequest,
   getBearerToken,
   getUsernameKey,
   isValidUsername,
   normalizeAvatar,
+  normalizePrivacy,
   normalizeUsername,
+  normalizeWorldPreferences,
   publicAccount,
   verifyPassword,
+  withAccountSocialDefaults,
 };

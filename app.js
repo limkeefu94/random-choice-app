@@ -1752,6 +1752,20 @@ const AUTH_TOKEN_STORAGE_KEY = "choiceWheelAuthToken";
 const CLOUD_SYNC_ENDPOINT = "/api/user-data";
 const AUTH_ENDPOINT = "/api/auth";
 const WORLD_CHANNEL_ENDPOINT = "/api/world-channel";
+const SOCIAL_FEATURES_ENABLED = window.SOCIAL_FEATURES_ENABLED === true || window.SOCIAL_FEATURES_ENABLED === "true";
+const DEFAULT_PRIVACY_SETTINGS = Object.freeze({
+  discoverable: false,
+  showOnlineStatus: false,
+  allowFriendRequests: false,
+  allowDirectMessages: "friendsOnly",
+});
+const DEFAULT_WORLD_PREFERENCES = Object.freeze({
+  language: "zh-CN",
+  region: "global",
+  topics: [],
+  hideLottery: false,
+});
+const DIRECT_MESSAGE_POLICIES = new Set(["friendsOnly", "everyone", "none"]);
 const WORLD_SYNC_INTERVAL_MS = 15000;
 const DEFAULT_WORLD_MESSAGES = [
   {
@@ -1830,6 +1844,9 @@ const state = {
   userId: "",
   mode: "food",
   worldOpen: false,
+  features: {
+    social: SOCIAL_FEATURES_ENABLED,
+  },
   language: "zh-CN",
   languageManuallySelected: false,
   currency: "MYR",
@@ -2020,16 +2037,7 @@ function loadState() {
     state.auth = { ...state.auth, ...saved.auth };
     state.auth.token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || state.auth.token || "";
     state.users = Array.isArray(saved.users)
-      ? saved.users.map((user) => ({
-        id: user.id || "",
-        username: user.username,
-        userId: user.userId || "",
-        createdAt: user.createdAt || "",
-        updatedAt: user.updatedAt || "",
-        displayName: user.displayName || user.username,
-        avatar: normalizeAvatar(user.avatar, user.displayName || user.username),
-        avatarUrl: user.avatarUrl || "",
-      }))
+      ? saved.users.map(normalizeAccountUser).filter((user) => user.username)
       : [];
     state.worldMessages = Array.isArray(saved.worldMessages) && saved.worldMessages.length
       ? saved.worldMessages.slice(-80)
@@ -2069,16 +2077,7 @@ function saveState() {
     number: state.number,
     shopping: state.shopping,
     auth: state.auth,
-    users: state.users.map((user) => ({
-      id: user.id || "",
-      username: user.username,
-      userId: user.userId || "",
-      displayName: user.displayName || user.username,
-      avatar: normalizeAvatar(user.avatar, user.displayName || user.username),
-      avatarUrl: user.avatarUrl || "",
-      createdAt: user.createdAt || "",
-      updatedAt: user.updatedAt || "",
-    })),
+    users: state.users.map(normalizeAccountUser).filter((user) => user.username),
     worldMessages: state.worldMessages,
     locked: state.locked,
     customText: state.customText,
@@ -3746,14 +3745,62 @@ async function fetchCurrentAccount() {
   return payload;
 }
 
-function normalizeAccountUser(user) {
+function normalizeBooleanSetting(value, fallback) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (value === "true") {
+    return true;
+  }
+
+  if (value === "false") {
+    return false;
+  }
+
+  return fallback;
+}
+
+function normalizePrivacySettings(privacy) {
+  const source = privacy && typeof privacy === "object" ? privacy : {};
+  const allowDirectMessages = DIRECT_MESSAGE_POLICIES.has(source.allowDirectMessages)
+    ? source.allowDirectMessages
+    : DEFAULT_PRIVACY_SETTINGS.allowDirectMessages;
+
+  return {
+    discoverable: normalizeBooleanSetting(source.discoverable, DEFAULT_PRIVACY_SETTINGS.discoverable),
+    showOnlineStatus: normalizeBooleanSetting(source.showOnlineStatus, DEFAULT_PRIVACY_SETTINGS.showOnlineStatus),
+    allowFriendRequests: normalizeBooleanSetting(source.allowFriendRequests, DEFAULT_PRIVACY_SETTINGS.allowFriendRequests),
+    allowDirectMessages,
+  };
+}
+
+function normalizeWorldPreferenceSettings(worldPreferences) {
+  const source = worldPreferences && typeof worldPreferences === "object" ? worldPreferences : {};
+  const topics = Array.isArray(source.topics)
+    ? [...new Set(source.topics.map((topic) => String(topic || "").trim().slice(0, 40)).filter(Boolean))].slice(0, 12)
+    : [...DEFAULT_WORLD_PREFERENCES.topics];
+
+  return {
+    language: String(source.language || "").trim().slice(0, 20) || DEFAULT_WORLD_PREFERENCES.language,
+    region: String(source.region || "").trim().slice(0, 60) || DEFAULT_WORLD_PREFERENCES.region,
+    topics,
+    hideLottery: normalizeBooleanSetting(source.hideLottery, DEFAULT_WORLD_PREFERENCES.hideLottery),
+  };
+}
+
+function normalizeAccountUser(user = {}) {
+  const displayName = user.displayName || user.username;
+
   return {
     id: user.id || "",
     username: user.username,
     userId: user.userId || "",
-    displayName: user.displayName || user.username,
-    avatar: normalizeAvatar(user.avatar, user.displayName || user.username),
+    displayName,
+    avatar: normalizeAvatar(user.avatar, displayName),
     avatarUrl: user.avatarUrl || "",
+    privacy: normalizePrivacySettings(user.privacy),
+    worldPreferences: normalizeWorldPreferenceSettings(user.worldPreferences),
     createdAt: user.createdAt || "",
     updatedAt: user.updatedAt || "",
   };
