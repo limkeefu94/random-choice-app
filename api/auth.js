@@ -1,5 +1,5 @@
-const crypto = require("node:crypto");
-const { getFirestore } = require("./firestore-client");
+﻿const crypto = require("node:crypto");
+const { getFirestore } = require("../server/firestore-client");
 const {
   cleanDisplayName,
   cleanText,
@@ -14,9 +14,9 @@ const {
   publicAccount,
   verifyPassword,
   withAccountSocialDefaults,
-} = require("./auth-utils");
-const { setCors } = require("./cors-utils");
-const { checkRateLimit, recordRateLimitAttempt } = require("./rate-limit");
+} = require("../server/auth-utils");
+const { setCors } = require("../server/cors-utils");
+const { checkRateLimit, recordRateLimitAttempt } = require("../server/rate-limit");
 
 const CORS_OPTIONS = {
   methods: ["GET", "POST", "OPTIONS"],

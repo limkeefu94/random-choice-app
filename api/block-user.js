@@ -1,6 +1,6 @@
-const { getFirestore } = require("./firestore-client");
-const { cleanText, getAccountFromRequest } = require("./auth-utils");
-const { setCors } = require("./cors-utils");
+﻿const { getFirestore } = require("../server/firestore-client");
+const { cleanText, getAccountFromRequest } = require("../server/auth-utils");
+const { setCors } = require("../server/cors-utils");
 
 const BLOCK_COLLECTION = "randomChoiceBlocks";
 const CORS_OPTIONS = {

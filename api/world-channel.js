@@ -1,8 +1,8 @@
-const crypto = require("node:crypto");
-const { getFirestore } = require("./firestore-client");
-const { cleanText, getAccountFromRequest, getBearerToken, normalizeAvatar } = require("./auth-utils");
-const { setCors } = require("./cors-utils");
-const { checkRateLimit, recordRateLimitAttempt } = require("./rate-limit");
+﻿const crypto = require("node:crypto");
+const { getFirestore } = require("../server/firestore-client");
+const { cleanText, getAccountFromRequest, getBearerToken, normalizeAvatar } = require("../server/auth-utils");
+const { setCors } = require("../server/cors-utils");
+const { checkRateLimit, recordRateLimitAttempt } = require("../server/rate-limit");
 
 const WORLD_COLLECTION = "randomChoiceWorldMessages";
 const BLOCK_COLLECTION = "randomChoiceBlocks";

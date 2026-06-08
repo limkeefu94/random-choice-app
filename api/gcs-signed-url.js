@@ -1,8 +1,8 @@
-const { Storage } = require("@google-cloud/storage");
+﻿const { Storage } = require("@google-cloud/storage");
 const crypto = require("node:crypto");
-const { getAccountFromRequest, getBearerToken } = require("./auth-utils");
-const { setCors } = require("./cors-utils");
-const { getGoogleServiceAccount } = require("./google-service-account");
+const { getAccountFromRequest, getBearerToken } = require("../server/auth-utils");
+const { setCors } = require("../server/cors-utils");
+const { getGoogleServiceAccount } = require("../server/google-service-account");
 
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
 const ALLOWED_CONTENT_TYPES = new Set([
