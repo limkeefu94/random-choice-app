@@ -1935,6 +1935,8 @@ const elements = {
   numberDigits: document.querySelector("#numberDigits"),
   randomButton: document.querySelector("#randomButton"),
   randomButtonLabel: document.querySelector("#randomButton span"),
+  copyResultButton: document.querySelector("#copyResultButton"),
+  shareResultButton: document.querySelector("#shareResultButton"),
   favoriteButton: document.querySelector("#favoriteButton"),
   surpriseModeButton: document.querySelector("#surpriseModeButton"),
   worldChannelTitle: document.querySelector("#worldChannelButton strong"),
@@ -2482,7 +2484,11 @@ function renderModeStage() {
     elements.numberDigits.classList.remove("is-lottery");
     elements.numberDigits.hidden = true;
     elements.numberDigits.innerHTML = "";
+    updateResultActionButtons(null);
+    return;
   }
+
+  updateResultActionButtons(state.currentResult);
 }
 
 function renderControls() {
@@ -4963,6 +4969,144 @@ function buildNumberMeta(game, lines) {
   return rules.join(" · ");
 }
 
+function updateResultActionButtons(result) {
+  const hasResult = Boolean(result);
+  const isNumberResult = result?.mode === "number";
+
+  elements.copyResultButton.disabled = !hasResult;
+  elements.copyResultButton.textContent = isNumberResult ? "复制号码" : "复制结果";
+  elements.shareResultButton.hidden = typeof navigator.share !== "function";
+  elements.shareResultButton.disabled = !hasResult || elements.shareResultButton.hidden;
+}
+
+function getResultShareTitle(result = state.currentResult) {
+  if (!result) {
+    return "随心转盘";
+  }
+
+  return result.mode === "number" ? getModeTitle("number") : getModeTitle(result.mode);
+}
+
+function getResultMetaLines(result) {
+  const lines = [];
+
+  if (result.meta) {
+    lines.push(formatBudget(result.meta));
+  }
+
+  if (result.mode === "shopping") {
+    const details = getShoppingResultDetails(result);
+    const reason = normalizeSentence(details.reason);
+    const reminder = getShoppingReminderText(details.priority);
+
+    if (reason) {
+      lines.push(reason);
+    }
+
+    if (reminder) {
+      lines.push(reminder);
+    }
+  }
+
+  return lines.filter(Boolean);
+}
+
+function getResultCopyText(result = state.currentResult) {
+  if (!result) {
+    return "";
+  }
+
+  if (result.mode === "number") {
+    const lines = [
+      getModeTitle("number"),
+      "",
+      result.title,
+    ];
+
+    if (Array.isArray(result.lotteryLines) && result.lotteryLines.length) {
+      lines.push("");
+      result.lotteryLines.forEach((line, index) => {
+        lines.push(`第 ${index + 1} 组：${formatLotteryLine(line)}`);
+      });
+    }
+
+    lines.push("", getLotteryDisclaimer());
+    return lines.join("\n");
+  }
+
+  const lines = [
+    getModeTitle(result.mode),
+    "",
+    result.title,
+    ...getResultMetaLines(result),
+  ];
+
+  return lines.filter((line, index) => line || index === 1).join("\n");
+}
+
+async function writeClipboardText(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch (error) {
+      console.warn("Clipboard API failed; trying fallback.", error);
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "-9999px";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+  const copied = document.execCommand("copy");
+  textarea.remove();
+
+  if (!copied) {
+    throw new Error("copy-failed");
+  }
+}
+
+async function copyCurrentResult() {
+  if (!state.currentResult) {
+    showToast("先随机一次，再复制结果。");
+    return;
+  }
+
+  try {
+    await writeClipboardText(getResultCopyText());
+    showToast(state.currentResult.mode === "number" ? "号码已复制。" : "结果已复制。");
+  } catch (error) {
+    showToast("复制失败，请手动长按结果复制。");
+  }
+}
+
+async function shareCurrentResult() {
+  if (!state.currentResult) {
+    showToast("先随机一次，再分享结果。");
+    return;
+  }
+
+  if (typeof navigator.share !== "function") {
+    return;
+  }
+
+  try {
+    await navigator.share({
+      title: getResultShareTitle(),
+      text: getResultCopyText(),
+    });
+  } catch (error) {
+    if (error?.name !== "AbortError") {
+      showToast("分享失败，可以先复制结果。");
+    }
+  }
+}
+
 function drawResult() {
   const result = getResult();
 
@@ -4989,6 +5133,7 @@ function renderResult(result) {
   elements.resultLabel.textContent = getModeText(result.mode, "label");
   elements.resultValue.textContent = result.mode === "number" ? result.title : result.title;
   elements.resultMeta.innerHTML = renderResultMeta(result);
+  updateResultActionButtons(result);
 
   if (result.lotteryLines) {
     elements.numberDigits.hidden = false;
@@ -5247,6 +5392,8 @@ elements.notificationButton.addEventListener("click", toggleNotificationPanel);
 elements.profileAvatarButton.addEventListener("click", toggleProfilePanel);
 elements.moreMenuButton.addEventListener("click", toggleMoreMenu);
 elements.randomButton.addEventListener("click", drawResult);
+elements.copyResultButton.addEventListener("click", copyCurrentResult);
+elements.shareResultButton.addEventListener("click", shareCurrentResult);
 elements.favoriteButton.addEventListener("click", favoriteCurrent);
 elements.surpriseModeButton.addEventListener("click", surpriseMode);
 elements.modeMenuToggle.addEventListener("click", () => {

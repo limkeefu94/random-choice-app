@@ -752,6 +752,11 @@ button {
   gap: 12px;
 }
 
+.action-row .secondary-button {
+  flex: 0 1 auto;
+  min-width: 118px;
+}
+
 .primary-button {
   display: inline-flex;
   align-items: center;
@@ -1911,6 +1916,15 @@ button {
   .primary-button {
     min-height: 46px;
     flex: 1;
+  }
+
+  .action-row .primary-button {
+    flex: 1 1 100%;
+  }
+
+  .action-row .secondary-button {
+    flex: 1 1 120px;
+    min-width: min(140px, 100%);
   }
 
   .app-shell,
