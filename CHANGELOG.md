@@ -6,6 +6,7 @@
 
 - 建立正式开发流程文档：`AGENTS.md`、roadmap、release checklist 和任务模板。
 - 修复 Vercel Hobby 部署函数数量上限：将 API helper 移出 `api/`，并移除未使用的旧上传 demo。
+- 简化个人资料编辑：移除手动头像文字输入，默认文字头像改为根据显示名称或用户名自动生成。
 
 ## 已完成大功能
 

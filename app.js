@@ -1974,6 +1974,7 @@ const elements = {
 let toastTimer;
 let pendingWorldImage = null;
 let pendingProfileAvatarImage = null;
+let shouldRemoveProfileAvatarImage = false;
 let authMode = "login";
 let isProfilePanelOpen = false;
 let isNotificationPanelOpen = false;
@@ -2405,12 +2406,13 @@ function renderProfilePanel() {
         <small class="field-hint" id="profileAvatarStatus">可选 PNG / JPG / WebP / GIF，最大 2.5MB。</small>
       </div>
       <div class="field">
-        <label for="profileAvatarInput">文字头像</label>
-        <input id="profileAvatarInput" maxlength="2" value="${escapeHtml(getUserAvatar(currentUser))}" placeholder="不放图片时显示这个" />
-      </div>
-      <div class="field">
         <label for="profileNameInput">显示名字</label>
         <input id="profileNameInput" maxlength="20" value="${escapeHtml(getUserDisplayName(currentUser))}" placeholder="别人看到的名字" />
+        <small class="field-hint">没有图片时，会自动用名字的第一个字当头像。</small>
+      </div>
+      <div class="field">
+        <button class="secondary-button" id="profileRemoveAvatarButton" type="button">移除图片头像</button>
+        <small class="field-hint">移除后会回到自动文字头像。</small>
       </div>
       <div class="field">
         <label for="profileCurrentPassword">现在的密码</label>
@@ -2431,13 +2433,12 @@ function renderProfilePanel() {
     </form>
   `;
 
-  const avatarInput = document.querySelector("#profileAvatarInput");
   const avatarFileInput = document.querySelector("#profileAvatarFile");
   const nameInput = document.querySelector("#profileNameInput");
 
-  avatarInput.addEventListener("input", updateProfilePreview);
   avatarFileInput.addEventListener("change", prepareProfileAvatarImage);
   nameInput.addEventListener("input", updateProfilePreview);
+  document.querySelector("#profileRemoveAvatarButton").addEventListener("click", removeProfileAvatarImage);
   document.querySelector("#profileCloseButton").addEventListener("click", closeProfilePanel);
   document.querySelector("#profileLogoutButton").addEventListener("click", () => {
     closeProfilePanel();
@@ -3859,7 +3860,7 @@ function normalizeAccountUser(user = {}) {
     username: user.username,
     userId: user.userId || "",
     displayName,
-    avatar: normalizeAvatar(user.avatar, displayName),
+    avatar: normalizeAvatar("", displayName),
     avatarUrl: user.avatarUrl || "",
     privacy: normalizePrivacySettings(user.privacy),
     worldPreferences: normalizeWorldPreferenceSettings(user.worldPreferences),
@@ -3973,7 +3974,7 @@ function getCloudIdentityText() {
 }
 
 function getAvatarText(name) {
-  return String(name || "游").trim().slice(0, 1).toUpperCase() || "游";
+  return Array.from(String(name || "游").trim())[0]?.toUpperCase() || "游";
 }
 
 function normalizeAvatar(value, fallbackName = "游") {
@@ -3985,7 +3986,7 @@ function getUserDisplayName(user) {
 }
 
 function getUserAvatar(user) {
-  return normalizeAvatar(user?.avatar, getUserDisplayName(user));
+  return normalizeAvatar("", getUserDisplayName(user));
 }
 
 function getUserAvatarUrl(user) {
@@ -4060,6 +4061,7 @@ function toggleProfilePanel() {
   }
 
   isProfilePanelOpen = !isProfilePanelOpen;
+  clearPendingProfileAvatarImage({ renderPreview: false });
   isNotificationPanelOpen = false;
   isMoreMenuOpen = false;
   isFeedbackPanelOpen = false;
@@ -4155,13 +4157,12 @@ function handleGlobalKeydown(event) {
 
 function updateProfilePreview() {
   const currentUser = getCurrentUser();
-  const avatarInput = document.querySelector("#profileAvatarInput");
   const nameInput = document.querySelector("#profileNameInput");
   const avatarPreview = document.querySelector("#profilePreviewAvatar");
   const namePreview = document.querySelector("#profilePreviewName");
   const displayName = nameInput?.value.trim() || getUserDisplayName(currentUser);
-  const avatar = normalizeAvatar(avatarInput?.value, displayName);
-  const avatarUrl = pendingProfileAvatarImage?.previewUrl || getUserAvatarUrl(currentUser);
+  const avatar = normalizeAvatar("", displayName);
+  const avatarUrl = pendingProfileAvatarImage?.previewUrl || (shouldRemoveProfileAvatarImage ? "" : getUserAvatarUrl(currentUser));
 
   if (avatarPreview) {
     avatarPreview.innerHTML = renderAvatarContent({
@@ -4210,18 +4211,20 @@ function prepareProfileAvatarImage(event) {
     file,
     previewUrl: URL.createObjectURL(file),
   };
+  shouldRemoveProfileAvatarImage = false;
   setProfileAvatarStatus("图片已选择，点「保存资料」后才会换上。");
   updateProfilePreview();
 }
 
 function clearPendingProfileAvatarImage(options = {}) {
-  const { resetInput = true } = options;
+  const { resetInput = true, renderPreview = true } = options;
 
   if (pendingProfileAvatarImage?.previewUrl) {
     URL.revokeObjectURL(pendingProfileAvatarImage.previewUrl);
   }
 
   pendingProfileAvatarImage = null;
+  shouldRemoveProfileAvatarImage = false;
 
   if (resetInput) {
     const input = document.querySelector("#profileAvatarFile");
@@ -4230,6 +4233,17 @@ function clearPendingProfileAvatarImage(options = {}) {
       input.value = "";
     }
   }
+
+  if (renderPreview) {
+    updateProfilePreview();
+  }
+}
+
+function removeProfileAvatarImage() {
+  clearPendingProfileAvatarImage({ renderPreview: false });
+  shouldRemoveProfileAvatarImage = true;
+  setProfileAvatarStatus("保存资料后会移除图片头像，改用名字第一个字。");
+  updateProfilePreview();
 }
 
 async function saveProfileChanges() {
@@ -4240,7 +4254,6 @@ async function saveProfileChanges() {
     return;
   }
 
-  const avatar = normalizeAvatar(document.querySelector("#profileAvatarInput")?.value, getUserDisplayName(currentUser));
   const displayName = document.querySelector("#profileNameInput")?.value.trim();
   const currentPassword = document.querySelector("#profileCurrentPassword")?.value || "";
   const newPassword = document.querySelector("#profileNewPassword")?.value || "";
@@ -4264,7 +4277,7 @@ async function saveProfileChanges() {
   }
 
   const oldNames = new Set([currentUser.username, currentUser.displayName].filter(Boolean));
-  let avatarUrl = getUserAvatarUrl(currentUser);
+  let avatarUrl = shouldRemoveProfileAvatarImage ? "" : getUserAvatarUrl(currentUser);
 
   if (pendingProfileAvatarImage) {
     try {
@@ -4289,7 +4302,6 @@ async function saveProfileChanges() {
   try {
     const payload = await authRequest("update-profile", {
       displayName,
-      avatar,
       avatarUrl,
       currentPassword,
       newPassword,
