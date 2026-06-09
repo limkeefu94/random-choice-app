@@ -1871,8 +1871,7 @@ button {
   accent-color: var(--accent);
 }
 
-.settings-info-row,
-.linked-app-placeholder {
+.settings-info-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1888,11 +1887,45 @@ button {
   color: var(--muted);
 }
 
-.linked-app-placeholder {
-  justify-content: flex-start;
+.connected-apps-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
 }
 
-.linked-app-placeholder > span {
+.linked-app-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: #8d3c20;
+  font-size: 0.76rem;
+  font-weight: 800;
+  white-space: nowrap;
+  background: rgba(255, 122, 61, 0.14);
+  border: 1px solid rgba(255, 122, 61, 0.18);
+}
+
+.linked-app-list {
+  display: grid;
+  gap: 10px;
+}
+
+.linked-app-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(80, 45, 24, 0.08);
+  border-radius: 16px;
+  color: #4d3025;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.linked-app-icon {
   display: grid;
   width: 42px;
   height: 42px;
@@ -1902,15 +1935,42 @@ button {
   background: rgba(255, 122, 61, 0.14);
 }
 
-.linked-app-placeholder strong,
-.linked-app-placeholder small {
-  display: block;
+.linked-app-copy {
+  min-width: 0;
 }
 
-.linked-app-placeholder small {
+.linked-app-copy strong,
+.linked-app-copy small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.linked-app-copy small {
   margin-top: 3px;
   color: var(--muted);
   line-height: 1.35;
+}
+
+.linked-app-action {
+  min-height: 38px;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+.linked-app-action:disabled {
+  cursor: not-allowed;
+  color: #87695b;
+  opacity: 0.72;
+  transform: none;
+  background: rgba(255, 255, 255, 0.52);
+  border-color: rgba(80, 45, 24, 0.08);
+}
+
+.settings-footnote {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
 }
 
 .settings-form-actions {
@@ -2308,6 +2368,28 @@ button {
 
   .primary-button {
     padding: 0 16px;
+  }
+
+  .connected-apps-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .linked-app-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .linked-app-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 14px;
+  }
+
+  .linked-app-action {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 40px;
+    justify-self: stretch;
   }
 
   .sidebar {

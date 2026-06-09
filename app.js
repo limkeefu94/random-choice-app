@@ -2644,14 +2644,40 @@ function renderSettingsPanel() {
         </div>
       </section>
       <section class="settings-section">
-        <div class="settings-section-heading">
-          <strong>关联应用</strong>
-          <small>开发中，暂不接 OAuth。</small>
+        <div class="settings-section-heading connected-apps-heading">
+          <div>
+            <strong>关联应用</strong>
+            <small>未来可以把随心转盘、塔罗 App 和其他工具连接到同一个账号。</small>
+          </div>
+          <span class="linked-app-badge">开发中</span>
         </div>
-        <div class="linked-app-placeholder">
-          <span>🔮</span>
-          <div><strong>塔罗 App / 其他 App</strong><small>开发中，未来可在这里关联同一账号。</small></div>
+        <div class="linked-app-list" aria-label="关联应用示例">
+          <article class="linked-app-card">
+            <span class="linked-app-icon">🎲</span>
+            <div class="linked-app-copy">
+              <strong>随心转盘</strong>
+              <small>当前应用</small>
+            </div>
+            <button class="secondary-button linked-app-action" type="button" disabled>当前应用</button>
+          </article>
+          <article class="linked-app-card">
+            <span class="linked-app-icon">🔮</span>
+            <div class="linked-app-copy">
+              <strong>塔罗 App</strong>
+              <small>计划中</small>
+            </div>
+            <button class="secondary-button linked-app-action" type="button" disabled>暂未开放</button>
+          </article>
+          <article class="linked-app-card">
+            <span class="linked-app-icon">🧰</span>
+            <div class="linked-app-copy">
+              <strong>其他工具</strong>
+              <small>计划中</small>
+            </div>
+            <button class="secondary-button linked-app-action" type="button" disabled>暂未开放</button>
+          </article>
         </div>
+        <p class="settings-footnote">当前只是占位展示：不会跳转外部应用，不会读取其他应用数据，也不会启动真实授权。</p>
       </section>
       <div class="settings-form-actions">
         <button class="primary-button compact-primary" id="settingsSubmitButton" type="submit" ${disabled}>保存设置</button>
