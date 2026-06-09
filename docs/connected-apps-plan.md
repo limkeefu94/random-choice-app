@@ -1,11 +1,12 @@
 # 关联应用规划
 
-本文档用于预留 `random-choice-app`、未来塔罗 App 和其他小工具共用账号的底层方向。当前阶段只做设置中心 UI 占位和数据结构说明，不开放真实连接、不跳转外部应用、不读取其他应用数据。
+本文档用于预留 `random-choice-app` 和未来生活小工具共用账号的底层方向。当前阶段只做设置中心 UI 占位和数据结构说明，不开放真实连接、不跳转外部应用、不读取其他应用数据。
 
 ## 当前阶段
 
 - 设置中心展示「关联应用」分区，并标记为「开发中」。
-- 示例应用包括：随心转盘、塔罗 App、其他工具。
+- 示例应用包括：随心转盘、灵感工具、生活记录工具、更多小工具。
+- 未来应用类型可包含灵感、记录、计划、轻咨询等方向。
 - 所有关联按钮保持 disabled，不触发 OAuth、SSO、外部跳转或跨应用数据读取。
 - 现有登录、世界频道、随机功能和 GCS 上传流程不受影响。
 
@@ -25,7 +26,13 @@
       createdAt,
       updatedAt
     },
-    tarot: {
+    inspirationTool: {
+      enabled: false,
+      role: "planned",
+      createdAt: null,
+      updatedAt: null
+    },
+    lifeLogTool: {
       enabled: false,
       role: "planned",
       createdAt: null,
