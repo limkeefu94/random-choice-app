@@ -1754,6 +1754,7 @@ const AUTH_ENDPOINT = "/api/auth";
 const WORLD_CHANNEL_ENDPOINT = "/api/world-channel";
 const FEEDBACK_ENDPOINT = "/api/feedback";
 const CLIENT_ERROR_ENDPOINT = "/api/client-error";
+const APP_VERSION = "1.0.0";
 const SOCIAL_FEATURES_ENABLED = window.SOCIAL_FEATURES_ENABLED === true || window.SOCIAL_FEATURES_ENABLED === "true";
 const DEFAULT_PRIVACY_SETTINGS = Object.freeze({
   discoverable: false,
@@ -1767,7 +1768,35 @@ const DEFAULT_WORLD_PREFERENCES = Object.freeze({
   topics: [],
   hideLottery: false,
 });
+const DEFAULT_ACCOUNT_SETTINGS = Object.freeze({
+  privacy: Object.freeze({
+    discoverable: true,
+    allowFriendRequests: true,
+    allowDirectMessages: "friendsOnly",
+    showOnlineStatus: false,
+    hideLotteryContent: false,
+  }),
+  preferences: Object.freeze({
+    language: "zh-CN",
+    currency: "MYR",
+    worldRegion: "MY",
+    worldTopics: Object.freeze(["general"]),
+  }),
+});
 const DIRECT_MESSAGE_POLICIES = new Set(["friendsOnly", "everyone", "none"]);
+const WORLD_REGION_OPTIONS = [
+  { value: "global", label: "全球" },
+  { value: "MY", label: "马来西亚" },
+  { value: "SG", label: "新加坡" },
+  { value: "CN", label: "中国" },
+  { value: "TW", label: "台湾" },
+  { value: "HK", label: "香港" },
+  { value: "JP", label: "日本" },
+  { value: "KR", label: "韩国" },
+  { value: "TH", label: "泰国" },
+  { value: "US", label: "美国" },
+  { value: "EU", label: "欧洲" },
+];
 const FEEDBACK_TYPES = ["Bug / 错误", "功能建议", "UI 不好用", "内容错误", "其他"];
 const CLIENT_ERROR_THROTTLE_MS = 60 * 1000;
 const WORLD_SYNC_INTERVAL_MS = 15000;
@@ -1928,6 +1957,7 @@ const elements = {
   moreMenuButton: document.querySelector("#moreMenuButton"),
   moreMenuButtonLabel: document.querySelector("#moreMenuButton strong"),
   moreMenuPanel: document.querySelector("#moreMenuPanel"),
+  settingsPanel: document.querySelector("#settingsPanel"),
   feedbackPanel: document.querySelector("#feedbackPanel"),
   modeList: document.querySelector("#modeList"),
   modeMenuToggle: document.querySelector("#modeMenuToggle"),
@@ -1980,6 +2010,7 @@ let isProfilePanelOpen = false;
 let isNotificationPanelOpen = false;
 let isMoreMenuOpen = false;
 let isFeedbackPanelOpen = false;
+let isSettingsPanelOpen = false;
 const clientErrorThrottle = new Map();
 
 function isValidAnonymousUserId(userId) {
@@ -2236,6 +2267,7 @@ function applyStaticTranslations() {
   elements.notificationPanel.setAttribute("aria-label", t("top.notification", "通知"));
   elements.profilePanel.setAttribute("aria-label", t("top.profile", "个人资料"));
   elements.moreMenuPanel.setAttribute("aria-label", t("menu.more", "更多菜单"));
+  elements.settingsPanel.setAttribute("aria-label", t("menu.settings", "设置"));
 }
 
 function renderModes() {
@@ -2326,6 +2358,7 @@ function renderTopUserTools() {
   elements.notificationPanel.hidden = !isNotificationPanelOpen;
   elements.moreMenuButton.setAttribute("aria-expanded", String(isMoreMenuOpen));
   elements.moreMenuPanel.hidden = !isMoreMenuOpen;
+  elements.settingsPanel.hidden = !isSettingsPanelOpen;
   elements.feedbackPanel.hidden = !isFeedbackPanelOpen;
 
   const unreadCount = APP_NOTIFICATIONS.filter((item) => !state.notificationReadIds.includes(item.id)).length;
@@ -2335,6 +2368,7 @@ function renderTopUserTools() {
   renderNotificationPanel();
   renderProfilePanel();
   renderMoreMenuPanel();
+  renderSettingsPanel();
   renderFeedbackPanel();
 }
 
@@ -2465,9 +2499,9 @@ function renderMoreMenuPanel() {
         <strong>反馈问题</strong>
         <small>提交 Bug、建议或内容错误</small>
       </button>
-      <button class="more-menu-item" type="button" role="menuitem" disabled>
+      <button class="more-menu-item" id="menuSettingsButton" type="button" role="menuitem">
         <strong>${escapeHtml(t("menu.settings", "设置"))}</strong>
-        <small>${escapeHtml(t("menu.future", "未来预留"))}</small>
+        <small>账号、隐私、偏好和应用信息</small>
       </button>
       <label class="more-menu-language" for="languageSelect">
         <span>
@@ -2488,7 +2522,217 @@ function renderMoreMenuPanel() {
     clearHistory();
   });
   document.querySelector("#menuFeedbackButton").addEventListener("click", openFeedbackPanel);
+  document.querySelector("#menuSettingsButton").addEventListener("click", openSettingsPanel);
   document.querySelector("#languageSelect").addEventListener("change", (event) => changeLanguage(event.target.value));
+}
+
+function formatWorldTopics(topics) {
+  const normalizedTopics = Array.isArray(topics) && topics.length ? topics : DEFAULT_ACCOUNT_SETTINGS.preferences.worldTopics;
+  return normalizedTopics.join(", ");
+}
+
+function parseWorldTopics(value) {
+  const topics = String(value || "")
+    .split(/[,，、;；|]+/)
+    .map((topic) => topic.trim().slice(0, 40))
+    .filter(Boolean);
+
+  return [...new Set(topics)].slice(0, 12).length ? [...new Set(topics)].slice(0, 12) : [...DEFAULT_ACCOUNT_SETTINGS.preferences.worldTopics];
+}
+
+function renderSettingsPanel() {
+  if (elements.settingsPanel.hidden) {
+    return;
+  }
+
+  const currentUser = getCurrentUser();
+  const settings = normalizeAccountSettings(currentUser?.settings);
+  const isLoggedIn = Boolean(currentUser);
+  const disabled = isLoggedIn ? "" : "disabled";
+
+  elements.settingsPanel.innerHTML = `
+    <form class="settings-form" id="settingsForm">
+      <div class="floating-panel-header">
+        <div>
+          <strong>设置中心</strong>
+          <small>账号、隐私、偏好和应用信息集中整理</small>
+        </div>
+        <button class="ghost-button compact-ghost" id="settingsCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
+      </div>
+      ${!isLoggedIn ? '<p class="settings-login-hint">登入后可以保存隐私和内容偏好到云端。</p>' : ""}
+      <section class="settings-section">
+        <div class="settings-section-heading">
+          <strong>账号</strong>
+          <small>${isLoggedIn ? escapeHtml(getUserDisplayName(currentUser)) : "尚未登入"}</small>
+        </div>
+        <div class="settings-action-grid">
+          <button class="secondary-button" id="settingsEditProfileButton" type="button" ${disabled}>编辑个人资料</button>
+          <button class="secondary-button" id="settingsPasswordButton" type="button" ${disabled}>修改密码</button>
+          <button class="secondary-button profile-logout-button" id="settingsLogoutButton" type="button" ${disabled}>登出账号</button>
+        </div>
+      </section>
+      <section class="settings-section">
+        <div class="settings-section-heading">
+          <strong>隐私</strong>
+          <small>好友和世界频道相关设置先保存数据结构，功能入口暂不开放。</small>
+        </div>
+        <label class="settings-toggle">
+          <span><strong>允许别人搜索到我</strong><small>为之后好友搜索预留</small></span>
+          <input id="settingsDiscoverable" type="checkbox" ${settings.privacy.discoverable ? "checked" : ""} ${disabled} />
+        </label>
+        <label class="settings-toggle">
+          <span><strong>允许好友申请</strong><small>功能未开放前不会显示好友入口</small></span>
+          <input id="settingsAllowFriendRequests" type="checkbox" ${settings.privacy.allowFriendRequests ? "checked" : ""} ${disabled} />
+        </label>
+        <label class="settings-toggle">
+          <span><strong>显示在线状态</strong><small>为之后世界频道和好友状态预留</small></span>
+          <input id="settingsShowOnlineStatus" type="checkbox" ${settings.privacy.showOnlineStatus ? "checked" : ""} ${disabled} />
+        </label>
+        <label class="settings-toggle">
+          <span><strong>隐藏娱乐号码相关内容</strong><small>先保存偏好，不改变当前随机算法</small></span>
+          <input id="settingsHideLotteryContent" type="checkbox" ${settings.privacy.hideLotteryContent ? "checked" : ""} ${disabled} />
+        </label>
+        <div class="field">
+          <label for="settingsAllowDirectMessages">允许私聊</label>
+          <select id="settingsAllowDirectMessages" ${disabled}>
+            <option value="everyone" ${settings.privacy.allowDirectMessages === "everyone" ? "selected" : ""}>所有人</option>
+            <option value="friendsOnly" ${settings.privacy.allowDirectMessages === "friendsOnly" ? "selected" : ""}>仅好友</option>
+            <option value="none" ${settings.privacy.allowDirectMessages === "none" ? "selected" : ""}>不允许</option>
+          </select>
+        </div>
+      </section>
+      <section class="settings-section">
+        <div class="settings-section-heading">
+          <strong>内容偏好</strong>
+          <small>保存默认语言、货币和世界频道筛选偏好。</small>
+        </div>
+        <div class="settings-grid">
+          <div class="field">
+            <label for="settingsLanguage">默认语言</label>
+            <select id="settingsLanguage" ${disabled}>
+              ${SUPPORTED_LANGUAGES.map((language) => `<option value="${language}" ${settings.preferences.language === language ? "selected" : ""}>${LANGUAGE_LABELS[language]}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field">
+            <label for="settingsCurrency">默认货币</label>
+            <select id="settingsCurrency" ${disabled}>
+              ${Object.entries(CURRENCY_RATES).map(([code, currency]) => `<option value="${code}" ${settings.preferences.currency === code ? "selected" : ""}>${code} · ${escapeHtml(currency.label)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field">
+            <label for="settingsWorldRegion">世界频道地区</label>
+            <select id="settingsWorldRegion" ${disabled}>
+              ${WORLD_REGION_OPTIONS.map((region) => `<option value="${region.value}" ${settings.preferences.worldRegion === region.value ? "selected" : ""}>${region.label}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field">
+            <label for="settingsWorldTopics">世界频道主题筛选</label>
+            <input id="settingsWorldTopics" value="${escapeHtml(formatWorldTopics(settings.preferences.worldTopics))}" placeholder="general, food, travel" ${disabled} />
+          </div>
+        </div>
+      </section>
+      <section class="settings-section">
+        <div class="settings-section-heading">
+          <strong>应用</strong>
+          <small>版本、更新内容和反馈入口。</small>
+        </div>
+        <div class="settings-info-row"><span>版本号</span><strong>${APP_VERSION}</strong></div>
+        <div class="settings-action-grid">
+          <button class="secondary-button" id="settingsUpdatesButton" type="button">查看更新内容</button>
+          <button class="secondary-button" id="settingsFeedbackButton" type="button">反馈问题</button>
+          <button class="secondary-button" id="settingsClearLocalButton" type="button">清除本机记录</button>
+        </div>
+      </section>
+      <section class="settings-section">
+        <div class="settings-section-heading">
+          <strong>关联应用</strong>
+          <small>开发中，暂不接 OAuth。</small>
+        </div>
+        <div class="linked-app-placeholder">
+          <span>🔮</span>
+          <div><strong>塔罗 App / 其他 App</strong><small>开发中，未来可在这里关联同一账号。</small></div>
+        </div>
+      </section>
+      <div class="settings-form-actions">
+        <button class="primary-button compact-primary" id="settingsSubmitButton" type="submit" ${disabled}>保存设置</button>
+      </div>
+    </form>
+  `;
+
+  document.querySelector("#settingsCloseButton").addEventListener("click", closeSettingsPanel);
+  document.querySelector("#settingsEditProfileButton").addEventListener("click", () => openProfileFromSettings());
+  document.querySelector("#settingsPasswordButton").addEventListener("click", () => openProfileFromSettings("password"));
+  document.querySelector("#settingsLogoutButton").addEventListener("click", () => {
+    closeSettingsPanel();
+    logoutUser();
+  });
+  document.querySelector("#settingsUpdatesButton").addEventListener("click", openNotificationsFromSettings);
+  document.querySelector("#settingsFeedbackButton").addEventListener("click", openFeedbackPanel);
+  document.querySelector("#settingsClearLocalButton").addEventListener("click", clearHistory);
+  document.querySelector("#settingsForm").addEventListener("submit", saveSettingsCenter);
+}
+
+function getSettingsFormPayload() {
+  return normalizeAccountSettings({
+    privacy: {
+      discoverable: document.querySelector("#settingsDiscoverable")?.checked,
+      allowFriendRequests: document.querySelector("#settingsAllowFriendRequests")?.checked,
+      allowDirectMessages: document.querySelector("#settingsAllowDirectMessages")?.value,
+      showOnlineStatus: document.querySelector("#settingsShowOnlineStatus")?.checked,
+      hideLotteryContent: document.querySelector("#settingsHideLotteryContent")?.checked,
+    },
+    preferences: {
+      language: document.querySelector("#settingsLanguage")?.value,
+      currency: document.querySelector("#settingsCurrency")?.value,
+      worldRegion: document.querySelector("#settingsWorldRegion")?.value,
+      worldTopics: parseWorldTopics(document.querySelector("#settingsWorldTopics")?.value),
+    },
+  });
+}
+
+async function saveSettingsCenter(event) {
+  event.preventDefault();
+
+  const currentUser = getCurrentUser();
+  const submitButton = document.querySelector("#settingsSubmitButton");
+
+  if (!currentUser) {
+    showToast("请先登入后再保存设置。");
+    return;
+  }
+
+  const settings = getSettingsFormPayload();
+
+  try {
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = "正在保存…";
+    }
+
+    const payload = await authRequest("update-settings", { settings });
+    const updatedUser = applyAuthSession(payload);
+    const preferences = normalizeAccountSettings(updatedUser.settings).preferences;
+
+    state.language = preferences.language;
+    state.languageManuallySelected = true;
+    state.currency = preferences.currency;
+    saveState();
+    render();
+    showToast("设置已保存。");
+  } catch (error) {
+    reportClientError(error, {
+      type: "auth-settings-update-failed",
+      source: AUTH_ENDPOINT,
+    });
+    showToast(error.message || "设置暂时保存不了。");
+  } finally {
+    const currentSubmitButton = document.querySelector("#settingsSubmitButton");
+
+    if (currentSubmitButton) {
+      currentSubmitButton.disabled = false;
+      currentSubmitButton.textContent = "保存设置";
+    }
+  }
 }
 
 function renderFeedbackPanel() {
@@ -3852,8 +4096,37 @@ function normalizeWorldPreferenceSettings(worldPreferences) {
   };
 }
 
+function normalizeAccountSettings(settings) {
+  const source = settings && typeof settings === "object" ? settings : {};
+  const privacySource = source.privacy && typeof source.privacy === "object" ? source.privacy : {};
+  const preferenceSource = source.preferences && typeof source.preferences === "object" ? source.preferences : {};
+  const allowDirectMessages = DIRECT_MESSAGE_POLICIES.has(privacySource.allowDirectMessages)
+    ? privacySource.allowDirectMessages
+    : DEFAULT_ACCOUNT_SETTINGS.privacy.allowDirectMessages;
+  const worldTopics = Array.isArray(preferenceSource.worldTopics)
+    ? [...new Set(preferenceSource.worldTopics.map((topic) => String(topic || "").trim().slice(0, 40)).filter(Boolean))].slice(0, 12)
+    : [...DEFAULT_ACCOUNT_SETTINGS.preferences.worldTopics];
+
+  return {
+    privacy: {
+      discoverable: normalizeBooleanSetting(privacySource.discoverable, DEFAULT_ACCOUNT_SETTINGS.privacy.discoverable),
+      allowFriendRequests: normalizeBooleanSetting(privacySource.allowFriendRequests, DEFAULT_ACCOUNT_SETTINGS.privacy.allowFriendRequests),
+      allowDirectMessages,
+      showOnlineStatus: normalizeBooleanSetting(privacySource.showOnlineStatus, DEFAULT_ACCOUNT_SETTINGS.privacy.showOnlineStatus),
+      hideLotteryContent: normalizeBooleanSetting(privacySource.hideLotteryContent, DEFAULT_ACCOUNT_SETTINGS.privacy.hideLotteryContent),
+    },
+    preferences: {
+      language: normalizeLanguage(preferenceSource.language || DEFAULT_ACCOUNT_SETTINGS.preferences.language),
+      currency: CURRENCY_RATES[preferenceSource.currency] ? preferenceSource.currency : DEFAULT_ACCOUNT_SETTINGS.preferences.currency,
+      worldRegion: String(preferenceSource.worldRegion || DEFAULT_ACCOUNT_SETTINGS.preferences.worldRegion).trim().slice(0, 60),
+      worldTopics,
+    },
+  };
+}
+
 function normalizeAccountUser(user = {}) {
   const displayName = user.displayName || user.username;
+  const settings = normalizeAccountSettings(user.settings);
 
   return {
     id: user.id || "",
@@ -3862,6 +4135,7 @@ function normalizeAccountUser(user = {}) {
     displayName,
     avatar: normalizeAvatar("", displayName),
     avatarUrl: user.avatarUrl || "",
+    settings,
     privacy: normalizePrivacySettings(user.privacy),
     worldPreferences: normalizeWorldPreferenceSettings(user.worldPreferences),
     createdAt: user.createdAt || "",
@@ -3879,8 +4153,20 @@ function rememberAuthUser(user) {
   return normalizedUser;
 }
 
+function applyAccountPreferences(user) {
+  const preferences = normalizeAccountSettings(user?.settings).preferences;
+
+  state.language = normalizeLanguage(preferences.language);
+  state.languageManuallySelected = true;
+
+  if (CURRENCY_RATES[preferences.currency]) {
+    state.currency = preferences.currency;
+  }
+}
+
 function applyAuthSession(payload) {
   const user = rememberAuthUser(payload.user);
+  applyAccountPreferences(user);
   state.auth.currentUser = user.username;
   state.auth.token = payload.token || state.auth.token;
   state.userId = user.userId || state.userId;
@@ -4065,6 +4351,7 @@ function toggleProfilePanel() {
   isNotificationPanelOpen = false;
   isMoreMenuOpen = false;
   isFeedbackPanelOpen = false;
+  isSettingsPanelOpen = false;
   renderTopUserTools();
 }
 
@@ -4079,6 +4366,7 @@ function toggleNotificationPanel() {
   isProfilePanelOpen = false;
   isMoreMenuOpen = false;
   isFeedbackPanelOpen = false;
+  isSettingsPanelOpen = false;
 
   if (isNotificationPanelOpen) {
     state.notificationReadIds = APP_NOTIFICATIONS.map((item) => item.id);
@@ -4098,6 +4386,7 @@ function toggleMoreMenu() {
   isNotificationPanelOpen = false;
   isProfilePanelOpen = false;
   isFeedbackPanelOpen = false;
+  isSettingsPanelOpen = false;
   renderTopUserTools();
 }
 
@@ -4110,11 +4399,59 @@ function closeMoreMenu() {
   renderTopUserTools();
 }
 
+function openSettingsPanel() {
+  isSettingsPanelOpen = true;
+  isMoreMenuOpen = false;
+  isNotificationPanelOpen = false;
+  isProfilePanelOpen = false;
+  isFeedbackPanelOpen = false;
+  renderTopUserTools();
+}
+
+function closeSettingsPanel() {
+  if (!isSettingsPanelOpen) {
+    return;
+  }
+
+  isSettingsPanelOpen = false;
+  renderTopUserTools();
+}
+
+function openProfileFromSettings(target = "profile") {
+  if (!getCurrentUser()) {
+    showToast("请先登入再编辑账号。");
+    return;
+  }
+
+  isSettingsPanelOpen = false;
+  isProfilePanelOpen = true;
+  isMoreMenuOpen = false;
+  isNotificationPanelOpen = false;
+  isFeedbackPanelOpen = false;
+  renderTopUserTools();
+
+  if (target === "password") {
+    window.setTimeout(() => document.querySelector("#profileCurrentPassword")?.focus(), 0);
+  }
+}
+
+function openNotificationsFromSettings() {
+  isSettingsPanelOpen = false;
+  isNotificationPanelOpen = true;
+  isMoreMenuOpen = false;
+  isProfilePanelOpen = false;
+  isFeedbackPanelOpen = false;
+  state.notificationReadIds = APP_NOTIFICATIONS.map((item) => item.id);
+  saveState();
+  renderTopUserTools();
+}
+
 function openFeedbackPanel() {
   isFeedbackPanelOpen = true;
   isMoreMenuOpen = false;
   isNotificationPanelOpen = false;
   isProfilePanelOpen = false;
+  isSettingsPanelOpen = false;
   renderTopUserTools();
   window.setTimeout(() => document.querySelector("#feedbackTitle")?.focus(), 0);
 }
@@ -4129,7 +4466,7 @@ function closeFeedbackPanel() {
 }
 
 function handleDocumentClick(event) {
-  if (!isMoreMenuOpen && !isFeedbackPanelOpen) {
+  if (!isMoreMenuOpen && !isFeedbackPanelOpen && !isSettingsPanelOpen) {
     return;
   }
 
@@ -4141,8 +4478,13 @@ function handleDocumentClick(event) {
     return;
   }
 
+  if (event.target.closest("#settingsPanel")) {
+    return;
+  }
+
   closeMoreMenu();
   closeFeedbackPanel();
+  closeSettingsPanel();
 }
 
 function handleGlobalKeydown(event) {
@@ -4152,6 +4494,10 @@ function handleGlobalKeydown(event) {
 
   if (event.key === "Escape" && isFeedbackPanelOpen) {
     closeFeedbackPanel();
+  }
+
+  if (event.key === "Escape" && isSettingsPanelOpen) {
+    closeSettingsPanel();
   }
 }
 
