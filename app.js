@@ -2646,43 +2646,45 @@ function renderSettingsPanel() {
       <section class="settings-section">
         <div class="settings-section-heading connected-apps-heading">
           <div>
-            <strong>关联应用</strong>
-            <small>未来可以把随心转盘和其他生活小工具连接到同一个账号，方便同步个人资料、设置和使用记录。</small>
+            <strong>关联小应用</strong>
+            <small>未来可以把随心转盘和更多生活奇思妙想小工具连接到同一个账号，方便同步个人资料、设置和使用记录。</small>
           </div>
-          <span class="linked-app-badge">开发中</span>
+          <span class="connected-apps-badge">开发中</span>
         </div>
-        <div class="linked-app-list" aria-label="关联应用示例">
-          <article class="linked-app-card">
-            <span class="linked-app-icon">🎲</span>
-            <div class="linked-app-copy">
+        <div class="connected-apps-row" aria-label="关联小应用示例">
+          <article class="connected-app-card is-current">
+            <span class="connected-app-icon connected-app-icon-image">
+              <img src="./assets/icons/app-icon.png" alt="" loading="lazy" />
+            </span>
+            <div class="connected-app-copy">
               <strong>随心转盘</strong>
               <small>当前应用</small>
             </div>
-            <button class="secondary-button linked-app-action" type="button" disabled>当前应用</button>
+            <span class="connected-app-status is-current">当前</span>
           </article>
-          <article class="linked-app-card">
-            <span class="linked-app-icon">💡</span>
-            <div class="linked-app-copy">
-              <strong>灵感工具</strong>
+          <article class="connected-app-card is-disabled" aria-disabled="true">
+            <span class="connected-app-icon">🧩</span>
+            <div class="connected-app-copy">
+              <strong>奇思妙想工具</strong>
               <small>计划中</small>
             </div>
-            <button class="secondary-button linked-app-action" type="button" disabled>暂未开放</button>
+            <span class="connected-app-status">计划中</span>
           </article>
-          <article class="linked-app-card">
-            <span class="linked-app-icon">📝</span>
-            <div class="linked-app-copy">
+          <article class="connected-app-card is-disabled" aria-disabled="true">
+            <span class="connected-app-icon">🧩</span>
+            <div class="connected-app-copy">
               <strong>生活记录工具</strong>
               <small>计划中</small>
             </div>
-            <button class="secondary-button linked-app-action" type="button" disabled>暂未开放</button>
+            <span class="connected-app-status">计划中</span>
           </article>
-          <article class="linked-app-card">
-            <span class="linked-app-icon">🧰</span>
-            <div class="linked-app-copy">
+          <article class="connected-app-card is-disabled" aria-disabled="true">
+            <span class="connected-app-icon">🧩</span>
+            <div class="connected-app-copy">
               <strong>更多小工具</strong>
               <small>计划中</small>
             </div>
-            <button class="secondary-button linked-app-action" type="button" disabled>暂未开放</button>
+            <span class="connected-app-status">计划中</span>
           </article>
         </div>
         <p class="settings-footnote">当前只是占位展示：不会跳转外部应用，不会读取其他应用数据，也不会启动真实授权。</p>
