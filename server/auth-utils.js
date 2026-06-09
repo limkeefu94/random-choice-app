@@ -142,7 +142,7 @@ function cleanDisplayName(displayName, fallback) {
 }
 
 function getAvatarText(name) {
-  return String(name || "游").trim().slice(0, 1).toUpperCase() || "游";
+  return Array.from(String(name || "游").trim())[0]?.toUpperCase() || "游";
 }
 
 function normalizeAvatar(value, fallbackName) {
@@ -195,9 +195,12 @@ function normalizeWorldPreferences(worldPreferences) {
 
 function withAccountSocialDefaults(account) {
   const source = account && typeof account === "object" ? account : {};
+  const displayName = source.displayName || source.username;
 
   return {
     ...source,
+    displayName,
+    avatar: normalizeAvatar("", displayName || source.username),
     privacy: normalizePrivacy(source.privacy),
     worldPreferences: normalizeWorldPreferences(source.worldPreferences),
   };
@@ -238,7 +241,7 @@ function publicAccount(account) {
     id: normalizedAccount.id,
     username: normalizedAccount.username,
     displayName: normalizedAccount.displayName || normalizedAccount.username,
-    avatar: normalizeAvatar(normalizedAccount.avatar, normalizedAccount.displayName || normalizedAccount.username),
+    avatar: normalizeAvatar("", normalizedAccount.displayName || normalizedAccount.username),
     avatarUrl: cleanText(normalizedAccount.avatarUrl, 1200),
     userId: normalizedAccount.userId,
     privacy: normalizedAccount.privacy,

@@ -9,7 +9,6 @@ const {
   getAccountFromRequest,
   getUsernameKey,
   isValidUsername,
-  normalizeAvatar,
   normalizeUsername,
   publicAccount,
   verifyPassword,
@@ -115,13 +114,13 @@ async function registerAccount(request, response) {
     username,
     usernameKey,
     displayName: username,
-    avatar: normalizeAvatar("", username),
     avatarUrl: "",
     userId: createCloudUserId(),
     ...createPasswordRecord(password),
     createdAt: now,
     updatedAt: now,
   });
+  const { avatar, ...storedAccount } = account;
   const token = createAuthToken(account);
 
   try {
@@ -139,7 +138,7 @@ async function registerAccount(request, response) {
         username,
         createdAt: now,
       });
-      transaction.set(accountRef, account);
+      transaction.set(accountRef, storedAccount);
     });
   } catch (error) {
     if (error.message === "USERNAME_EXISTS") {
@@ -215,14 +214,13 @@ async function updateProfile(request, response) {
   const account = await getAccountFromRequest(request);
   const body = parseBody(request);
   const displayName = cleanDisplayName(body.displayName, account.username);
-  const avatar = normalizeAvatar(body.avatar, displayName);
-  const avatarUrl = cleanText(body.avatarUrl || account.avatarUrl, 1200);
+  const hasAvatarUrl = Object.prototype.hasOwnProperty.call(body, "avatarUrl");
+  const avatarUrl = cleanText(hasAvatarUrl ? body.avatarUrl : account.avatarUrl, 1200);
   const currentPassword = String(body.currentPassword || "");
   const newPassword = String(body.newPassword || "");
   const confirmPassword = String(body.confirmPassword || "");
   const update = {
     displayName,
-    avatar,
     avatarUrl,
     updatedAt: new Date().toISOString(),
   };
