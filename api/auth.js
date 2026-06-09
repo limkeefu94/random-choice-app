@@ -9,6 +9,7 @@ const {
   getAccountFromRequest,
   getUsernameKey,
   isValidUsername,
+  normalizeSettings,
   normalizeUsername,
   publicAccount,
   verifyPassword,
@@ -252,6 +253,23 @@ async function updateProfile(request, response) {
   });
 }
 
+async function updateSettings(request, response) {
+  const account = await getAccountFromRequest(request);
+  const body = parseBody(request);
+  const settings = normalizeSettings(body.settings);
+  const update = {
+    settings,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await getFirestore().collection("randomChoiceAccounts").doc(account.id).set(update, { merge: true });
+
+  sendAuthResponse(response, {
+    ...account,
+    ...update,
+  });
+}
+
 module.exports = async function handler(request, response) {
   setCors(request, response, CORS_OPTIONS);
 
@@ -282,6 +300,11 @@ module.exports = async function handler(request, response) {
 
       if (action === "update-profile") {
         await updateProfile(request, response);
+        return;
+      }
+
+      if (action === "update-settings") {
+        await updateSettings(request, response);
         return;
       }
 

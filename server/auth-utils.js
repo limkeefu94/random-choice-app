@@ -14,6 +14,21 @@ const DEFAULT_WORLD_PREFERENCES = Object.freeze({
   topics: [],
   hideLottery: false,
 });
+const DEFAULT_ACCOUNT_SETTINGS = Object.freeze({
+  privacy: Object.freeze({
+    discoverable: true,
+    allowFriendRequests: true,
+    allowDirectMessages: "friendsOnly",
+    showOnlineStatus: false,
+    hideLotteryContent: false,
+  }),
+  preferences: Object.freeze({
+    language: "zh-CN",
+    currency: "MYR",
+    worldRegion: "MY",
+    worldTopics: Object.freeze(["general"]),
+  }),
+});
 const DIRECT_MESSAGE_POLICIES = new Set(["friendsOnly", "everyone", "none"]);
 
 function isProductionAppEnv() {
@@ -193,14 +208,44 @@ function normalizeWorldPreferences(worldPreferences) {
   };
 }
 
+function normalizeSettings(settings) {
+  const source = settings && typeof settings === "object" ? settings : {};
+  const privacySource = source.privacy && typeof source.privacy === "object" ? source.privacy : {};
+  const preferenceSource = source.preferences && typeof source.preferences === "object" ? source.preferences : {};
+  const allowDirectMessages = DIRECT_MESSAGE_POLICIES.has(privacySource.allowDirectMessages)
+    ? privacySource.allowDirectMessages
+    : DEFAULT_ACCOUNT_SETTINGS.privacy.allowDirectMessages;
+  const worldTopics = Array.isArray(preferenceSource.worldTopics)
+    ? [...new Set(preferenceSource.worldTopics.map((topic) => cleanText(topic, 40)).filter(Boolean))].slice(0, 12)
+    : [...DEFAULT_ACCOUNT_SETTINGS.preferences.worldTopics];
+
+  return {
+    privacy: {
+      discoverable: normalizeBooleanSetting(privacySource.discoverable, DEFAULT_ACCOUNT_SETTINGS.privacy.discoverable),
+      allowFriendRequests: normalizeBooleanSetting(privacySource.allowFriendRequests, DEFAULT_ACCOUNT_SETTINGS.privacy.allowFriendRequests),
+      allowDirectMessages,
+      showOnlineStatus: normalizeBooleanSetting(privacySource.showOnlineStatus, DEFAULT_ACCOUNT_SETTINGS.privacy.showOnlineStatus),
+      hideLotteryContent: normalizeBooleanSetting(privacySource.hideLotteryContent, DEFAULT_ACCOUNT_SETTINGS.privacy.hideLotteryContent),
+    },
+    preferences: {
+      language: cleanText(preferenceSource.language, 20) || DEFAULT_ACCOUNT_SETTINGS.preferences.language,
+      currency: cleanText(preferenceSource.currency, 12) || DEFAULT_ACCOUNT_SETTINGS.preferences.currency,
+      worldRegion: cleanText(preferenceSource.worldRegion, 60) || DEFAULT_ACCOUNT_SETTINGS.preferences.worldRegion,
+      worldTopics,
+    },
+  };
+}
+
 function withAccountSocialDefaults(account) {
   const source = account && typeof account === "object" ? account : {};
   const displayName = source.displayName || source.username;
+  const settings = normalizeSettings(source.settings);
 
   return {
     ...source,
     displayName,
     avatar: normalizeAvatar("", displayName || source.username),
+    settings,
     privacy: normalizePrivacy(source.privacy),
     worldPreferences: normalizeWorldPreferences(source.worldPreferences),
   };
@@ -244,6 +289,7 @@ function publicAccount(account) {
     avatar: normalizeAvatar("", normalizedAccount.displayName || normalizedAccount.username),
     avatarUrl: cleanText(normalizedAccount.avatarUrl, 1200),
     userId: normalizedAccount.userId,
+    settings: normalizedAccount.settings,
     privacy: normalizedAccount.privacy,
     worldPreferences: normalizedAccount.worldPreferences,
     createdAt: normalizedAccount.createdAt,
@@ -285,6 +331,7 @@ module.exports = {
   createPasswordRecord,
   DEFAULT_PRIVACY,
   DEFAULT_WORLD_PREFERENCES,
+  DEFAULT_ACCOUNT_SETTINGS,
   getAccountById,
   getAccountFromRequest,
   getBearerToken,
@@ -292,6 +339,7 @@ module.exports = {
   isValidUsername,
   normalizeAvatar,
   normalizePrivacy,
+  normalizeSettings,
   normalizeUsername,
   normalizeWorldPreferences,
   publicAccount,
