@@ -1762,6 +1762,7 @@ button {
   max-height: calc(100dvh - 110px);
   overflow-y: auto;
   overscroll-behavior: contain;
+  scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
 }
 
 .feedback-panel {
@@ -1776,6 +1777,7 @@ button {
   max-height: calc(100dvh - 110px);
   overflow-y: auto;
   overscroll-behavior: contain;
+  scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
 }
 
 .feedback-form {
@@ -1893,7 +1895,7 @@ button {
   gap: 10px;
 }
 
-.linked-app-badge {
+.connected-apps-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1908,62 +1910,108 @@ button {
   border: 1px solid rgba(255, 122, 61, 0.18);
 }
 
-.linked-app-list {
-  display: grid;
+.connected-apps-row {
+  display: flex;
   gap: 10px;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 6px;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
 }
 
-.linked-app-card {
+.connected-app-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
+  align-content: start;
+  gap: 8px;
+  flex: 1 0 128px;
+  min-width: 128px;
+  max-width: 154px;
+  min-height: 124px;
+  padding: 12px;
   border: 1px solid rgba(80, 45, 24, 0.08);
-  border-radius: 16px;
+  border-radius: 18px;
   color: #4d3025;
   background: rgba(255, 255, 255, 0.58);
+  scroll-snap-align: start;
 }
 
-.linked-app-icon {
+.connected-app-card.is-disabled {
+  color: #695246;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 247, 238, 0.72)),
+    rgba(255, 255, 255, 0.52);
+}
+
+.connected-app-icon {
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
   place-items: center;
   flex: 0 0 auto;
-  border-radius: 15px;
+  border-radius: 14px;
+  font-size: 1.1rem;
   background: rgba(255, 122, 61, 0.14);
 }
 
-.linked-app-copy {
+.connected-app-icon-image {
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(80, 45, 24, 0.08);
+}
+
+.connected-app-icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.connected-app-copy {
   min-width: 0;
 }
 
-.linked-app-copy strong,
-.linked-app-copy small {
+.connected-app-copy strong,
+.connected-app-copy small {
   display: block;
   overflow-wrap: anywhere;
 }
 
-.linked-app-copy small {
+.connected-app-copy strong {
+  display: -webkit-box;
+  min-height: 2.35em;
+  overflow: hidden;
+  color: #4d3025;
+  font-size: 0.9rem;
+  line-height: 1.18;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.connected-app-copy small {
   margin-top: 3px;
   color: var(--muted);
+  font-size: 0.75rem;
   line-height: 1.35;
 }
 
-.linked-app-action {
-  min-height: 38px;
-  padding: 8px 12px;
-  white-space: nowrap;
+.connected-app-status {
+  width: fit-content;
+  margin-top: auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #7a6255;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.2;
+  background: rgba(80, 45, 24, 0.08);
 }
 
-.linked-app-action:disabled {
-  cursor: not-allowed;
-  color: #87695b;
-  opacity: 0.72;
-  transform: none;
-  background: rgba(255, 255, 255, 0.52);
-  border-color: rgba(80, 45, 24, 0.08);
+.connected-app-status.is-current {
+  color: #8d3c20;
+  background: rgba(255, 122, 61, 0.16);
 }
 
 .settings-footnote {
@@ -2151,6 +2199,14 @@ button {
 
   .settings-panel {
     width: calc(100vw - 32px);
+  }
+
+  .profile-panel,
+  .settings-panel {
+    max-height: calc(100dvh - 120px);
+    overflow-y: auto;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    overscroll-behavior: contain;
   }
 
   .settings-action-grid,
@@ -2374,22 +2430,31 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .linked-app-card {
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: start;
+  .connected-apps-row {
+    margin-inline: -2px;
+    padding-bottom: 8px;
   }
 
-  .linked-app-icon {
-    width: 38px;
-    height: 38px;
-    border-radius: 14px;
+  .connected-app-card {
+    flex-basis: 122px;
+    min-width: 122px;
+    max-width: 138px;
+    min-height: 118px;
+    padding: 10px;
   }
 
-  .linked-app-action {
-    grid-column: 1 / -1;
-    width: 100%;
-    min-height: 40px;
-    justify-self: stretch;
+  .connected-app-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 13px;
+  }
+
+  .connected-app-copy strong {
+    font-size: 0.84rem;
+  }
+
+  .connected-app-status {
+    font-size: 0.66rem;
   }
 
   .sidebar {
