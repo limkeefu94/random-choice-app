@@ -2647,7 +2647,7 @@ function renderSettingsPanel() {
         <div class="settings-section-heading connected-apps-heading">
           <div>
             <strong>关联应用</strong>
-            <small>未来可以把随心转盘、塔罗 App 和其他工具连接到同一个账号。</small>
+            <small>未来可以把随心转盘和其他生活小工具连接到同一个账号，方便同步个人资料、设置和使用记录。</small>
           </div>
           <span class="linked-app-badge">开发中</span>
         </div>
@@ -2661,9 +2661,17 @@ function renderSettingsPanel() {
             <button class="secondary-button linked-app-action" type="button" disabled>当前应用</button>
           </article>
           <article class="linked-app-card">
-            <span class="linked-app-icon">🔮</span>
+            <span class="linked-app-icon">💡</span>
             <div class="linked-app-copy">
-              <strong>塔罗 App</strong>
+              <strong>灵感工具</strong>
+              <small>计划中</small>
+            </div>
+            <button class="secondary-button linked-app-action" type="button" disabled>暂未开放</button>
+          </article>
+          <article class="linked-app-card">
+            <span class="linked-app-icon">📝</span>
+            <div class="linked-app-copy">
+              <strong>生活记录工具</strong>
               <small>计划中</small>
             </div>
             <button class="secondary-button linked-app-action" type="button" disabled>暂未开放</button>
@@ -2671,7 +2679,7 @@ function renderSettingsPanel() {
           <article class="linked-app-card">
             <span class="linked-app-icon">🧰</span>
             <div class="linked-app-copy">
-              <strong>其他工具</strong>
+              <strong>更多小工具</strong>
               <small>计划中</small>
             </div>
             <button class="secondary-button linked-app-action" type="button" disabled>暂未开放</button>
