@@ -6299,6 +6299,11 @@ async function prepareWorldImage(event) {
     width: 0,
     height: 0,
     error: "",
+    crops: {
+      square: { zoom: 1, panX: 0, panY: 0 },
+      landscape: { zoom: 1, panX: 0, panY: 0 },
+      portrait: { zoom: 1, panX: 0, panY: 0 },
+    },
   };
   updatePendingImagePreview();
   setUploadStatus("正在生成发送前预览…");
@@ -6374,7 +6379,11 @@ async function changeWorldImageCropMode(mode) {
     return;
   }
 
-  await processPendingWorldImageMode(mode);
+  if (mode === "original") {
+    await processPendingWorldImageMode("original");
+  } else {
+    openWorldImageCropModal(pendingWorldImage.sourceFile, mode);
+  }
 }
 
 async function processPendingWorldImageMode(mode) {
@@ -6396,11 +6405,27 @@ async function processPendingWorldImageMode(mode) {
   updatePendingImagePreview();
 
   try {
+    const cropParams = pendingWorldImage.crops?.[cropMode] || { zoom: 1, panX: 0, panY: 0 };
+    let frameWidth = 260;
+    let frameHeight = 260;
+    if (cropOption.aspectRatio) {
+      if (cropOption.aspectRatio >= 1) {
+        frameHeight = Math.round(260 / cropOption.aspectRatio);
+      } else {
+        frameWidth = Math.round(260 * cropOption.aspectRatio);
+      }
+    }
+
     const processed = await processImageFile(sourceFile, {
       aspectRatio: cropOption.aspectRatio,
       maxSide: WORLD_IMAGE_MAX_SIDE,
       contentType: "image/jpeg",
       suffix: cropMode,
+      zoom: cropParams.zoom,
+      panX: cropParams.panX,
+      panY: cropParams.panY,
+      frameWidth,
+      frameHeight,
     });
 
     if (!pendingWorldImage || pendingWorldImage.sourceFile !== sourceFile || pendingWorldImage.sourcePreviewUrl !== sourcePreviewUrl) {
@@ -6439,6 +6464,231 @@ async function processPendingWorldImageMode(mode) {
     isWorldImageProcessing = false;
     updatePendingImagePreview();
   }
+}
+
+function openWorldImageCropModal(file, mode) {
+  if (!WORLD_IMAGE_CROP_MODES[mode]) return;
+  const cropOption = WORLD_IMAGE_CROP_MODES[mode];
+  const aspectRatio = cropOption.aspectRatio;
+  if (!aspectRatio) return;
+
+  const prevCrop = pendingWorldImage?.crops?.[mode] || { zoom: 1, panX: 0, panY: 0 };
+
+  activeWorldCrop = {
+    file,
+    previewUrl: pendingWorldImage.sourcePreviewUrl,
+    mode,
+    aspectRatio,
+    zoom: prevCrop.zoom,
+    panX: prevCrop.panX,
+    panY: prevCrop.panY,
+  };
+
+  renderWorldImageCropModal();
+}
+
+function renderWorldImageCropModal() {
+  if (!activeWorldCrop) return;
+
+  let modal = document.querySelector("#worldImageCropModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "worldImageCropModal";
+    document.body.appendChild(modal);
+  }
+
+  const mode = activeWorldCrop.mode;
+  const label = WORLD_IMAGE_CROP_MODES[mode].label;
+  const aspectRatio = activeWorldCrop.aspectRatio;
+
+  let frameWidth = 260;
+  let frameHeight = 260;
+  if (aspectRatio >= 1) {
+    frameHeight = Math.round(260 / aspectRatio);
+  } else {
+    frameWidth = Math.round(260 * aspectRatio);
+  }
+
+  modal.className = "image-crop-modal";
+  modal.innerHTML = `
+    <div class="image-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="worldCropTitle">
+      <div class="floating-panel-header">
+        <div>
+          <strong id="worldCropTitle">裁剪图片 (${escapeHtml(label)})</strong>
+          <small>拖动图片调整位置，滚轮或双指可以放大缩小。</small>
+        </div>
+        <button class="ghost-button compact-ghost" id="worldCropCancelTop" type="button">关闭</button>
+      </div>
+      <div class="image-crop-body">
+        <div class="avatar-crop-layout">
+          <div class="image-crop-frame" style="width: ${frameWidth}px; height: ${frameHeight}px; border-radius: 12px;">
+            <img id="worldCropImage" src="${escapeHtml(activeWorldCrop.previewUrl)}" alt="图片裁剪预览" style="width: 100%; height: 100%; object-fit: cover; transform-origin: center; transition: none; pointer-events: none; user-select: none;" />
+          </div>
+        </div>
+        <div class="crop-control-grid">
+          <label>
+            <span>缩放</span>
+            <input id="worldCropZoom" type="range" min="1" max="3" step="0.01" value="${activeWorldCrop.zoom}" />
+          </label>
+          <div class="crop-zoom-buttons">
+            <button type="button" class="secondary-button compact-button" id="worldCropZoomOut">-</button>
+            <button type="button" class="secondary-button compact-button" id="worldCropZoomIn">+</button>
+            <button type="button" class="secondary-button compact-button" id="worldCropReset">重置</button>
+          </div>
+        </div>
+      </div>
+      <div class="image-crop-actions">
+        <button class="primary-button compact-primary" id="worldCropConfirmButton" type="button">确定裁剪</button>
+        <button class="secondary-button" id="worldCropCancelButton" type="button">取消</button>
+      </div>
+    </div>
+  `;
+  modal.hidden = false;
+
+  const closeBtn = () => closeWorldImageCropModal();
+  modal.querySelector("#worldCropCancelTop").addEventListener("click", closeBtn);
+  modal.querySelector("#worldCropCancelButton").addEventListener("click", closeBtn);
+  modal.querySelector("#worldCropConfirmButton").addEventListener("click", confirmWorldImageCrop);
+
+  const zoomSlider = modal.querySelector("#worldCropZoom");
+  zoomSlider.addEventListener("input", () => {
+    if (activeWorldCrop) {
+      activeWorldCrop.zoom = Number(zoomSlider.value);
+      updateWorldCropPreview();
+    }
+  });
+
+  modal.querySelector("#worldCropZoomIn").addEventListener("click", () => {
+    if (activeWorldCrop) {
+      activeWorldCrop.zoom = Math.min(3, activeWorldCrop.zoom + 0.1);
+      zoomSlider.value = activeWorldCrop.zoom;
+      updateWorldCropPreview();
+    }
+  });
+  modal.querySelector("#worldCropZoomOut").addEventListener("click", () => {
+    if (activeWorldCrop) {
+      activeWorldCrop.zoom = Math.max(1, activeWorldCrop.zoom - 0.1);
+      zoomSlider.value = activeWorldCrop.zoom;
+      updateWorldCropPreview();
+    }
+  });
+  modal.querySelector("#worldCropReset").addEventListener("click", () => {
+    if (activeWorldCrop) {
+      activeWorldCrop.zoom = 1;
+      activeWorldCrop.panX = 0;
+      activeWorldCrop.panY = 0;
+      zoomSlider.value = 1;
+      updateWorldCropPreview();
+    }
+  });
+
+  const imgEl = modal.querySelector("#worldCropImage");
+  imgEl.addEventListener("load", () => {
+    updateWorldCropPreview();
+    setupWorldCropGestures();
+  });
+
+  function setupWorldCropGestures() {
+    if (worldGestureCleanup) worldGestureCleanup();
+    const frameEl = modal.querySelector(".image-crop-frame");
+    if (!frameEl || !imgEl) return;
+
+    worldGestureCleanup = setupCropGestures(
+      frameEl,
+      imgEl,
+      () => activeWorldCrop,
+      (newZoom, newPanX, newPanY) => {
+        if (!activeWorldCrop) return;
+        activeWorldCrop.zoom = newZoom;
+        activeWorldCrop.panX = newPanX;
+        activeWorldCrop.panY = newPanY;
+        zoomSlider.value = newZoom;
+        updateWorldCropPreview();
+      },
+      frameWidth,
+      frameHeight
+    );
+  }
+}
+
+function updateWorldCropPreview() {
+  if (!activeWorldCrop) return;
+
+  const image = document.querySelector("#worldCropImage");
+  if (!image) return;
+
+  const imageWidth = image.naturalWidth || image.width || 300;
+  const imageHeight = image.naturalHeight || image.height || 300;
+  const aspectRatio = activeWorldCrop.aspectRatio;
+
+  let frameWidth = 260;
+  let frameHeight = 260;
+  if (aspectRatio >= 1) {
+    frameHeight = Math.round(260 / aspectRatio);
+  } else {
+    frameWidth = Math.round(260 * aspectRatio);
+  }
+
+  const R_f = frameWidth / frameHeight;
+  const R_i = imageWidth / imageHeight;
+
+  let wFit, hFit;
+  if (R_i > R_f) {
+    hFit = frameHeight;
+    wFit = frameHeight * R_i;
+  } else {
+    wFit = frameWidth;
+    hFit = frameWidth / R_i;
+  }
+
+  const maxPanX = Math.max(0, (wFit * activeWorldCrop.zoom - frameWidth) / 2);
+  const maxPanY = Math.max(0, (hFit * activeWorldCrop.zoom - frameHeight) / 2);
+
+  activeWorldCrop.panX = Math.min(Math.max(activeWorldCrop.panX, -maxPanX), maxPanX);
+  activeWorldCrop.panY = Math.min(Math.max(activeWorldCrop.panY, -maxPanY), maxPanY);
+
+  image.style.transform = `translate(${activeWorldCrop.panX}px, ${activeWorldCrop.panY}px) scale(${activeWorldCrop.zoom})`;
+}
+
+function closeWorldImageCropModal() {
+  const modal = document.querySelector("#worldImageCropModal");
+  activeWorldCrop = null;
+  if (worldGestureCleanup) {
+    worldGestureCleanup();
+    worldGestureCleanup = null;
+  }
+  if (modal) {
+    modal.hidden = true;
+    modal.innerHTML = "";
+  }
+  updatePendingImagePreview();
+}
+
+async function confirmWorldImageCrop() {
+  if (!activeWorldCrop || !pendingWorldImage) return;
+
+  const mode = activeWorldCrop.mode;
+  if (!pendingWorldImage.crops) {
+    pendingWorldImage.crops = {};
+  }
+  pendingWorldImage.crops[mode] = {
+    zoom: activeWorldCrop.zoom,
+    panX: activeWorldCrop.panX,
+    panY: activeWorldCrop.panY,
+  };
+
+  const modal = document.querySelector("#worldImageCropModal");
+  activeWorldCrop = null;
+  if (worldGestureCleanup) {
+    worldGestureCleanup();
+    worldGestureCleanup = null;
+  }
+  if (modal) {
+    modal.hidden = true;
+    modal.innerHTML = "";
+  }
+
+  await processPendingWorldImageMode(mode);
 }
 
 function formatFileSize(size) {

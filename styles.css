@@ -1335,6 +1335,20 @@ button {
   accent-color: var(--accent);
 }
 
+.crop-zoom-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.crop-zoom-buttons button {
+  min-height: 34px;
+  padding: 0 16px;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
 .image-crop-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
