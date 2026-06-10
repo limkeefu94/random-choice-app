@@ -1754,7 +1754,25 @@ const AUTH_ENDPOINT = "/api/auth";
 const WORLD_CHANNEL_ENDPOINT = "/api/world-channel";
 const FEEDBACK_ENDPOINT = "/api/feedback";
 const CLIENT_ERROR_ENDPOINT = "/api/client-error";
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "0.5.0";
+const RELEASE_NOTES = [
+  {
+    version: "0.5.0",
+    title: "设置和版本内容整理",
+    date: "2026-06-08",
+    summary: "这次把设置中心、版本内容和通知用途整理得更清楚。",
+    userChanges: [
+      "点版本号可以直接看到这次更新内容。",
+      "反馈问题和清除记录放得更顺手。",
+      "通知以后不再塞一堆更新说明，会留给点赞、私信和重要提醒。",
+    ],
+    technicalChanges: [
+      "Added release notes panel.",
+      "Separated notification usage from changelog content.",
+      "Kept hideLotteryContent as backward-compatible settings data only.",
+    ],
+  },
+];
 const SOCIAL_FEATURES_ENABLED = window.SOCIAL_FEATURES_ENABLED === true || window.SOCIAL_FEATURES_ENABLED === "true";
 const DEFAULT_PRIVACY_SETTINGS = Object.freeze({
   discoverable: false,
@@ -1816,59 +1834,22 @@ const DEFAULT_WORLD_MESSAGES = [
 ];
 const APP_NOTIFICATIONS = [
   {
-    id: "recent-language-mobile-updates",
-    type: "新功能 + 优化",
-    title: "语言和手机页面变好用了",
-    text: "语言入口和手机按钮位置整理得更清楚。",
-    details: [
-      "可以在「更多」里面切换中文、英文和马来文。",
-      "手机上第一次打开会提醒你点「选择模式」，比较不容易找不到吃什么、喝什么、去哪玩。",
-      "顶部按钮在小屏幕上更不容易挤在一起，通知数字也不会被切掉。",
-    ],
+    id: "notice-purpose-updated-v050",
+    type: "系统提醒",
+    title: "通知会留给重要消息",
+    text: "以后这里主要放点赞、私信、好友申请和必要提醒。",
   },
   {
-    id: "recent-shopping-updates",
-    type: "内容 + 优化",
-    title: "购物随机内容更多了",
-    text: "新增更多购物分类、预算和购买提醒。",
-    details: [
-      "现在可以按购物类别、花费高低和购买心情来抽建议。",
-      "结果会附上大概预算、为什么适合你、以及先买不买的小提醒。",
-      "手机上的购物标签更好点，不会因为太长而挤坏画面。",
-    ],
+    id: "daily-inspiration-placeholder",
+    type: "预留",
+    title: "今日灵感提醒准备中",
+    text: "之后可以在这里看到简短提醒，不会塞满更新日志。",
   },
   {
-    id: "recent-account-world-updates",
-    type: "新功能",
-    title: "账号和世界频道升级了",
-    text: "登录、头像、记录和世界频道已支持云端同步。",
-    details: [
-      "可以注册和登录账号，名字、头像、最近记录和收藏会跟着账号保存。",
-      "点右上角头像可以改显示名字、头像和密码。",
-      "世界频道可以发文字和图片，大家能看到同一个聊天频道。",
-    ],
-  },
-  {
-    id: "recent-world-chat-polish",
-    type: "优化",
-    title: "世界频道更清爽",
-    text: "聊天头像、图片预览和消息显示更直观。",
-    details: [
-      "消息会显示头像和名字，比较容易分清是谁发的。",
-      "发图片前会先预览，确认后才送出去。",
-      "图片发出去后不会露出原本的文件名。",
-    ],
-  },
-  {
-    id: "recent-notification-plan",
-    type: "通知整理",
-    title: "通知以后只讲更新内容",
-    text: "之后只保留简短摘要，方便快速看完。",
-    details: [
-      "每条通知都会写是新功能、内容增加，还是体验变好。",
-      "不会写太专业的词，只写你打开后能感受到的变化。",
-      "好友和私聊以后做好时，也会在这里说明能怎么用。",
-    ],
+    id: "social-message-placeholder",
+    type: "预留",
+    title: "互动提醒会放这里",
+    text: "有人点赞、发私信或申请好友时，再用红点提醒你。",
   },
 ];
 const STORAGE_KEY = "choiceWheelState";
@@ -2011,6 +1992,7 @@ let isNotificationPanelOpen = false;
 let isMoreMenuOpen = false;
 let isFeedbackPanelOpen = false;
 let isSettingsPanelOpen = false;
+let isReleaseNotesPanelOpen = false;
 const clientErrorThrottle = new Map();
 
 function isValidAnonymousUserId(userId) {
@@ -2381,7 +2363,7 @@ function renderNotificationPanel() {
     <div class="floating-panel-header">
         <div>
           <strong>${escapeHtml(t("top.notification", "通知"))}</strong>
-          <small>简短通知和更新摘要</small>
+          <small>点赞、私信、好友申请和重要提醒</small>
         </div>
       <button class="ghost-button compact-ghost" id="notificationCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
     </div>
@@ -2390,7 +2372,7 @@ function renderNotificationPanel() {
         <article class="notification-item">
           <div class="notification-item-title">
             <strong>${escapeHtml(item.title)}</strong>
-            <span>${escapeHtml(item.type || "更新")}</span>
+            <span>${escapeHtml(item.type || "提醒")}</span>
           </div>
           <p>${escapeHtml(item.text)}</p>
         </article>
@@ -2526,6 +2508,44 @@ function renderMoreMenuPanel() {
   document.querySelector("#languageSelect").addEventListener("change", (event) => changeLanguage(event.target.value));
 }
 
+function getCurrentReleaseNote() {
+  return RELEASE_NOTES.find((note) => note.version === APP_VERSION) || RELEASE_NOTES[0];
+}
+
+function renderReleaseNotesSection() {
+  const releaseNote = getCurrentReleaseNote();
+
+  if (!releaseNote) {
+    return "";
+  }
+
+  return `
+    <section class="settings-section release-notes-section" id="releaseNotesSection" aria-label="版本更新内容" ${isReleaseNotesPanelOpen ? "" : "hidden"}>
+      <div class="settings-section-heading release-notes-heading">
+        <div>
+          <strong>v${escapeHtml(releaseNote.version)} · ${escapeHtml(releaseNote.title)}</strong>
+          <small>${escapeHtml(releaseNote.date)} · ${escapeHtml(releaseNote.summary)}</small>
+        </div>
+        <button class="ghost-button compact-ghost release-notes-close" id="releaseNotesCloseButton" type="button">收起</button>
+      </div>
+      <div class="release-notes-grid">
+        <div class="release-notes-card">
+          <strong>这次你会看到</strong>
+          <ul>
+            ${releaseNote.userChanges.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+          </ul>
+        </div>
+        <div class="release-notes-card is-technical">
+          <strong>技术整理</strong>
+          <ul>
+            ${releaseNote.technicalChanges.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+          </ul>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function formatWorldTopics(topics) {
   const normalizedTopics = Array.isArray(topics) && topics.length ? topics : DEFAULT_ACCOUNT_SETTINGS.preferences.worldTopics;
   return normalizedTopics.join(", ");
@@ -2588,10 +2608,6 @@ function renderSettingsPanel() {
           <span><strong>显示在线状态</strong><small>为之后世界频道和好友状态预留</small></span>
           <input id="settingsShowOnlineStatus" type="checkbox" ${settings.privacy.showOnlineStatus ? "checked" : ""} ${disabled} />
         </label>
-        <label class="settings-toggle">
-          <span><strong>隐藏娱乐号码相关内容</strong><small>先保存偏好，不改变当前随机算法</small></span>
-          <input id="settingsHideLotteryContent" type="checkbox" ${settings.privacy.hideLotteryContent ? "checked" : ""} ${disabled} />
-        </label>
         <div class="field">
           <label for="settingsAllowDirectMessages">允许私聊</label>
           <select id="settingsAllowDirectMessages" ${disabled}>
@@ -2634,15 +2650,19 @@ function renderSettingsPanel() {
       <section class="settings-section">
         <div class="settings-section-heading">
           <strong>应用</strong>
-          <small>版本、更新内容和反馈入口。</small>
+          <small>当前版本、更新内容、反馈和本机记录。</small>
         </div>
-        <div class="settings-info-row"><span>版本号</span><strong>${APP_VERSION}</strong></div>
-        <div class="settings-action-grid">
-          <button class="secondary-button" id="settingsUpdatesButton" type="button">查看更新内容</button>
-          <button class="secondary-button" id="settingsFeedbackButton" type="button">反馈问题</button>
-          <button class="secondary-button" id="settingsClearLocalButton" type="button">清除本机记录</button>
+        <button class="settings-version-button" id="settingsVersionButton" type="button" aria-expanded="${isReleaseNotesPanelOpen}">
+          <span>当前版本</span>
+          <strong>v${APP_VERSION}</strong>
+          <small id="settingsVersionHint">${isReleaseNotesPanelOpen ? "更新内容已展开" : "点击查看更新内容"}</small>
+        </button>
+        <div class="settings-action-grid settings-utility-actions">
+          <button class="secondary-button settings-feedback-button" id="settingsFeedbackButton" type="button">反馈问题</button>
+          <button class="secondary-button settings-clear-button" id="settingsClearLocalButton" type="button">清除记录</button>
         </div>
       </section>
+      ${renderReleaseNotesSection()}
       <section class="settings-section">
         <div class="settings-section-heading connected-apps-heading">
           <div>
@@ -2702,20 +2722,23 @@ function renderSettingsPanel() {
     closeSettingsPanel();
     logoutUser();
   });
-  document.querySelector("#settingsUpdatesButton").addEventListener("click", openNotificationsFromSettings);
+  document.querySelector("#settingsVersionButton").addEventListener("click", toggleReleaseNotesFromSettings);
+  document.querySelector("#releaseNotesCloseButton")?.addEventListener("click", closeReleaseNotesFromSettings);
   document.querySelector("#settingsFeedbackButton").addEventListener("click", openFeedbackPanel);
   document.querySelector("#settingsClearLocalButton").addEventListener("click", clearHistory);
   document.querySelector("#settingsForm").addEventListener("submit", saveSettingsCenter);
 }
 
 function getSettingsFormPayload() {
+  const existingSettings = normalizeAccountSettings(getCurrentUser()?.settings);
+
   return normalizeAccountSettings({
     privacy: {
       discoverable: document.querySelector("#settingsDiscoverable")?.checked,
       allowFriendRequests: document.querySelector("#settingsAllowFriendRequests")?.checked,
       allowDirectMessages: document.querySelector("#settingsAllowDirectMessages")?.value,
       showOnlineStatus: document.querySelector("#settingsShowOnlineStatus")?.checked,
-      hideLotteryContent: document.querySelector("#settingsHideLotteryContent")?.checked,
+      hideLotteryContent: existingSettings.privacy.hideLotteryContent,
     },
     preferences: {
       language: document.querySelector("#settingsLanguage")?.value,
@@ -2993,7 +3016,7 @@ function renderWorldControls() {
         </div>
         <div class="field">
           <label for="authUsername">用户名</label>
-          <input id="authUsername" autocomplete="username" maxlength="20" placeholder="2-20 字，例如 limke" />
+          <input id="authUsername" autocomplete="username" maxlength="20" placeholder="2-20 字，例如 xiaoming" />
           <small class="field-hint">可用中文、英文、数字、_ 和 -。</small>
         </div>
         <div class="field">
@@ -4437,6 +4460,7 @@ function closeMoreMenu() {
 
 function openSettingsPanel() {
   isSettingsPanelOpen = true;
+  isReleaseNotesPanelOpen = false;
   isMoreMenuOpen = false;
   isNotificationPanelOpen = false;
   isProfilePanelOpen = false;
@@ -4471,15 +4495,36 @@ function openProfileFromSettings(target = "profile") {
   }
 }
 
-function openNotificationsFromSettings() {
-  isSettingsPanelOpen = false;
-  isNotificationPanelOpen = true;
-  isMoreMenuOpen = false;
-  isProfilePanelOpen = false;
-  isFeedbackPanelOpen = false;
-  state.notificationReadIds = APP_NOTIFICATIONS.map((item) => item.id);
-  saveState();
-  renderTopUserTools();
+function toggleReleaseNotesFromSettings() {
+  isReleaseNotesPanelOpen = !isReleaseNotesPanelOpen;
+  updateReleaseNotesVisibility();
+
+  if (isReleaseNotesPanelOpen) {
+    window.setTimeout(() => document.querySelector(".release-notes-section")?.scrollIntoView({ block: "nearest" }), 0);
+  }
+}
+
+function closeReleaseNotesFromSettings() {
+  isReleaseNotesPanelOpen = false;
+  updateReleaseNotesVisibility();
+}
+
+function updateReleaseNotesVisibility() {
+  const releaseNotesSection = document.querySelector("#releaseNotesSection");
+  const settingsVersionButton = document.querySelector("#settingsVersionButton");
+  const settingsVersionHint = document.querySelector("#settingsVersionHint");
+
+  if (releaseNotesSection) {
+    releaseNotesSection.hidden = !isReleaseNotesPanelOpen;
+  }
+
+  if (settingsVersionButton) {
+    settingsVersionButton.setAttribute("aria-expanded", String(isReleaseNotesPanelOpen));
+  }
+
+  if (settingsVersionHint) {
+    settingsVersionHint.textContent = isReleaseNotesPanelOpen ? "更新内容已展开" : "点击查看更新内容";
+  }
 }
 
 function openFeedbackPanel() {
