@@ -8,7 +8,7 @@ const WORLD_COLLECTION = "randomChoiceWorldMessages";
 const BLOCK_COLLECTION = "randomChoiceBlocks";
 const MAX_WORLD_MESSAGES = 80;
 const CORS_OPTIONS = {
-  methods: ["GET", "POST", "OPTIONS"],
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
 };
 const WORLD_MESSAGE_10_SECOND_LIMIT = {
   name: "world-message-10s",
@@ -133,8 +133,16 @@ function toWorldMessage(documentSnapshot) {
     text: data.text || "",
     attachment: data.attachment || null,
     createdAt: data.createdAt || "",
+    updatedAt: data.updatedAt || "",
     time: data.time || "",
+    likeCount: Number.isFinite(data.likeCount) ? data.likeCount : 0,
+    isDeleted: data.isDeleted === true,
+    deletedAt: data.deletedAt || "",
   };
+}
+
+function isDeletedWorldMessage(message) {
+  return message?.isDeleted === true || Boolean(message?.deletedAt);
 }
 
 async function getOptionalAccount(request) {
@@ -164,21 +172,144 @@ async function getBlockedAccountIds(accountId) {
 }
 
 async function readWorldMessages(request, response) {
+  const limit = getLimit(request);
+  const shouldReadMine = ["1", "true", "yes"].includes(String(getQueryParam(request, "mine") || "").toLowerCase());
+
+  if (shouldReadMine) {
+    const account = await getAccountFromRequest(request);
+    const snapshot = await getFirestore()
+      .collection(WORLD_COLLECTION)
+      .where("accountId", "==", account.id)
+      .limit(Math.min(Math.max(limit * 4, 40), 200))
+      .get();
+    const messages = snapshot.docs
+      .map(toWorldMessage)
+      .filter((message) => !isDeletedWorldMessage(message))
+      .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))
+      .slice(0, limit);
+
+    response.status(200).json({
+      ok: true,
+      messages,
+    });
+    return;
+  }
+
   const account = await getOptionalAccount(request);
   const blockedAccountIds = await getBlockedAccountIds(account?.id);
   const snapshot = await getFirestore()
     .collection(WORLD_COLLECTION)
     .orderBy("createdAt", "desc")
-    .limit(getLimit(request))
+    .limit(Math.min(limit * 2, MAX_WORLD_MESSAGES))
     .get();
   const messages = snapshot.docs
     .map(toWorldMessage)
+    .filter((message) => !isDeletedWorldMessage(message))
     .filter((message) => !blockedAccountIds.has(message.accountId))
+    .slice(0, limit)
     .reverse();
 
   response.status(200).json({
     ok: true,
     messages,
+  });
+}
+
+function getWorldMessageId(request, body) {
+  const messageId = cleanText(body.id || body.messageId || getQueryParam(request, "id") || getQueryParam(request, "messageId"), 160);
+
+  if (!/^[a-z0-9:_-]{6,180}$/i.test(messageId)) {
+    return "";
+  }
+
+  return messageId;
+}
+
+async function getOwnedWorldMessage(request, response, body) {
+  const account = await getAccountFromRequest(request);
+  const messageId = getWorldMessageId(request, body);
+
+  if (!messageId) {
+    response.status(400).json({ ok: false, error: "找不到要处理的内容" });
+    return null;
+  }
+
+  const documentRef = getFirestore().collection(WORLD_COLLECTION).doc(messageId);
+  const snapshot = await documentRef.get();
+
+  if (!snapshot.exists) {
+    response.status(404).json({ ok: false, error: "这条内容不存在" });
+    return null;
+  }
+
+  const data = snapshot.data() || {};
+
+  if (data.accountId !== account.id) {
+    response.status(403).json({ ok: false, error: "只能管理自己发布的内容" });
+    return null;
+  }
+
+  if (data.isDeleted === true || data.deletedAt) {
+    response.status(409).json({ ok: false, error: "这条内容已经移除" });
+    return null;
+  }
+
+  return {
+    account,
+    documentRef,
+    snapshot,
+  };
+}
+
+async function updateWorldMessage(request, response) {
+  const body = parseBody(request);
+  const ownedMessage = await getOwnedWorldMessage(request, response, body);
+
+  if (!ownedMessage) {
+    return;
+  }
+
+  const text = cleanText(body.text, 220);
+
+  if (!text) {
+    response.status(400).json({ ok: false, error: "文字内容不能为空" });
+    return;
+  }
+
+  const updatedAt = new Date().toISOString();
+  await ownedMessage.documentRef.update({
+    text,
+    updatedAt,
+  });
+
+  const updatedSnapshot = await ownedMessage.documentRef.get();
+
+  response.status(200).json({
+    ok: true,
+    message: toWorldMessage(updatedSnapshot),
+  });
+}
+
+async function deleteWorldMessage(request, response) {
+  const body = parseBody(request);
+  const ownedMessage = await getOwnedWorldMessage(request, response, body);
+
+  if (!ownedMessage) {
+    return;
+  }
+
+  const deletedAt = new Date().toISOString();
+  await ownedMessage.documentRef.update({
+    isDeleted: true,
+    deletedAt,
+    deletedBy: ownedMessage.account.id,
+    updatedAt: deletedAt,
+  });
+
+  response.status(200).json({
+    ok: true,
+    id: ownedMessage.snapshot.id,
+    deletedAt,
   });
 }
 
@@ -275,6 +406,16 @@ module.exports = async function handler(request, response) {
 
     if (request.method === "POST") {
       await writeWorldMessage(request, response);
+      return;
+    }
+
+    if (request.method === "PATCH") {
+      await updateWorldMessage(request, response);
+      return;
+    }
+
+    if (request.method === "DELETE") {
+      await deleteWorldMessage(request, response);
       return;
     }
 

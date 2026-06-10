@@ -1754,8 +1754,24 @@ const AUTH_ENDPOINT = "/api/auth";
 const WORLD_CHANNEL_ENDPOINT = "/api/world-channel";
 const FEEDBACK_ENDPOINT = "/api/feedback";
 const CLIENT_ERROR_ENDPOINT = "/api/client-error";
-const APP_VERSION = "0.5.0";
+const APP_VERSION = "0.6.0";
 const RELEASE_NOTES = [
+  {
+    version: "0.6.0",
+    title: "我的主页",
+    date: "2026-06-10",
+    summary: "这次新增我的主页，可以查看和管理自己在世界频道发过的内容。",
+    userChanges: [
+      "点右上角头像会进入我的主页。",
+      "可以看到自己发过的世界频道文字和图片。",
+      "自己发过的内容可以编辑文字或移除。",
+    ],
+    technicalChanges: [
+      "Added my profile panel.",
+      "Added owner-only world message edit/delete support.",
+      "Added soft delete handling for world messages.",
+    ],
+  },
   {
     version: "0.5.0",
     title: "设置和版本内容整理",
@@ -1987,6 +2003,11 @@ let pendingWorldImage = null;
 let pendingProfileAvatarImage = null;
 let shouldRemoveProfileAvatarImage = false;
 let authMode = "login";
+let profilePanelView = "home";
+let editingWorldMessageId = "";
+let myWorldMessages = [];
+let isMyWorldMessagesLoading = false;
+let myWorldMessagesError = "";
 let isProfilePanelOpen = false;
 let isNotificationPanelOpen = false;
 let isMoreMenuOpen = false;
@@ -2327,7 +2348,7 @@ function renderTopUserTools() {
       name: getUserDisplayName(currentUser),
       className: "profile-avatar-image",
     });
-    elements.profileAvatarButton.setAttribute("aria-label", `${t("top.profile", "个人资料")}：${getUserDisplayName(currentUser)}`);
+    elements.profileAvatarButton.setAttribute("aria-label", `我的主页：${getUserDisplayName(currentUser)}`);
     elements.profileAvatarButton.setAttribute("aria-expanded", String(isProfilePanelOpen));
   } else {
     elements.profileAvatarButton.hidden = true;
@@ -2390,6 +2411,66 @@ function renderProfilePanel() {
     return;
   }
 
+  if (profilePanelView === "edit") {
+    renderProfileEditorPanel(currentUser);
+    return;
+  }
+
+  renderMyProfilePanel(currentUser);
+}
+
+function renderMyProfilePanel(currentUser) {
+  const messages = getMyProfileMessages(currentUser);
+  const feedMarkup = renderMyProfileFeed(messages);
+
+  elements.profilePanel.innerHTML = `
+    <div class="my-profile-page">
+      <div class="floating-panel-header">
+        <div>
+          <strong>我的主页</strong>
+          <small>查看资料和管理自己发布过的世界频道内容</small>
+        </div>
+        <button class="ghost-button compact-ghost" id="profileCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
+      </div>
+      <section class="my-profile-hero">
+        <span class="world-avatar my-profile-avatar" aria-hidden="true">
+          ${renderAvatarContent({
+            avatar: getUserAvatar(currentUser),
+            avatarUrl: getUserAvatarUrl(currentUser),
+            name: getUserDisplayName(currentUser),
+            className: "profile-preview-image",
+          })}
+        </span>
+        <div class="my-profile-identity">
+          <strong>${escapeHtml(getUserDisplayName(currentUser))}</strong>
+          <small>@${escapeHtml(currentUser.username || currentUser.userId || "user")}</small>
+        </div>
+      </section>
+      <div class="my-profile-actions">
+        <button class="primary-button compact-primary" id="myProfileEditButton" type="button">编辑资料</button>
+        <button class="secondary-button" id="myProfileSettingsButton" type="button">设置</button>
+      </div>
+      <section class="my-profile-feed">
+        <div class="my-profile-feed-heading">
+          <div>
+            <strong>我的世界频道内容</strong>
+            <small>最近 20 条文字和图片</small>
+          </div>
+          <button class="ghost-button compact-ghost" id="myProfileRefreshButton" type="button" ${isMyWorldMessagesLoading ? "disabled" : ""}>
+            ${isMyWorldMessagesLoading ? "更新中…" : "刷新"}
+          </button>
+        </div>
+        ${myWorldMessagesError ? `<p class="my-profile-error">${escapeHtml(myWorldMessagesError)}</p>` : ""}
+        ${feedMarkup}
+      </section>
+      <button class="secondary-button profile-logout-button" id="profileLogoutButton" type="button">登出账号</button>
+    </div>
+  `;
+
+  bindMyProfilePanelEvents();
+}
+
+function renderProfileEditorPanel(currentUser) {
   elements.profilePanel.innerHTML = `
     <form class="profile-form" id="profileForm">
       <div class="floating-panel-header">
@@ -2399,6 +2480,7 @@ function renderProfilePanel() {
         </div>
         <button class="ghost-button compact-ghost" id="profileCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
       </div>
+      <button class="ghost-button compact-ghost profile-back-button" id="profileBackButton" type="button">返回我的主页</button>
       <div class="profile-preview-row">
         <span class="world-avatar profile-preview-avatar" id="profilePreviewAvatar" aria-hidden="true">
           ${renderAvatarContent({
@@ -2454,6 +2536,7 @@ function renderProfilePanel() {
 
   avatarFileInput.addEventListener("change", prepareProfileAvatarImage);
   nameInput.addEventListener("input", updateProfilePreview);
+  document.querySelector("#profileBackButton").addEventListener("click", openMyProfileHome);
   document.querySelector("#profileRemoveAvatarButton").addEventListener("click", removeProfileAvatarImage);
   document.querySelector("#profileCloseButton").addEventListener("click", closeProfilePanel);
   document.querySelector("#profileLogoutButton").addEventListener("click", () => {
@@ -2464,6 +2547,166 @@ function renderProfilePanel() {
     event.preventDefault();
     saveProfileChanges();
   });
+}
+
+function bindMyProfilePanelEvents() {
+  document.querySelector("#profileCloseButton")?.addEventListener("click", closeProfilePanel);
+  document.querySelector("#myProfileEditButton")?.addEventListener("click", openProfileEditorFromHome);
+  document.querySelector("#myProfileSettingsButton")?.addEventListener("click", () => {
+    closeProfilePanel();
+    openSettingsPanel();
+  });
+  document.querySelector("#myProfileRefreshButton")?.addEventListener("click", () => syncMyWorldMessages());
+  document.querySelector("#myProfileOpenWorldButton")?.addEventListener("click", () => {
+    closeProfilePanel();
+    state.worldOpen = true;
+    saveState();
+    render();
+  });
+  document.querySelector("#profileLogoutButton")?.addEventListener("click", () => {
+    closeProfilePanel();
+    logoutUser();
+  });
+
+  document.querySelectorAll("[data-my-world-edit]").forEach((button) => {
+    button.addEventListener("click", () => {
+      editingWorldMessageId = button.dataset.myWorldEdit || "";
+      renderProfilePanel();
+      window.setTimeout(() => document.querySelector("#myProfileEditText")?.focus(), 0);
+    });
+  });
+
+  document.querySelectorAll("[data-my-world-cancel]").forEach((button) => {
+    button.addEventListener("click", () => {
+      editingWorldMessageId = "";
+      renderProfilePanel();
+    });
+  });
+
+  document.querySelectorAll("[data-my-world-save]").forEach((button) => {
+    button.addEventListener("click", () => saveMyWorldMessageEdit(button.dataset.myWorldSave || ""));
+  });
+
+  document.querySelectorAll("[data-my-world-delete]").forEach((button) => {
+    button.addEventListener("click", () => removeMyWorldMessage(button.dataset.myWorldDelete || ""));
+  });
+}
+
+function openMyProfileHome() {
+  profilePanelView = "home";
+  editingWorldMessageId = "";
+  clearPendingProfileAvatarImage();
+  renderProfilePanel();
+}
+
+function openProfileEditorFromHome() {
+  profilePanelView = "edit";
+  editingWorldMessageId = "";
+  clearPendingProfileAvatarImage({ renderPreview: false });
+  renderProfilePanel();
+}
+
+function renderMyProfileFeed(messages) {
+  if (isMyWorldMessagesLoading && !messages.length) {
+    return `<div class="my-profile-empty"><strong>正在读取你的动态…</strong><small>稍等一下，世界频道内容马上回来。</small></div>`;
+  }
+
+  if (!messages.length) {
+    return `
+      <div class="my-profile-empty">
+        <strong>你还没有发布内容</strong>
+        <small>去世界频道分享一个随机结果吧。</small>
+        <button class="secondary-button" id="myProfileOpenWorldButton" type="button">打开世界频道</button>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="my-profile-message-list">
+      ${messages.map(renderMyProfileMessage).join("")}
+    </div>
+  `;
+}
+
+function renderMyProfileMessage(message) {
+  const isEditing = editingWorldMessageId === message.id;
+  const text = getWorldMessageText(message);
+  const displayText = text || (message.attachment?.type === "image" ? "图片动态" : "（没有文字）");
+  const likeMarkup = Number(message.likeCount) > 0 ? `<small>♡ ${Number(message.likeCount)}</small>` : "";
+
+  return `
+    <article class="my-profile-message">
+      <div class="my-profile-message-header">
+        <span>${escapeHtml(formatProfileMessageTime(message))}</span>
+        ${likeMarkup}
+      </div>
+      ${isEditing ? renderMyProfileEditForm(message, displayText) : `<p class="my-profile-message-text">${escapeHtml(displayText)}</p>`}
+      ${renderWorldAttachment(message.attachment)}
+      <div class="my-profile-message-actions">
+        ${isEditing
+          ? `
+            <button class="primary-button compact-primary" type="button" data-my-world-save="${escapeHtml(message.id)}">保存</button>
+            <button class="secondary-button" type="button" data-my-world-cancel="${escapeHtml(message.id)}">取消</button>
+          `
+          : `
+            <button class="secondary-button" type="button" data-my-world-edit="${escapeHtml(message.id)}">编辑文字</button>
+            <button class="secondary-button settings-clear-button" type="button" data-my-world-delete="${escapeHtml(message.id)}">移除</button>
+          `}
+      </div>
+    </article>
+  `;
+}
+
+function renderMyProfileEditForm(message, displayText) {
+  return `
+    <div class="my-profile-edit">
+      <label for="myProfileEditText">编辑文字</label>
+      <textarea id="myProfileEditText" maxlength="220">${escapeHtml(message.text || displayText)}</textarea>
+      <small>最多 220 字；图片本身不会被修改。</small>
+    </div>
+  `;
+}
+
+function getMyProfileMessages(currentUser) {
+  const source = myWorldMessages.length ? myWorldMessages : state.worldMessages;
+
+  return source
+    .map(normalizeWorldMessage)
+    .filter((message) => isOwnWorldMessage(message, currentUser))
+    .filter((message) => !isDeletedWorldMessageClient(message))
+    .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))
+    .slice(0, 20);
+}
+
+function isOwnWorldMessage(message, currentUser = getCurrentUser()) {
+  if (!message || !currentUser) {
+    return false;
+  }
+
+  return Boolean(
+    (message.accountId && currentUser.id && message.accountId === currentUser.id)
+      || (message.userId && currentUser.userId && message.userId === currentUser.userId)
+      || (message.username && currentUser.username && message.username === currentUser.username),
+  );
+}
+
+function isDeletedWorldMessageClient(message) {
+  return message?.isDeleted === true || Boolean(message?.deletedAt);
+}
+
+function formatProfileMessageTime(message) {
+  const date = message?.createdAt ? new Date(message.createdAt) : null;
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return message?.time || "刚刚";
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function renderMoreMenuPanel() {
@@ -3629,10 +3872,12 @@ function renderPreview() {
 }
 
 function renderWorldChannel() {
-  elements.worldChatCount.textContent = `${state.worldMessages.length} 条消息`;
+  const visibleMessages = state.worldMessages.filter((message) => !isDeletedWorldMessageClient(message));
+
+  elements.worldChatCount.textContent = `${visibleMessages.length} 条消息`;
   elements.worldChatList.innerHTML = `
     <div class="world-chat">
-      ${state.worldMessages
+      ${visibleMessages
         .slice(-16)
         .map(
           (message) => `
@@ -4401,21 +4646,29 @@ function getAuthFormValues() {
 
 function toggleProfilePanel() {
   if (!getCurrentUser()) {
-    showToast("请先登入，再编辑个人资料。");
+    showToast("请先登入，再查看我的主页。");
     return;
   }
 
   isProfilePanelOpen = !isProfilePanelOpen;
+  profilePanelView = "home";
+  editingWorldMessageId = "";
   clearPendingProfileAvatarImage({ renderPreview: false });
   isNotificationPanelOpen = false;
   isMoreMenuOpen = false;
   isFeedbackPanelOpen = false;
   isSettingsPanelOpen = false;
   renderTopUserTools();
+
+  if (isProfilePanelOpen) {
+    syncMyWorldMessages({ silent: true });
+  }
 }
 
 function closeProfilePanel() {
   isProfilePanelOpen = false;
+  profilePanelView = "home";
+  editingWorldMessageId = "";
   clearPendingProfileAvatarImage();
   renderTopUserTools();
 }
@@ -4485,6 +4738,8 @@ function openProfileFromSettings(target = "profile") {
 
   isSettingsPanelOpen = false;
   isProfilePanelOpen = true;
+  profilePanelView = "edit";
+  editingWorldMessageId = "";
   isMoreMenuOpen = false;
   isNotificationPanelOpen = false;
   isFeedbackPanelOpen = false;
@@ -4756,6 +5011,18 @@ async function saveProfileChanges() {
       avatarUrl: getUserAvatarUrl(updatedUser),
     };
   });
+  myWorldMessages = myWorldMessages.map((message) => {
+    if (!oldNames.has(message.user)) {
+      return message;
+    }
+
+    return {
+      ...message,
+      user: getUserDisplayName(updatedUser),
+      avatar: getUserAvatar(updatedUser),
+      avatarUrl: getUserAvatarUrl(updatedUser),
+    };
+  });
 
   clearPendingProfileAvatarImage();
   isProfilePanelOpen = false;
@@ -4903,7 +5170,12 @@ function normalizeWorldMessage(message) {
     text: message.text || "",
     attachment: message.attachment || null,
     createdAt: message.createdAt || new Date().toISOString(),
+    updatedAt: message.updatedAt || "",
     time: message.time || formatWorldTime(message.createdAt),
+    likeCount: Number(message.likeCount) || 0,
+    isDeleted: message.isDeleted === true,
+    deletedAt: message.deletedAt || "",
+    deletedBy: message.deletedBy || "",
   };
 }
 
@@ -4912,10 +5184,17 @@ function mergeWorldMessages(currentMessages, incomingMessages) {
 
   [...currentMessages, ...incomingMessages].forEach((message) => {
     const normalizedMessage = normalizeWorldMessage(message);
+
+    if (isDeletedWorldMessageClient(normalizedMessage)) {
+      merged.delete(normalizedMessage.id);
+      return;
+    }
+
     merged.set(normalizedMessage.id, normalizedMessage);
   });
 
   return [...merged.values()]
+    .filter((message) => !isDeletedWorldMessageClient(message))
     .sort((left, right) => String(left.createdAt).localeCompare(String(right.createdAt)))
     .slice(-80);
 }
@@ -4964,6 +5243,179 @@ async function syncWorldMessages() {
   }
 }
 
+async function syncMyWorldMessages(options = {}) {
+  const { silent = false } = options;
+  const currentUser = getCurrentUser();
+
+  if (!currentUser || isMyWorldMessagesLoading) {
+    return;
+  }
+
+  isMyWorldMessagesLoading = true;
+  myWorldMessagesError = "";
+
+  if (isProfilePanelOpen && profilePanelView === "home" && !silent) {
+    renderProfilePanel();
+  }
+
+  try {
+    const response = await fetch(`${WORLD_CHANNEL_ENDPOINT}?mine=1&limit=20`, {
+      headers: getAuthHeaders(),
+      cache: "no-store",
+    });
+    const payload = await readJsonResponse(response);
+
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.detail || payload.error || "读取我的动态失败");
+    }
+
+    myWorldMessages = Array.isArray(payload.messages)
+      ? payload.messages
+        .map(normalizeWorldMessage)
+        .filter((message) => isOwnWorldMessage(message, currentUser))
+        .filter((message) => !isDeletedWorldMessageClient(message))
+        .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))
+        .slice(0, 20)
+      : [];
+  } catch (error) {
+    myWorldMessagesError = "我的动态暂时读取失败，可以稍后再刷新。";
+    reportClientError(error, {
+      type: "world-profile-sync-failed",
+      source: WORLD_CHANNEL_ENDPOINT,
+    });
+
+    if (!silent) {
+      showToast(error.message || "我的动态暂时读取失败。");
+    }
+  } finally {
+    isMyWorldMessagesLoading = false;
+
+    if (isProfilePanelOpen && profilePanelView === "home") {
+      renderProfilePanel();
+    }
+  }
+}
+
+async function updateOwnWorldMessage(messageId, text) {
+  const response = await fetch(WORLD_CHANNEL_ENDPOINT, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      id: messageId,
+      text,
+    }),
+  });
+  const payload = await readJsonResponse(response);
+
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.detail || payload.error || "内容暂时保存不了");
+  }
+
+  return payload.message;
+}
+
+async function deleteOwnWorldMessage(messageId) {
+  const response = await fetch(WORLD_CHANNEL_ENDPOINT, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      id: messageId,
+    }),
+  });
+  const payload = await readJsonResponse(response);
+
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.detail || payload.error || "内容暂时移除不了");
+  }
+
+  return payload;
+}
+
+async function saveMyWorldMessageEdit(messageId) {
+  const textarea = document.querySelector("#myProfileEditText");
+  const text = textarea?.value.trim() || "";
+
+  if (!messageId) {
+    return;
+  }
+
+  if (!text) {
+    showToast("文字内容不能为空。");
+    return;
+  }
+
+  try {
+    const message = await updateOwnWorldMessage(messageId, text);
+    state.worldMessages = mergeWorldMessages(state.worldMessages, [message]);
+    myWorldMessages = mergeMyWorldMessageCache(myWorldMessages, message);
+    editingWorldMessageId = "";
+    saveState();
+    renderWorldChannel();
+    renderProfilePanel();
+    showToast("内容已更新。");
+  } catch (error) {
+    reportClientError(error, {
+      type: "world-message-edit-failed",
+      source: WORLD_CHANNEL_ENDPOINT,
+    });
+    showToast(error.message || "内容暂时保存不了。");
+  }
+}
+
+async function removeMyWorldMessage(messageId) {
+  if (!messageId) {
+    return;
+  }
+
+  if (!window.confirm("移除后，世界频道不再显示这条内容。确定要移除吗？")) {
+    return;
+  }
+
+  try {
+    await deleteOwnWorldMessage(messageId);
+    removeWorldMessageFromLocalCaches(messageId);
+    editingWorldMessageId = "";
+    saveState();
+    renderWorldChannel();
+    renderProfilePanel();
+    showToast("内容已移除。");
+  } catch (error) {
+    reportClientError(error, {
+      type: "world-message-delete-failed",
+      source: WORLD_CHANNEL_ENDPOINT,
+    });
+    showToast(error.message || "内容暂时移除不了。");
+  }
+}
+
+function mergeMyWorldMessageCache(messages, message) {
+  const currentUser = getCurrentUser();
+  const normalizedMessage = normalizeWorldMessage(message);
+
+  if (!isOwnWorldMessage(normalizedMessage, currentUser) || isDeletedWorldMessageClient(normalizedMessage)) {
+    return messages.filter((item) => item.id !== normalizedMessage.id);
+  }
+
+  const merged = new Map(messages.map((item) => [item.id, normalizeWorldMessage(item)]));
+  merged.set(normalizedMessage.id, normalizedMessage);
+
+  return [...merged.values()]
+    .filter((item) => !isDeletedWorldMessageClient(item))
+    .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))
+    .slice(0, 20);
+}
+
+function removeWorldMessageFromLocalCaches(messageId) {
+  state.worldMessages = state.worldMessages.filter((message) => message.id !== messageId);
+  myWorldMessages = myWorldMessages.filter((message) => message.id !== messageId);
+}
+
 async function postWorldMessage({ text, attachment }) {
   const response = await fetch(WORLD_CHANNEL_ENDPOINT, {
     method: "POST",
@@ -4987,6 +5439,7 @@ async function postWorldMessage({ text, attachment }) {
 
 function addWorldMessage(message) {
   state.worldMessages = mergeWorldMessages(state.worldMessages, [message]);
+  myWorldMessages = mergeMyWorldMessageCache(myWorldMessages, message);
   state.worldOpen = true;
   saveState();
   render();
