@@ -1768,18 +1768,20 @@ const APP_VERSION = "0.6.2";
 const RELEASE_NOTES = [
   {
     version: "0.6.2",
-    title: "图片裁剪体验修正",
-    date: "2026-06-10",
-    summary: "这次主要修正手机端图片裁剪和预览的操作体验。",
+    title: "图片裁剪与缓存优化",
+    date: "2026-06-11",
+    summary: "这次主要优化了头像与世界频道图片的裁剪手势交互，并加强了登出清理机制。",
     userChanges: [
-      "图片裁剪弹窗在手机上更容易操作。",
-      "发送图片前的确认和取消按钮不会被挡住。",
-      "图片上传失败时会显示更清楚的提示。",
+      "头像裁剪可以拖动调整位置",
+      "头像裁剪支持鼠标滚轮缩放和手机双指缩放",
+      "世界频道发图前可以调整图片比例和位置",
+      "登出后会清空本机记录",
     ],
     technicalChanges: [
-      "Improved mobile safe-area handling for crop modals.",
-      "Improved crop preview overflow handling.",
-      "Improved image upload error state reset.",
+      "Added pixel-based crop pan and zoom handling.",
+      "Added mouse wheel and pinch zoom support.",
+      "Improved crop boundary constraints.",
+      "Improved logout local-state cleanup.",
     ],
   },
   {
@@ -3320,6 +3322,9 @@ function renderWorldControls() {
         <div class="custom-actions">
           <button class="primary-button compact-primary" id="authSubmitButton" type="submit">${isRegisterMode ? "创建账号" : "登入"}</button>
           <button class="secondary-button" id="authSwitchButton" type="button">${isRegisterMode ? "已有账号？去登入" : "没有账号？去注册"}</button>
+          ${isTestAccountVisible() ? `
+            <button class="secondary-button" id="authTestAccountButton" type="button" style="border-color: rgba(96, 199, 160, 0.4); color: #2e6b4e; background: rgba(245, 255, 250, 0.8);">使用测试账号</button>
+          ` : ""}
         </div>
         <ul class="auth-hint-list">
           <li>登入后可以发文字和图片；图片会先预览，点发送才发出。</li>
@@ -3345,6 +3350,19 @@ function renderWorldControls() {
       button.addEventListener("click", () => setAuthMode(button.dataset.authMode));
     });
     document.querySelector("#authSwitchButton").addEventListener("click", () => setAuthMode(isRegisterMode ? "login" : "register"));
+    if (isTestAccountVisible()) {
+      document.querySelector("#authTestAccountButton")?.addEventListener("click", () => {
+        const usernameInput = document.querySelector("#authUsername");
+        const passwordInput = document.querySelector("#authPassword");
+        const confirmInput = document.querySelector("#authConfirmPassword");
+
+        if (usernameInput) usernameInput.value = "test_dev_user";
+        if (passwordInput) passwordInput.value = "test_dev_pwd";
+        if (confirmInput) confirmInput.value = "test_dev_pwd";
+
+        showToast("已自动填入测试账号，请点击提交按钮进行注册或登录。");
+      });
+    }
     document.querySelector("#authForm").addEventListener("submit", (event) => {
       event.preventDefault();
       if (authMode === "register") {
@@ -4979,31 +4997,97 @@ function getBaseCropRect(width, height, aspectRatio) {
   };
 }
 
-function getAdjustedCropRect(image, options) {
-  const aspectRatio = options.aspectRatio || null;
-  const zoom = Math.min(Math.max(Number(options.zoom) || 1, 1), 3);
-  const offsetX = Math.min(Math.max(Number(options.offsetX) || 0, -100), 100);
-  const offsetY = Math.min(Math.max(Number(options.offsetY) || 0, -100), 100);
-  const baseCrop = getBaseCropRect(image.naturalWidth || image.width, image.naturalHeight || image.height, aspectRatio);
+function getCropGeometry(imageWidth, imageHeight, frameWidth, frameHeight, zoom, panX, panY) {
+  const R_f = frameWidth / frameHeight;
+  const R_i = imageWidth / imageHeight;
 
-  if (!aspectRatio) {
-    return baseCrop;
+  let wFit, hFit;
+  if (R_i > R_f) {
+    hFit = frameHeight;
+    wFit = frameHeight * R_i;
+  } else {
+    wFit = frameWidth;
+    hFit = frameWidth / R_i;
   }
 
-  const cropWidth = baseCrop.width / zoom;
-  const cropHeight = baseCrop.height / zoom;
-  const maxOffsetX = (baseCrop.width - cropWidth) / 2;
-  const maxOffsetY = (baseCrop.height - cropHeight) / 2;
-  const centerX = baseCrop.x + baseCrop.width / 2 + (maxOffsetX * offsetX) / 100;
-  const centerY = baseCrop.y + baseCrop.height / 2 + (maxOffsetY * offsetY) / 100;
-  const imageWidth = image.naturalWidth || image.width;
-  const imageHeight = image.naturalHeight || image.height;
+  // Constrain zoom
+  zoom = Math.min(Math.max(zoom, 1), 3);
+
+  // Constrain pan to keep image covering the frame
+  const maxPanX = Math.max(0, (wFit * zoom - frameWidth) / 2);
+  const maxPanY = Math.max(0, (hFit * zoom - frameHeight) / 2);
+  panX = Math.min(Math.max(panX, -maxPanX), maxPanX);
+  panY = Math.min(Math.max(panY, -maxPanY), maxPanY);
+
+  const S = imageWidth / wFit;
+  const wCrop = (S * frameWidth) / zoom;
+  const hCrop = (S * frameHeight) / zoom;
+  const xCrop = imageWidth / 2 - (S * (frameWidth / 2 + panX)) / zoom;
+  const yCrop = imageHeight / 2 - (S * (frameHeight / 2 + panY)) / zoom;
 
   return {
-    x: Math.min(Math.max(centerX - cropWidth / 2, 0), imageWidth - cropWidth),
-    y: Math.min(Math.max(centerY - cropHeight / 2, 0), imageHeight - cropHeight),
-    width: cropWidth,
-    height: cropHeight,
+    wFit,
+    hFit,
+    zoom,
+    panX,
+    panY,
+    x: Math.min(Math.max(xCrop, 0), imageWidth - wCrop),
+    y: Math.min(Math.max(yCrop, 0), imageHeight - hCrop),
+    width: wCrop,
+    height: hCrop,
+  };
+}
+
+function getAdjustedCropRect(image, options, frameWidth = 260, frameHeight = 260) {
+  const aspectRatio = options.aspectRatio || null;
+  if (!aspectRatio) {
+    return {
+      x: 0,
+      y: 0,
+      width: image.naturalWidth || image.width,
+      height: image.naturalHeight || image.height,
+    };
+  }
+
+  const zoom = Math.min(Math.max(Number(options.zoom) || 1, 1), 3);
+  let panX = 0;
+  let panY = 0;
+
+  if (options.panX !== undefined || options.panY !== undefined) {
+    panX = Number(options.panX) || 0;
+    panY = Number(options.panY) || 0;
+  } else if (options.offsetX !== undefined || options.offsetY !== undefined) {
+    const R_f = frameWidth / frameHeight;
+    const R_i = (image.naturalWidth || image.width) / (image.naturalHeight || image.height);
+    let wFit, hFit;
+    if (R_i > R_f) {
+      hFit = frameHeight;
+      wFit = frameHeight * R_i;
+    } else {
+      wFit = frameWidth;
+      hFit = frameWidth / R_i;
+    }
+    const maxPanX = Math.max(0, (wFit * zoom - frameWidth) / 2);
+    const maxPanY = Math.max(0, (hFit * zoom - frameHeight) / 2);
+    panX = (options.offsetX / 100) * maxPanX;
+    panY = (options.offsetY / 100) * maxPanY;
+  }
+
+  const geom = getCropGeometry(
+    image.naturalWidth || image.width,
+    image.naturalHeight || image.height,
+    frameWidth,
+    frameHeight,
+    zoom,
+    panX,
+    panY
+  );
+
+  return {
+    x: geom.x,
+    y: geom.y,
+    width: geom.width,
+    height: geom.height,
   };
 }
 
@@ -5037,12 +5121,17 @@ async function processImageFile(file, options = {}) {
   try {
     const image = await loadImageFromUrl(objectUrl);
     const aspectRatio = options.aspectRatio || null;
+    const frameWidth = options.frameWidth || 260;
+    const frameHeight = options.frameHeight || (aspectRatio ? Math.round(260 / aspectRatio) : 260);
+
     const crop = getAdjustedCropRect(image, {
       aspectRatio,
       zoom: options.zoom,
+      panX: options.panX,
+      panY: options.panY,
       offsetX: options.offsetX,
       offsetY: options.offsetY,
-    });
+    }, frameWidth, frameHeight);
     const outputSize = getOutputSize(crop.width, crop.height, aspectRatio, options.maxSide || WORLD_IMAGE_MAX_SIDE);
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d", { alpha: false });
@@ -5085,6 +5174,194 @@ function revokeObjectUrl(url) {
 
 function getWorldCropMode(mode) {
   return WORLD_IMAGE_CROP_MODES[mode] ? mode : "original";
+}
+
+function isDevEnv() {
+  const hostname = window.location.hostname;
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.startsWith("192.168.") ||
+    hostname.startsWith("10.") ||
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname)
+  );
+}
+
+function isTestAccountVisible() {
+  const hostname = window.location.hostname;
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.startsWith("192.168.") ||
+    hostname.startsWith("10.") ||
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname) ||
+    (hostname.endsWith(".vercel.app") && hostname.includes("-git-"))
+  );
+}
+
+function setupCropGestures(frameEl, imgEl, getCropState, updateCallback) {
+  if (!frameEl || !imgEl) return;
+
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+  let startPanX = 0;
+  let startPanY = 0;
+
+  // Touch zoom state
+  let startTouchDist = 0;
+  let startZoom = 1;
+  let startMidX = 0;
+  let startMidY = 0;
+
+  const getTouchDist = (touches) => {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const handleStart = (clientX, clientY, isTouch, touches) => {
+    const state = getCropState();
+    if (!state || state.mode === "original") return;
+
+    isDragging = true;
+    startX = clientX;
+    startY = clientY;
+    startPanX = state.panX || 0;
+    startPanY = state.panY || 0;
+
+    // Disable transition for real-time drag responsiveness
+    imgEl.style.transition = "none";
+
+    if (isTouch && touches && touches.length >= 2) {
+      startTouchDist = getTouchDist(touches);
+      startZoom = state.zoom || 1;
+      startMidX = (touches[0].clientX + touches[1].clientX) / 2;
+      startMidY = (touches[0].clientY + touches[1].clientY) / 2;
+    }
+  };
+
+  const handleMove = (clientX, clientY, isTouch, touches, event) => {
+    if (!isDragging) return;
+    const state = getCropState();
+    if (!state || state.mode === "original") return;
+
+    if (isTouch && event.cancelable) {
+      event.preventDefault(); // prevent elastic bounce / scroll
+    }
+
+    if (isTouch && touches && touches.length >= 2 && startTouchDist > 0) {
+      const currentDist = getTouchDist(touches);
+      if (currentDist > 0) {
+        const factor = currentDist / startTouchDist;
+        let newZoom = startZoom * factor;
+        newZoom = Math.min(Math.max(newZoom, 1), 3);
+
+        const currentMidX = (touches[0].clientX + touches[1].clientX) / 2;
+        const currentMidY = (touches[0].clientY + touches[1].clientY) / 2;
+        const dx = currentMidX - startMidX;
+        const dy = currentMidY - startMidY;
+
+        updateCallback(newZoom, startPanX + dx, startPanY + dy);
+      }
+    } else {
+      const dx = clientX - startX;
+      const dy = clientY - startY;
+      updateCallback(state.zoom || 1, startPanX + dx, startPanY + dy);
+    }
+  };
+
+  const handleEnd = () => {
+    isDragging = false;
+    startTouchDist = 0;
+    // Restore transition
+    imgEl.style.transition = "";
+  };
+
+  // Mouse handlers
+  const onMouseDown = (e) => {
+    if (e.button !== 0) return; // Only left click
+    const state = getCropState();
+    if (state && state.mode === "original") return;
+
+    e.preventDefault(); // Prevent text selection
+    handleStart(e.clientX, e.clientY, false, null);
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  };
+
+  const onMouseMove = (e) => {
+    handleMove(e.clientX, e.clientY, false, null, e);
+  };
+
+  const onMouseUp = () => {
+    handleEnd();
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
+  };
+
+  frameEl.addEventListener("mousedown", onMouseDown);
+
+  // Touch handlers
+  const onTouchStart = (e) => {
+    const state = getCropState();
+    if (state && state.mode === "original") return;
+
+    if (e.touches.length === 1) {
+      handleStart(e.touches[0].clientX, e.touches[0].clientY, true, e.touches);
+    } else if (e.touches.length >= 2) {
+      if (e.cancelable) e.preventDefault();
+      handleStart(0, 0, true, e.touches);
+    }
+  };
+
+  const onTouchMove = (e) => {
+    const state = getCropState();
+    if (state && state.mode === "original") return;
+
+    if (e.touches.length === 1) {
+      handleMove(e.touches[0].clientX, e.touches[0].clientY, true, e.touches, e);
+    } else if (e.touches.length >= 2) {
+      if (e.cancelable) e.preventDefault();
+      handleMove(0, 0, true, e.touches, e);
+    }
+  };
+
+  const onTouchEnd = (e) => {
+    handleEnd();
+  };
+
+  frameEl.addEventListener("touchstart", onTouchStart, { passive: false });
+  frameEl.addEventListener("touchmove", onTouchMove, { passive: false });
+  frameEl.addEventListener("touchend", onTouchEnd, { passive: true });
+  frameEl.addEventListener("touchcancel", onTouchEnd, { passive: true });
+
+  // Wheel zoom
+  const onWheel = (e) => {
+    const state = getCropState();
+    if (!state || state.mode === "original") return;
+    e.preventDefault();
+
+    let newZoom = (state.zoom || 1) + (e.deltaY < 0 ? 0.15 : -0.15);
+    newZoom = Math.min(Math.max(newZoom, 1), 3);
+
+    updateCallback(newZoom, state.panX || 0, state.panY || 0);
+  };
+
+  frameEl.addEventListener("wheel", onWheel, { passive: false });
+
+  // Return cleanup destructor
+  return () => {
+    frameEl.removeEventListener("mousedown", onMouseDown);
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
+    frameEl.removeEventListener("touchstart", onTouchStart);
+    frameEl.removeEventListener("touchmove", onTouchMove);
+    frameEl.removeEventListener("touchend", onTouchEnd);
+    frameEl.removeEventListener("touchcancel", onTouchEnd);
+    frameEl.removeEventListener("wheel", onWheel);
+  };
 }
 
 function getAvatarCropValues() {
@@ -5576,10 +5853,27 @@ async function loginUser() {
 }
 
 function logoutUser() {
+  const currentUsername = state.auth.currentUser;
+  if (currentUsername) {
+    state.users = state.users.filter((u) => u.username !== currentUsername);
+  }
+  state.history = [];
+
+  const input = document.querySelector("#worldMessageInput");
+  if (input) {
+    input.value = "";
+  }
+
+  clearPendingWorldImage({ resetInput: true });
+  clearPendingProfileAvatarImage({ resetInput: true, renderPreview: false });
+  activeAvatarCrop = null;
+  activeWorldCrop = null;
+  shouldRemoveProfileAvatarImage = false;
+
   clearAuthSession();
   render();
   syncFromCloud();
-  showToast("已登出账号。");
+  showToast("已登出，并清空本机记录。");
 }
 
 function formatWorldTime(createdAt) {
