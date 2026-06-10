@@ -2210,6 +2210,167 @@ button {
   color: var(--muted);
 }
 
+.profile-back-button {
+  justify-self: start;
+}
+
+.my-profile-page {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.my-profile-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(96, 199, 160, 0.2);
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(96, 199, 160, 0.14), rgba(255, 255, 255, 0.72)),
+    rgba(255, 255, 255, 0.68);
+}
+
+.my-profile-avatar {
+  width: 68px;
+  height: 68px;
+  font-size: 1.35rem;
+}
+
+.my-profile-identity {
+  min-width: 0;
+}
+
+.my-profile-identity strong,
+.my-profile-identity small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.my-profile-identity strong {
+  color: #4d3025;
+  font-size: 1.12rem;
+  line-height: 1.25;
+}
+
+.my-profile-identity small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.my-profile-actions,
+.my-profile-message-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.my-profile-actions > button,
+.my-profile-message-actions > button {
+  width: 100%;
+  min-width: 0;
+}
+
+.my-profile-feed {
+  display: grid;
+  gap: 10px;
+}
+
+.my-profile-feed-heading,
+.my-profile-message-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.my-profile-feed-heading strong,
+.my-profile-feed-heading small,
+.my-profile-message-header span,
+.my-profile-message-header small {
+  display: block;
+}
+
+.my-profile-feed-heading small,
+.my-profile-message-header {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.my-profile-message-list {
+  display: grid;
+  gap: 10px;
+}
+
+.my-profile-message,
+.my-profile-empty,
+.my-profile-error {
+  min-width: 0;
+  border: 1px solid rgba(80, 45, 24, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.my-profile-message {
+  display: grid;
+  gap: 9px;
+  padding: 11px;
+}
+
+.my-profile-message-text {
+  margin: 0;
+  color: #5f4638;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.my-profile-message .world-image-link {
+  margin-top: 0;
+}
+
+.my-profile-message .world-image-link img {
+  max-height: 180px;
+}
+
+.my-profile-edit {
+  display: grid;
+  gap: 6px;
+}
+
+.my-profile-edit textarea {
+  min-height: 88px;
+  max-height: 180px;
+  resize: vertical;
+}
+
+.my-profile-edit small,
+.my-profile-empty small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.my-profile-empty {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  color: #5f4638;
+}
+
+.my-profile-error {
+  margin: 0;
+  padding: 10px 12px;
+  color: #8a4b21;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  background: rgba(255, 236, 214, 0.66);
+}
+
 .toast {
   position: fixed;
   right: 24px;
@@ -2332,6 +2493,36 @@ button {
 
   .settings-utility-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .my-profile-page {
+    gap: 10px;
+  }
+
+  .my-profile-hero {
+    padding: 10px;
+  }
+
+  .my-profile-avatar {
+    width: 58px;
+    height: 58px;
+  }
+
+  .my-profile-actions,
+  .my-profile-message-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .my-profile-message {
+    padding: 10px;
+  }
+
+  .my-profile-message-text {
+    font-size: 0.9rem;
+  }
+
+  .my-profile-message .world-image-link img {
+    max-height: 160px;
   }
 
   .release-notes-heading {
