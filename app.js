@@ -5367,8 +5367,8 @@ function setupCropGestures(frameEl, imgEl, getCropState, updateCallback) {
 function getAvatarCropValues() {
   return {
     zoom: Number(document.querySelector("#avatarCropZoom")?.value || 1),
-    offsetX: Number(document.querySelector("#avatarCropOffsetX")?.value || 0),
-    offsetY: Number(document.querySelector("#avatarCropOffsetY")?.value || 0),
+    panX: activeAvatarCrop?.panX || 0,
+    panY: activeAvatarCrop?.panY || 0,
   };
 }
 
@@ -5386,7 +5386,27 @@ function updateAvatarCropPreview() {
   };
 
   if (image) {
-    image.style.transform = `translate(${values.offsetX * 0.18}%, ${values.offsetY * 0.18}%) scale(${values.zoom})`;
+    const imageWidth = image.naturalWidth || image.width || 300;
+    const imageHeight = image.naturalHeight || image.height || 300;
+    const frameWidth = 260;
+    const frameHeight = 260;
+    const R_f = frameWidth / frameHeight;
+    const R_i = imageWidth / imageHeight;
+    let wFit, hFit;
+    if (R_i > R_f) {
+      hFit = frameHeight;
+      wFit = frameHeight * R_i;
+    } else {
+      wFit = frameWidth;
+      hFit = frameWidth / R_i;
+    }
+    const maxPanX = Math.max(0, (wFit * activeAvatarCrop.zoom - frameWidth) / 2);
+    const maxPanY = Math.max(0, (hFit * activeAvatarCrop.zoom - frameHeight) / 2);
+
+    activeAvatarCrop.panX = Math.min(Math.max(activeAvatarCrop.panX, -maxPanX), maxPanX);
+    activeAvatarCrop.panY = Math.min(Math.max(activeAvatarCrop.panY, -maxPanY), maxPanY);
+
+    image.style.transform = `translate(${activeAvatarCrop.panX}px, ${activeAvatarCrop.panY}px) scale(${activeAvatarCrop.zoom})`;
   }
 }
 
@@ -5403,8 +5423,8 @@ function openAvatarCropModal(file) {
     file,
     previewUrl: URL.createObjectURL(file),
     zoom: 1,
-    offsetX: 0,
-    offsetY: 0,
+    panX: 0,
+    panY: 0,
     previousPending,
     previousShouldRemove,
     previousStatusText,
@@ -5438,11 +5458,11 @@ function renderAvatarCropModal() {
       <div class="image-crop-body">
         <div class="avatar-crop-layout">
           <div class="image-crop-frame is-circle">
-            <img id="avatarCropImage" src="${escapeHtml(activeAvatarCrop.previewUrl)}" alt="头像裁剪预览" />
+            <img id="avatarCropImage" src="${escapeHtml(activeAvatarCrop.previewUrl)}" alt="头像裁剪预览" style="width: 100%; height: 100%; object-fit: cover; transform-origin: center; transition: none; pointer-events: none; user-select: none;" />
           </div>
           <div class="avatar-crop-tips">
             <strong>圆形预览</strong>
-            <small>拖动下面的滑杆调整缩放和位置。</small>
+            <small>拖动图片调整位置，滚轮或双指可以放大缩小。</small>
           </div>
         </div>
         <div class="crop-control-grid">
@@ -5450,14 +5470,11 @@ function renderAvatarCropModal() {
             <span>缩放</span>
             <input id="avatarCropZoom" type="range" min="1" max="3" step="0.01" value="${activeAvatarCrop.zoom}" />
           </label>
-          <label>
-            <span>左右位置</span>
-            <input id="avatarCropOffsetX" type="range" min="-100" max="100" step="1" value="${activeAvatarCrop.offsetX}" />
-          </label>
-          <label>
-            <span>上下位置</span>
-            <input id="avatarCropOffsetY" type="range" min="-100" max="100" step="1" value="${activeAvatarCrop.offsetY}" />
-          </label>
+          <div class="crop-zoom-buttons">
+            <button type="button" class="secondary-button compact-button" id="avatarCropZoomOut">-</button>
+            <button type="button" class="secondary-button compact-button" id="avatarCropZoomIn">+</button>
+            <button type="button" class="secondary-button compact-button" id="avatarCropReset">重置</button>
+          </div>
         </div>
       </div>
       <div class="image-crop-actions">
@@ -5467,11 +5484,71 @@ function renderAvatarCropModal() {
     </div>
   `;
   modal.hidden = false;
-  modal.querySelector("#avatarCropCancelTop").addEventListener("click", () => closeAvatarCropModal({ resetInput: true }));
-  modal.querySelector("#avatarCropCancelButton").addEventListener("click", () => closeAvatarCropModal({ resetInput: true }));
+
+  const closeBtn = () => closeAvatarCropModal({ resetInput: true });
+  modal.querySelector("#avatarCropCancelTop").addEventListener("click", closeBtn);
+  modal.querySelector("#avatarCropCancelButton").addEventListener("click", closeBtn);
   modal.querySelector("#avatarCropConfirmButton").addEventListener("click", confirmAvatarCrop);
-  modal.querySelectorAll("input[type='range']").forEach((input) => input.addEventListener("input", updateAvatarCropPreview));
-  updateAvatarCropPreview();
+
+  const zoomSlider = modal.querySelector("#avatarCropZoom");
+  zoomSlider.addEventListener("input", () => {
+    if (activeAvatarCrop) {
+      activeAvatarCrop.zoom = Number(zoomSlider.value);
+      updateAvatarCropPreview();
+    }
+  });
+
+  modal.querySelector("#avatarCropZoomIn").addEventListener("click", () => {
+    if (activeAvatarCrop) {
+      activeAvatarCrop.zoom = Math.min(3, activeAvatarCrop.zoom + 0.1);
+      zoomSlider.value = activeAvatarCrop.zoom;
+      updateAvatarCropPreview();
+    }
+  });
+  modal.querySelector("#avatarCropZoomOut").addEventListener("click", () => {
+    if (activeAvatarCrop) {
+      activeAvatarCrop.zoom = Math.max(1, activeAvatarCrop.zoom - 0.1);
+      zoomSlider.value = activeAvatarCrop.zoom;
+      updateAvatarCropPreview();
+    }
+  });
+  modal.querySelector("#avatarCropReset").addEventListener("click", () => {
+    if (activeAvatarCrop) {
+      activeAvatarCrop.zoom = 1;
+      activeAvatarCrop.panX = 0;
+      activeAvatarCrop.panY = 0;
+      zoomSlider.value = 1;
+      updateAvatarCropPreview();
+    }
+  });
+
+  const imgEl = modal.querySelector("#avatarCropImage");
+  imgEl.addEventListener("load", () => {
+    updateAvatarCropPreview();
+    setupAvatarCropGestures();
+  });
+
+  function setupAvatarCropGestures() {
+    if (avatarGestureCleanup) avatarGestureCleanup();
+    const frameEl = modal.querySelector(".image-crop-frame");
+    if (!frameEl || !imgEl) return;
+
+    avatarGestureCleanup = setupCropGestures(
+      frameEl,
+      imgEl,
+      () => activeAvatarCrop,
+      (newZoom, newPanX, newPanY) => {
+        if (!activeAvatarCrop) return;
+        activeAvatarCrop.zoom = newZoom;
+        activeAvatarCrop.panX = newPanX;
+        activeAvatarCrop.panY = newPanY;
+        zoomSlider.value = newZoom;
+        updateAvatarCropPreview();
+      },
+      260,
+      260
+    );
+  }
 }
 
 function closeAvatarCropModal(options = {}) {
@@ -5481,6 +5558,11 @@ function closeAvatarCropModal(options = {}) {
   const previousPending = activeAvatarCrop?.previousPending;
   const previousShouldRemove = activeAvatarCrop?.previousShouldRemove;
   const previousStatusText = activeAvatarCrop?.previousStatusText;
+
+  if (avatarGestureCleanup) {
+    avatarGestureCleanup();
+    avatarGestureCleanup = null;
+  }
 
   if (activeAvatarCrop?.previewUrl) {
     URL.revokeObjectURL(activeAvatarCrop.previewUrl);
@@ -5535,8 +5617,8 @@ async function confirmAvatarCrop() {
       contentType: "image/jpeg",
       suffix: "avatar",
       zoom: crop.zoom,
-      offsetX: crop.offsetX,
-      offsetY: crop.offsetY,
+      panX: crop.panX,
+      panY: crop.panY,
     });
 
     clearPendingProfileAvatarImage({ resetInput: false, renderPreview: false });
