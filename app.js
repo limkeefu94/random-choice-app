@@ -1764,8 +1764,24 @@ const AUTH_ENDPOINT = "/api/auth";
 const WORLD_CHANNEL_ENDPOINT = "/api/world-channel";
 const FEEDBACK_ENDPOINT = "/api/feedback";
 const CLIENT_ERROR_ENDPOINT = "/api/client-error";
-const APP_VERSION = "0.6.1";
+const APP_VERSION = "0.6.2";
 const RELEASE_NOTES = [
+  {
+    version: "0.6.2",
+    title: "图片裁剪体验修正",
+    date: "2026-06-10",
+    summary: "这次主要修正手机端图片裁剪和预览的操作体验。",
+    userChanges: [
+      "图片裁剪弹窗在手机上更容易操作。",
+      "发送图片前的确认和取消按钮不会被挡住。",
+      "图片上传失败时会显示更清楚的提示。",
+    ],
+    technicalChanges: [
+      "Improved mobile safe-area handling for crop modals.",
+      "Improved crop preview overflow handling.",
+      "Improved image upload error state reset.",
+    ],
+  },
   {
     version: "0.6.1",
     title: "图片体验优化",
@@ -5098,13 +5114,23 @@ function updateAvatarCropPreview() {
 }
 
 function openAvatarCropModal(file) {
+  // Save previous state to restore on cancel
+  const previousPending = pendingProfileAvatarImage;
+  const previousShouldRemove = shouldRemoveProfileAvatarImage;
+  const statusEl = document.querySelector("#profileAvatarStatus");
+  const previousStatusText = statusEl ? statusEl.textContent : "";
+
   closeAvatarCropModal({ resetInput: false, silent: true });
+
   activeAvatarCrop = {
     file,
     previewUrl: URL.createObjectURL(file),
     zoom: 1,
     offsetX: 0,
     offsetY: 0,
+    previousPending,
+    previousShouldRemove,
+    previousStatusText,
   };
   renderAvatarCropModal();
 }
@@ -5132,28 +5158,30 @@ function renderAvatarCropModal() {
         </div>
         <button class="ghost-button compact-ghost" id="avatarCropCancelTop" type="button">关闭</button>
       </div>
-      <div class="avatar-crop-layout">
-        <div class="image-crop-frame is-circle">
-          <img id="avatarCropImage" src="${escapeHtml(activeAvatarCrop.previewUrl)}" alt="头像裁剪预览" />
+      <div class="image-crop-body">
+        <div class="avatar-crop-layout">
+          <div class="image-crop-frame is-circle">
+            <img id="avatarCropImage" src="${escapeHtml(activeAvatarCrop.previewUrl)}" alt="头像裁剪预览" />
+          </div>
+          <div class="avatar-crop-tips">
+            <strong>圆形预览</strong>
+            <small>拖动下面的滑杆调整缩放和位置。</small>
+          </div>
         </div>
-        <div class="avatar-crop-tips">
-          <strong>圆形预览</strong>
-          <small>拖动下面的滑杆调整缩放和位置。</small>
+        <div class="crop-control-grid">
+          <label>
+            <span>缩放</span>
+            <input id="avatarCropZoom" type="range" min="1" max="3" step="0.01" value="${activeAvatarCrop.zoom}" />
+          </label>
+          <label>
+            <span>左右位置</span>
+            <input id="avatarCropOffsetX" type="range" min="-100" max="100" step="1" value="${activeAvatarCrop.offsetX}" />
+          </label>
+          <label>
+            <span>上下位置</span>
+            <input id="avatarCropOffsetY" type="range" min="-100" max="100" step="1" value="${activeAvatarCrop.offsetY}" />
+          </label>
         </div>
-      </div>
-      <div class="crop-control-grid">
-        <label>
-          <span>缩放</span>
-          <input id="avatarCropZoom" type="range" min="1" max="3" step="0.01" value="${activeAvatarCrop.zoom}" />
-        </label>
-        <label>
-          <span>左右位置</span>
-          <input id="avatarCropOffsetX" type="range" min="-100" max="100" step="1" value="${activeAvatarCrop.offsetX}" />
-        </label>
-        <label>
-          <span>上下位置</span>
-          <input id="avatarCropOffsetY" type="range" min="-100" max="100" step="1" value="${activeAvatarCrop.offsetY}" />
-        </label>
       </div>
       <div class="image-crop-actions">
         <button class="primary-button compact-primary" id="avatarCropConfirmButton" type="button">使用这个头像</button>
@@ -5173,6 +5201,10 @@ function closeAvatarCropModal(options = {}) {
   const { resetInput = true, silent = false } = options;
   const modal = document.querySelector("#avatarCropModal");
 
+  const previousPending = activeAvatarCrop?.previousPending;
+  const previousShouldRemove = activeAvatarCrop?.previousShouldRemove;
+  const previousStatusText = activeAvatarCrop?.previousStatusText;
+
   if (activeAvatarCrop?.previewUrl) {
     URL.revokeObjectURL(activeAvatarCrop.previewUrl);
   }
@@ -5190,9 +5222,18 @@ function closeAvatarCropModal(options = {}) {
     if (input) {
       input.value = "";
     }
+
+    pendingProfileAvatarImage = previousPending !== undefined ? previousPending : null;
+    shouldRemoveProfileAvatarImage = !!previousShouldRemove;
+    if (previousStatusText) {
+      setProfileAvatarStatus(previousStatusText);
+    } else {
+      setProfileAvatarStatus("可选 PNG / JPG / WebP / GIF，上传前会先裁剪压缩。");
+    }
+    updateProfilePreview();
   }
 
-  if (!silent) {
+  if (!silent && !resetInput) {
     setProfileAvatarStatus("已取消头像裁剪，没有上传新图片。");
   }
 }
@@ -5236,8 +5277,9 @@ async function confirmAvatarCrop() {
       type: "avatar-crop-failed",
       source: "client-canvas",
     });
-    showToast(error.message || "头像处理失败，请换一张图片试试。");
-    setProfileAvatarStatus("头像处理失败，请换一张图片试试。");
+    const friendlyMsg = getFriendlyErrorMessage(error, "头像处理失败，请换一张图片试试。");
+    showToast(friendlyMsg);
+    setProfileAvatarStatus(friendlyMsg);
   } finally {
     const currentConfirmButton = document.querySelector("#avatarCropConfirmButton");
 
@@ -5292,8 +5334,6 @@ function prepareProfileAvatarImage(event) {
     return;
   }
 
-  clearPendingProfileAvatarImage({ resetInput: false });
-  shouldRemoveProfileAvatarImage = false;
   setProfileAvatarStatus("正在打开头像裁剪预览…");
   openAvatarCropModal(file);
 }
@@ -5313,6 +5353,8 @@ function clearPendingProfileAvatarImage(options = {}) {
       input.value = "";
     }
   }
+
+  setProfileAvatarStatus("可选 PNG / JPG / WebP / GIF，上传前会先裁剪压缩。");
 
   if (renderPreview) {
     updateProfilePreview();
@@ -5371,8 +5413,9 @@ async function saveProfileChanges() {
         type: "gcs-upload-failed",
         source: "/api/gcs-upload",
       });
-      setProfileAvatarStatus("头像图片暂时保存不了，请稍后再试。");
-      showToast("头像图片暂时保存不了。");
+      const friendlyMsg = getFriendlyErrorMessage(error, "头像图片暂时保存不了，请稍后再试。");
+      setProfileAvatarStatus(friendlyMsg);
+      showToast(friendlyMsg);
       return;
     }
   }
@@ -5393,7 +5436,7 @@ async function saveProfileChanges() {
       type: "auth-profile-update-failed",
       source: AUTH_ENDPOINT,
     });
-    showToast(error.message || "个人资料暂时保存不了。");
+    showToast(getFriendlyErrorMessage(error, "个人资料暂时保存不了。"));
     return;
   }
 
@@ -5915,7 +5958,7 @@ async function sendWorldMessage() {
       render();
     }
 
-    const errorMessage = error.message || "发送失败，请稍后再试。";
+    const errorMessage = getFriendlyErrorMessage(error, imageToSend ? "图片发送失败，请稍后再试。" : "发送失败，请稍后再试。");
     setUploadStatus(errorMessage);
     showToast(errorMessage);
   } finally {
@@ -6218,6 +6261,34 @@ function redactClientErrorText(value) {
 
 function cleanClientErrorText(value, maxLength) {
   return redactClientErrorText(value).trim().slice(0, maxLength);
+}
+
+function getFriendlyErrorMessage(error, defaultMessage = "操作失败，请稍后再试。") {
+  const msg = String(error?.message || error || "");
+  if (!msg) {
+    return defaultMessage;
+  }
+
+  if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("Network Error")) {
+    return "网络连接失败，请检查网络设置或稍后再试。";
+  }
+  if (msg.includes("413") || msg.includes("too large") || msg.includes("Too Large")) {
+    return "图片太大，请换一张小一点的图片试试。";
+  }
+  if (msg.includes("403") || msg.includes("Forbidden") || msg.includes("没有权限")) {
+    return "您的登录状态已失效，请重新登录。";
+  }
+  if (msg.includes("500") || msg.includes("502") || msg.includes("503") || msg.includes("504")) {
+    return "服务器目前繁忙，请稍后再试。";
+  }
+  if (msg.includes("timeout") || msg.includes("超时")) {
+    return "上传超时，请检查您的网络连接并重试。";
+  }
+  if (msg.includes("upload") || msg.includes("GCS")) {
+    return "图片上传失败，请换个网络或稍后再试。";
+  }
+
+  return msg;
 }
 
 function getErrorMessage(error) {

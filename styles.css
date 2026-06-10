@@ -1239,12 +1239,13 @@ button {
 }
 
 .image-crop-dialog {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   width: min(420px, calc(100vw - 28px));
   max-height: calc(100dvh - 36px);
   gap: 14px;
   padding: 16px;
-  overflow-y: auto;
+  overflow: hidden;
   overscroll-behavior: contain;
   border: 1px solid rgba(255, 255, 255, 0.66);
   border-radius: 26px;
@@ -1253,6 +1254,16 @@ button {
     #fff8ef;
   box-shadow: 0 24px 70px rgba(54, 34, 24, 0.24);
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+}
+
+.image-crop-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: grid;
+  gap: 14px;
+  padding: 2px 0;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .avatar-crop-layout {
@@ -3270,16 +3281,16 @@ button {
   }
 
   .pending-image-preview {
-    grid-template-columns: 56px minmax(0, 1fr) auto;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
     gap: 8px;
-    padding: 8px;
-    border-radius: 14px;
+    padding: 6px 8px;
+    border-radius: 12px;
   }
 
   .pending-image-preview img {
-    width: 56px;
-    height: 44px;
-    border-radius: 11px;
+    width: 48px;
+    height: 38px;
+    border-radius: 9px;
   }
 
   .pending-image-preview strong {
@@ -3300,18 +3311,21 @@ button {
   }
 
   .world-crop-options {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
     gap: 6px;
   }
 
   .world-crop-option {
-    flex: 1 1 calc(50% - 6px);
+    width: auto;
     min-height: 32px;
-    padding: 0 8px;
+    padding: 0 4px;
     font-size: 0.72rem;
+    text-align: center;
   }
 
   .image-crop-modal {
-    align-items: end;
+    align-items: center;
     padding: 10px;
   }
 
@@ -3319,8 +3333,8 @@ button {
     width: min(430px, calc(100vw - 20px));
     max-height: calc(100dvh - 24px);
     padding: 12px;
-    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
-    border-radius: 22px 22px 18px 18px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    border-radius: 22px;
   }
 
   .image-crop-frame {
