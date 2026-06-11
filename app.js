@@ -1768,18 +1768,22 @@ const APP_VERSION = "0.6.2";
 const RELEASE_NOTES = [
   {
     version: "0.6.2",
-    title: "图片裁剪体验修正",
-    date: "2026-06-10",
-    summary: "这次主要修正手机端图片裁剪和预览的操作体验。",
+    title: "图片裁剪交互修复",
+    date: "2026-06-11",
+    summary: "这次重新整理头像和世界频道图片裁剪，让拖动和缩放更稳定。",
     userChanges: [
-      "图片裁剪弹窗在手机上更容易操作。",
-      "发送图片前的确认和取消按钮不会被挡住。",
-      "图片上传失败时会显示更清楚的提示。",
+      "头像裁剪可以拖动调整位置。",
+      "头像裁剪支持鼠标滚轮缩放和手机双指缩放。",
+      "修正头像裁剪弹窗显示层级。",
+      "世界频道发图改为独立裁剪面板，手机上更好操作。",
+      "登出后会清空本机记录和未发送内容。",
     ],
     technicalChanges: [
-      "Improved mobile safe-area handling for crop modals.",
-      "Improved crop preview overflow handling.",
-      "Improved image upload error state reset.",
+      "Rebuilt crop interaction with pan and zoom state.",
+      "Added wheel and pinch zoom support.",
+      "Improved crop modal cleanup and button handling.",
+      "Moved world image crop controls into a top-level modal.",
+      "Improved local-state cleanup on logout.",
     ],
   },
   {
@@ -2044,6 +2048,7 @@ let toastTimer;
 let pendingWorldImage = null;
 let pendingProfileAvatarImage = null;
 let activeAvatarCrop = null;
+let imageCropInteractionCleanups = new Map();
 let isWorldImageProcessing = false;
 let shouldRemoveProfileAvatarImage = false;
 let authMode = "login";
@@ -3388,18 +3393,11 @@ function renderWorldControls() {
       </div>
       <div class="pending-image-preview" id="worldPendingImage" hidden>
         <img id="worldPendingImageThumb" alt="待发送图片缩略图" />
-        <div>
+        <div class="world-crop-copy">
           <strong id="worldPendingImageName"></strong>
-          <small id="worldPendingImageMeta">图片已选择，确认裁剪比例后点「发送消息」。</small>
+          <small id="worldPendingImageMeta">图片已准备，点「发送消息」才上传。</small>
         </div>
         <button class="ghost-button compact-ghost" id="clearWorldImageButton" type="button">移除</button>
-        <div class="world-crop-options" id="worldCropOptions" aria-label="图片裁剪比例">
-          ${Object.entries(WORLD_IMAGE_CROP_MODES).map(([mode, option]) => `
-            <button class="world-crop-option${mode === "original" ? " is-active" : ""}" type="button" data-world-crop-mode="${mode}">
-              ${escapeHtml(option.label)}
-            </button>
-          `).join("")}
-        </div>
       </div>
       <small class="upload-status" id="worldUploadStatus">选择图片后会先预览，可选原图 / 方形 / 横图 / 竖图，点发送才上传。</small>
     </form>
@@ -3411,9 +3409,6 @@ function renderWorldControls() {
   });
   document.querySelector("#worldImageInput").addEventListener("change", prepareWorldImage);
   document.querySelector("#clearWorldImageButton").addEventListener("click", () => clearPendingWorldImage());
-  document.querySelectorAll("[data-world-crop-mode]").forEach((button) => {
-    button.addEventListener("click", () => changeWorldImageCropMode(button.dataset.worldCropMode));
-  });
   updatePendingImagePreview();
 }
 
@@ -4533,8 +4528,30 @@ function applyAuthSession(payload) {
   return user;
 }
 
-function clearAuthSession() {
-  clearPendingWorldImage();
+function clearAuthSession(options = {}) {
+  const { clearLocalRecords = false } = options;
+
+  closeAvatarCropModal({ resetInput: true, silent: true, restorePrevious: false });
+  clearPendingWorldImage({ updateStatus: false });
+  clearPendingProfileAvatarImage({ renderPreview: false });
+  cleanupAllImageCropInteractions();
+  const worldInput = document.querySelector("#worldMessageInput");
+
+  if (worldInput) {
+    worldInput.value = "";
+  }
+
+  if (clearLocalRecords) {
+    state.history = [];
+    state.favorites = [];
+    state.uploads = [];
+    state.currentResult = null;
+    state.users = [];
+    myWorldMessages = [];
+    myWorldMessagesError = "";
+    editingWorldMessageId = "";
+    profilePanelView = "home";
+  }
   state.auth.currentUser = "";
   state.auth.token = "";
   state.userId = ensureAnonymousUserId();
@@ -4979,25 +4996,52 @@ function getBaseCropRect(width, height, aspectRatio) {
   };
 }
 
+function clampNumber(value, min, max, fallback = min) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return fallback;
+  }
+
+  return Math.min(Math.max(number, min), max);
+}
+
+function normalizeCropState(crop = {}) {
+  return {
+    zoom: clampNumber(crop.zoom, 1, 3, 1),
+    panX: clampNumber(crop.panX, -1, 1, 0),
+    panY: clampNumber(crop.panY, -1, 1, 0),
+    mode: crop.mode || "",
+    aspectRatio: crop.aspectRatio || null,
+  };
+}
+
+function createDefaultCropState(overrides = {}) {
+  return normalizeCropState({
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    ...overrides,
+  });
+}
+
 function getAdjustedCropRect(image, options) {
   const aspectRatio = options.aspectRatio || null;
-  const zoom = Math.min(Math.max(Number(options.zoom) || 1, 1), 3);
-  const offsetX = Math.min(Math.max(Number(options.offsetX) || 0, -100), 100);
-  const offsetY = Math.min(Math.max(Number(options.offsetY) || 0, -100), 100);
-  const baseCrop = getBaseCropRect(image.naturalWidth || image.width, image.naturalHeight || image.height, aspectRatio);
+  const cropState = normalizeCropState(options);
+  const imageWidth = image.naturalWidth || image.width;
+  const imageHeight = image.naturalHeight || image.height;
+  const baseCrop = getBaseCropRect(imageWidth, imageHeight, aspectRatio);
 
   if (!aspectRatio) {
     return baseCrop;
   }
 
-  const cropWidth = baseCrop.width / zoom;
-  const cropHeight = baseCrop.height / zoom;
-  const maxOffsetX = (baseCrop.width - cropWidth) / 2;
-  const maxOffsetY = (baseCrop.height - cropHeight) / 2;
-  const centerX = baseCrop.x + baseCrop.width / 2 + (maxOffsetX * offsetX) / 100;
-  const centerY = baseCrop.y + baseCrop.height / 2 + (maxOffsetY * offsetY) / 100;
-  const imageWidth = image.naturalWidth || image.width;
-  const imageHeight = image.naturalHeight || image.height;
+  const cropWidth = baseCrop.width / cropState.zoom;
+  const cropHeight = baseCrop.height / cropState.zoom;
+  const maxOffsetX = (imageWidth - cropWidth) / 2;
+  const maxOffsetY = (imageHeight - cropHeight) / 2;
+  const centerX = imageWidth / 2 - maxOffsetX * cropState.panX;
+  const centerY = imageHeight / 2 - maxOffsetY * cropState.panY;
 
   return {
     x: Math.min(Math.max(centerX - cropWidth / 2, 0), imageWidth - cropWidth),
@@ -5005,6 +5049,314 @@ function getAdjustedCropRect(image, options) {
     width: cropWidth,
     height: cropHeight,
   };
+}
+
+function getCropRenderMetrics(frameEl, imgEl, state) {
+  const frameRect = frameEl.getBoundingClientRect();
+  const frameWidth = Math.max(frameRect.width, 1);
+  const frameHeight = Math.max(frameRect.height, 1);
+  const imageWidth = Math.max(imgEl.naturalWidth || imgEl.width || frameWidth, 1);
+  const imageHeight = Math.max(imgEl.naturalHeight || imgEl.height || frameHeight, 1);
+  const cropState = normalizeCropState(state);
+  const coverScale = Math.max(frameWidth / imageWidth, frameHeight / imageHeight);
+  const baseWidth = imageWidth * coverScale;
+  const baseHeight = imageHeight * coverScale;
+  const displayWidth = baseWidth * cropState.zoom;
+  const displayHeight = baseHeight * cropState.zoom;
+
+  return {
+    frameWidth,
+    frameHeight,
+    imageWidth,
+    imageHeight,
+    baseWidth,
+    baseHeight,
+    displayWidth,
+    displayHeight,
+    maxPanX: Math.max((displayWidth - frameWidth) / 2, 0),
+    maxPanY: Math.max((displayHeight - frameHeight) / 2, 0),
+  };
+}
+
+function applyCropTransform(frameEl, imgEl, state) {
+  const cropState = normalizeCropState(state);
+
+  if (!cropState.aspectRatio) {
+    frameEl.classList.add("is-original");
+    imgEl.style.width = "100%";
+    imgEl.style.height = "100%";
+    imgEl.style.left = "0";
+    imgEl.style.top = "0";
+    imgEl.style.objectFit = "contain";
+    imgEl.style.transform = "none";
+    return cropState;
+  }
+
+  frameEl.classList.remove("is-original");
+  const metrics = getCropRenderMetrics(frameEl, imgEl, cropState);
+  const normalized = normalizeCropState({
+    ...cropState,
+    panX: metrics.maxPanX > 0 ? cropState.panX : 0,
+    panY: metrics.maxPanY > 0 ? cropState.panY : 0,
+  });
+
+  imgEl.style.left = "50%";
+  imgEl.style.top = "50%";
+  imgEl.style.width = `${metrics.baseWidth}px`;
+  imgEl.style.height = `${metrics.baseHeight}px`;
+  imgEl.style.objectFit = "fill";
+  imgEl.style.transform = `translate(-50%, -50%) translate(${normalized.panX * metrics.maxPanX}px, ${normalized.panY * metrics.maxPanY}px) scale(${normalized.zoom})`;
+  return normalized;
+}
+
+function cleanupImageCropInteraction(key) {
+  const cleanup = imageCropInteractionCleanups.get(key);
+
+  if (cleanup) {
+    cleanup();
+    imageCropInteractionCleanups.delete(key);
+  }
+}
+
+function cleanupAllImageCropInteractions() {
+  [...imageCropInteractionCleanups.keys()].forEach(cleanupImageCropInteraction);
+}
+
+function setupImageCropInteraction({ key, frameEl, imgEl, getState, setState, onChange }) {
+  if (!frameEl || !imgEl) {
+    return;
+  }
+
+  cleanupImageCropInteraction(key);
+
+  const pointers = new Map();
+  let dragStart = null;
+  let pinchStart = null;
+
+  const commitState = (nextState, options = {}) => {
+    const mergedState = normalizeCropState({
+      ...getState(),
+      ...nextState,
+    });
+    const normalizedState = applyCropTransform(frameEl, imgEl, mergedState);
+    setState(normalizedState);
+    if (options.notify !== false) {
+      onChange?.(normalizedState);
+    }
+    return normalizedState;
+  };
+
+  const getPointerDistance = (first, second) => Math.hypot(first.x - second.x, first.y - second.y);
+  const getPointerMidpoint = (first, second) => ({
+    x: (first.x + second.x) / 2,
+    y: (first.y + second.y) / 2,
+  });
+  const getPanDelta = (startState, startMetrics, deltaX, deltaY) => ({
+    panX: startState.panX + deltaX / Math.max(startMetrics.maxPanX || startMetrics.frameWidth / 2, 1),
+    panY: startState.panY + deltaY / Math.max(startMetrics.maxPanY || startMetrics.frameHeight / 2, 1),
+  });
+
+  const onPointerDown = (event) => {
+    const currentState = normalizeCropState(getState());
+
+    if (!currentState.aspectRatio || (event.pointerType === "mouse" && event.button !== 0)) {
+      return;
+    }
+
+    event.preventDefault();
+    frameEl.setPointerCapture?.(event.pointerId);
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (pointers.size === 1) {
+      dragStart = {
+        pointer: { x: event.clientX, y: event.clientY },
+        state: currentState,
+        metrics: getCropRenderMetrics(frameEl, imgEl, currentState),
+      };
+      pinchStart = null;
+      frameEl.classList.add("is-dragging");
+      return;
+    }
+
+    if (pointers.size >= 2) {
+      const [first, second] = [...pointers.values()];
+      pinchStart = {
+        distance: getPointerDistance(first, second) || 1,
+        midpoint: getPointerMidpoint(first, second),
+        state: currentState,
+        metrics: getCropRenderMetrics(frameEl, imgEl, currentState),
+      };
+    }
+  };
+
+  const onPointerMove = (event) => {
+    if (!pointers.has(event.pointerId)) {
+      return;
+    }
+
+    event.preventDefault();
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (pointers.size >= 2 && pinchStart) {
+      const [first, second] = [...pointers.values()];
+      const distance = getPointerDistance(first, second) || pinchStart.distance;
+      const midpoint = getPointerMidpoint(first, second);
+      const scale = distance / Math.max(pinchStart.distance, 1);
+      const panDelta = getPanDelta(
+        pinchStart.state,
+        pinchStart.metrics,
+        midpoint.x - pinchStart.midpoint.x,
+        midpoint.y - pinchStart.midpoint.y,
+      );
+
+      commitState({
+        ...panDelta,
+        zoom: pinchStart.state.zoom * scale,
+      });
+      return;
+    }
+
+    if (pointers.size === 1 && dragStart) {
+      const currentPointer = pointers.get(event.pointerId);
+      commitState(getPanDelta(
+        dragStart.state,
+        dragStart.metrics,
+        currentPointer.x - dragStart.pointer.x,
+        currentPointer.y - dragStart.pointer.y,
+      ));
+    }
+  };
+
+  const onPointerEnd = (event) => {
+    pointers.delete(event.pointerId);
+    if (frameEl.hasPointerCapture?.(event.pointerId)) {
+      frameEl.releasePointerCapture(event.pointerId);
+    }
+
+    if (!pointers.size) {
+      dragStart = null;
+      pinchStart = null;
+      frameEl.classList.remove("is-dragging");
+      return;
+    }
+
+    if (pointers.size === 1) {
+      const [pointer] = [...pointers.values()];
+      const currentState = normalizeCropState(getState());
+      dragStart = {
+        pointer,
+        state: currentState,
+        metrics: getCropRenderMetrics(frameEl, imgEl, currentState),
+      };
+      pinchStart = null;
+    }
+  };
+
+  const onWheel = (event) => {
+    const currentState = normalizeCropState(getState());
+
+    if (!currentState.aspectRatio) {
+      return;
+    }
+
+    event.preventDefault();
+    const scale = Math.exp(-event.deltaY * 0.0016);
+    commitState({
+      zoom: currentState.zoom * scale,
+    });
+  };
+
+  const onImageLoad = () => {
+    if (key === "world" && pendingWorldImage && imgEl.naturalWidth && imgEl.naturalHeight) {
+      pendingWorldImage.sourceWidth = imgEl.naturalWidth;
+      pendingWorldImage.sourceHeight = imgEl.naturalHeight;
+      syncWorldCropModalControls();
+    }
+
+    commitState(getState(), { notify: false });
+  };
+  const onDragStart = (event) => event.preventDefault();
+
+  frameEl.addEventListener("pointerdown", onPointerDown);
+  frameEl.addEventListener("pointermove", onPointerMove);
+  frameEl.addEventListener("pointerup", onPointerEnd);
+  frameEl.addEventListener("pointercancel", onPointerEnd);
+  frameEl.addEventListener("lostpointercapture", onPointerEnd);
+  frameEl.addEventListener("wheel", onWheel, { passive: false });
+  imgEl.addEventListener("load", onImageLoad);
+  imgEl.addEventListener("dragstart", onDragStart);
+
+  if (imgEl.complete) {
+    commitState(getState(), { notify: false });
+  }
+
+  imageCropInteractionCleanups.set(key, () => {
+    frameEl.removeEventListener("pointerdown", onPointerDown);
+    frameEl.removeEventListener("pointermove", onPointerMove);
+    frameEl.removeEventListener("pointerup", onPointerEnd);
+    frameEl.removeEventListener("pointercancel", onPointerEnd);
+    frameEl.removeEventListener("lostpointercapture", onPointerEnd);
+    frameEl.removeEventListener("wheel", onWheel);
+    imgEl.removeEventListener("load", onImageLoad);
+    imgEl.removeEventListener("dragstart", onDragStart);
+    frameEl.classList.remove("is-dragging");
+  });
+}
+
+function updateCropZoom(key, delta) {
+  if (key === "avatar" && activeAvatarCrop) {
+    setAvatarCropState({
+      zoom: activeAvatarCrop.crop.zoom + delta,
+    });
+    refreshCropInteractionView("avatar");
+    return;
+  }
+
+  if (key === "world" && pendingWorldImage?.crop) {
+    setWorldCropState({
+      zoom: pendingWorldImage.crop.zoom + delta,
+    }, { invalidateFile: true });
+    refreshCropInteractionView("world");
+  }
+}
+
+function resetCropState(key) {
+  if (key === "avatar" && activeAvatarCrop) {
+    setAvatarCropState(createDefaultCropState({ aspectRatio: 1 }));
+    refreshCropInteractionView("avatar");
+    return;
+  }
+
+  if (key === "world" && pendingWorldImage?.crop) {
+    const mode = getWorldCropMode(pendingWorldImage.mode);
+    setWorldCropState(createDefaultCropState({
+      mode,
+      aspectRatio: WORLD_IMAGE_CROP_MODES[mode].aspectRatio,
+    }), { invalidateFile: true });
+    refreshCropInteractionView("world");
+  }
+}
+
+function refreshCropInteractionView(key) {
+  if (key === "avatar") {
+    const frameEl = document.querySelector("#avatarCropFrame");
+    const imgEl = document.querySelector("#avatarCropImage");
+
+    if (frameEl && imgEl && activeAvatarCrop?.crop) {
+      activeAvatarCrop.crop = applyCropTransform(frameEl, imgEl, activeAvatarCrop.crop);
+      syncAvatarCropControls();
+    }
+    return;
+  }
+
+  if (key === "world") {
+    const frameEl = document.querySelector("#worldCropFrame");
+    const imgEl = document.querySelector("#worldCropImage");
+
+    if (frameEl && imgEl && pendingWorldImage?.crop) {
+      pendingWorldImage.crop = applyCropTransform(frameEl, imgEl, pendingWorldImage.crop);
+    }
+  }
 }
 
 function getOutputSize(sourceWidth, sourceHeight, aspectRatio, maxSide) {
@@ -5040,8 +5392,8 @@ async function processImageFile(file, options = {}) {
     const crop = getAdjustedCropRect(image, {
       aspectRatio,
       zoom: options.zoom,
-      offsetX: options.offsetX,
-      offsetY: options.offsetY,
+      panX: options.panX,
+      panY: options.panY,
     });
     const outputSize = getOutputSize(crop.width, crop.height, aspectRatio, options.maxSide || WORLD_IMAGE_MAX_SIDE);
     const canvas = document.createElement("canvas");
@@ -5087,47 +5439,18 @@ function getWorldCropMode(mode) {
   return WORLD_IMAGE_CROP_MODES[mode] ? mode : "original";
 }
 
-function getAvatarCropValues() {
-  return {
-    zoom: Number(document.querySelector("#avatarCropZoom")?.value || 1),
-    offsetX: Number(document.querySelector("#avatarCropOffsetX")?.value || 0),
-    offsetY: Number(document.querySelector("#avatarCropOffsetY")?.value || 0),
-  };
-}
-
-function updateAvatarCropPreview() {
-  if (!activeAvatarCrop) {
-    return;
-  }
-
-  const values = getAvatarCropValues();
-  const image = document.querySelector("#avatarCropImage");
-
-  activeAvatarCrop = {
-    ...activeAvatarCrop,
-    ...values,
-  };
-
-  if (image) {
-    image.style.transform = `translate(${values.offsetX * 0.18}%, ${values.offsetY * 0.18}%) scale(${values.zoom})`;
-  }
-}
-
 function openAvatarCropModal(file) {
-  // Save previous state to restore on cancel
   const previousPending = pendingProfileAvatarImage;
   const previousShouldRemove = shouldRemoveProfileAvatarImage;
   const statusEl = document.querySelector("#profileAvatarStatus");
   const previousStatusText = statusEl ? statusEl.textContent : "";
 
-  closeAvatarCropModal({ resetInput: false, silent: true });
+  closeAvatarCropModal({ resetInput: false, silent: true, restorePrevious: false });
 
   activeAvatarCrop = {
     file,
     previewUrl: URL.createObjectURL(file),
-    zoom: 1,
-    offsetX: 0,
-    offsetY: 0,
+    crop: createDefaultCropState({ aspectRatio: 1 }),
     previousPending,
     previousShouldRemove,
     previousStatusText,
@@ -5148,7 +5471,9 @@ function renderAvatarCropModal() {
     document.body.appendChild(modal);
   }
 
-  modal.className = "image-crop-modal";
+  cleanupImageCropInteraction("avatar");
+  modal.className = "image-crop-modal avatar-image-crop-modal";
+  modal.tabIndex = -1;
   modal.innerHTML = `
     <div class="image-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="avatarCropTitle">
       <div class="floating-panel-header">
@@ -5160,27 +5485,24 @@ function renderAvatarCropModal() {
       </div>
       <div class="image-crop-body">
         <div class="avatar-crop-layout">
-          <div class="image-crop-frame is-circle">
+          <div class="image-crop-frame is-circle" id="avatarCropFrame">
             <img id="avatarCropImage" src="${escapeHtml(activeAvatarCrop.previewUrl)}" alt="头像裁剪预览" />
           </div>
           <div class="avatar-crop-tips">
             <strong>圆形预览</strong>
-            <small>拖动下面的滑杆调整缩放和位置。</small>
+            <small>拖动图片调整位置，滚轮或双指可以放大缩小。</small>
           </div>
         </div>
         <div class="crop-control-grid">
           <label>
             <span>缩放</span>
-            <input id="avatarCropZoom" type="range" min="1" max="3" step="0.01" value="${activeAvatarCrop.zoom}" />
+            <input id="avatarCropZoom" type="range" min="1" max="3" step="0.01" value="${activeAvatarCrop.crop.zoom}" />
           </label>
-          <label>
-            <span>左右位置</span>
-            <input id="avatarCropOffsetX" type="range" min="-100" max="100" step="1" value="${activeAvatarCrop.offsetX}" />
-          </label>
-          <label>
-            <span>上下位置</span>
-            <input id="avatarCropOffsetY" type="range" min="-100" max="100" step="1" value="${activeAvatarCrop.offsetY}" />
-          </label>
+          <div class="crop-nudge-actions" aria-label="头像缩放快捷按钮">
+            <button class="secondary-button" id="avatarCropZoomOut" type="button">－</button>
+            <button class="secondary-button" id="avatarCropResetButton" type="button">重置</button>
+            <button class="secondary-button" id="avatarCropZoomIn" type="button">＋</button>
+          </div>
         </div>
       </div>
       <div class="image-crop-actions">
@@ -5193,22 +5515,33 @@ function renderAvatarCropModal() {
   modal.querySelector("#avatarCropCancelTop").addEventListener("click", () => closeAvatarCropModal({ resetInput: true }));
   modal.querySelector("#avatarCropCancelButton").addEventListener("click", () => closeAvatarCropModal({ resetInput: true }));
   modal.querySelector("#avatarCropConfirmButton").addEventListener("click", confirmAvatarCrop);
-  modal.querySelectorAll("input[type='range']").forEach((input) => input.addEventListener("input", updateAvatarCropPreview));
-  updateAvatarCropPreview();
+  modal.querySelector("#avatarCropZoomOut").addEventListener("click", () => updateCropZoom("avatar", -0.12));
+  modal.querySelector("#avatarCropZoomIn").addEventListener("click", () => updateCropZoom("avatar", 0.12));
+  modal.querySelector("#avatarCropResetButton").addEventListener("click", () => resetCropState("avatar"));
+  modal.querySelector("#avatarCropZoom").addEventListener("input", (event) => {
+    setAvatarCropState({ zoom: event.target.value });
+    refreshCropInteractionView("avatar");
+  });
+  setupImageCropInteraction({
+    key: "avatar",
+    frameEl: modal.querySelector("#avatarCropFrame"),
+    imgEl: modal.querySelector("#avatarCropImage"),
+    getState: () => activeAvatarCrop?.crop || createDefaultCropState({ aspectRatio: 1 }),
+    setState: setAvatarCropState,
+  });
+  syncAvatarCropControls();
+  window.setTimeout(() => modal.focus({ preventScroll: true }), 0);
 }
 
 function closeAvatarCropModal(options = {}) {
-  const { resetInput = true, silent = false } = options;
+  const { resetInput = true, silent = false, restorePrevious = true } = options;
   const modal = document.querySelector("#avatarCropModal");
-
   const previousPending = activeAvatarCrop?.previousPending;
   const previousShouldRemove = activeAvatarCrop?.previousShouldRemove;
   const previousStatusText = activeAvatarCrop?.previousStatusText;
 
-  if (activeAvatarCrop?.previewUrl) {
-    URL.revokeObjectURL(activeAvatarCrop.previewUrl);
-  }
-
+  cleanupImageCropInteraction("avatar");
+  revokeObjectUrl(activeAvatarCrop?.previewUrl);
   activeAvatarCrop = null;
 
   if (modal) {
@@ -5223,18 +5556,36 @@ function closeAvatarCropModal(options = {}) {
       input.value = "";
     }
 
-    pendingProfileAvatarImage = previousPending !== undefined ? previousPending : null;
-    shouldRemoveProfileAvatarImage = !!previousShouldRemove;
-    if (previousStatusText) {
-      setProfileAvatarStatus(previousStatusText);
-    } else {
-      setProfileAvatarStatus("可选 PNG / JPG / WebP / GIF，上传前会先裁剪压缩。");
-    }
+    pendingProfileAvatarImage = restorePrevious && previousPending !== undefined ? previousPending : null;
+    shouldRemoveProfileAvatarImage = restorePrevious ? Boolean(previousShouldRemove) : false;
+    setProfileAvatarStatus(restorePrevious && previousStatusText ? previousStatusText : "可选 PNG / JPG / WebP / GIF，上传前会先裁剪压缩。");
     updateProfilePreview();
   }
 
   if (!silent && !resetInput) {
     setProfileAvatarStatus("已取消头像裁剪，没有上传新图片。");
+  }
+}
+
+function setAvatarCropState(nextState) {
+  if (!activeAvatarCrop) {
+    return createDefaultCropState({ aspectRatio: 1 });
+  }
+
+  activeAvatarCrop.crop = normalizeCropState({
+    ...activeAvatarCrop.crop,
+    ...nextState,
+    aspectRatio: 1,
+  });
+  syncAvatarCropControls();
+  return activeAvatarCrop.crop;
+}
+
+function syncAvatarCropControls() {
+  const zoomInput = document.querySelector("#avatarCropZoom");
+
+  if (zoomInput && activeAvatarCrop?.crop) {
+    zoomInput.value = String(activeAvatarCrop.crop.zoom);
   }
 }
 
@@ -5257,9 +5608,9 @@ async function confirmAvatarCrop() {
       maxSide: AVATAR_CROP_SIZE,
       contentType: "image/jpeg",
       suffix: "avatar",
-      zoom: crop.zoom,
-      offsetX: crop.offsetX,
-      offsetY: crop.offsetY,
+      zoom: crop.crop.zoom,
+      panX: crop.crop.panX,
+      panY: crop.crop.panY,
     });
 
     clearPendingProfileAvatarImage({ resetInput: false, renderPreview: false });
@@ -5269,7 +5620,7 @@ async function confirmAvatarCrop() {
       sourceName: crop.file.name,
     };
     shouldRemoveProfileAvatarImage = false;
-    closeAvatarCropModal({ resetInput: false, silent: true });
+    closeAvatarCropModal({ resetInput: false, silent: true, restorePrevious: false });
     setProfileAvatarStatus("头像已裁剪，点「保存资料」后上传。");
     updateProfilePreview();
   } catch (error) {
@@ -5576,10 +5927,9 @@ async function loginUser() {
 }
 
 function logoutUser() {
-  clearAuthSession();
+  clearAuthSession({ clearLocalRecords: true });
   render();
-  syncFromCloud();
-  showToast("已登出账号。");
+  showToast("已登出，并清空本机记录。");
 }
 
 function formatWorldTime(createdAt) {
@@ -5911,6 +6261,12 @@ async function sendWorldMessage() {
     return;
   }
 
+  if (imageToSend && !imageToSend.file) {
+    openWorldImageCropModal();
+    showToast("请先点「使用这张图」确认图片。");
+    return;
+  }
+
   sendButton.disabled = true;
   imageInput.disabled = true;
 
@@ -5919,7 +6275,7 @@ async function sendWorldMessage() {
     let messageText = text;
 
     if (imageToSend) {
-      const processedImage = imageToSend.file || (await processPendingWorldImageMode(imageToSend.mode || "original"));
+      const processedImage = imageToSend;
 
       if (!processedImage?.file) {
         throw new Error("图片还没准备好，请重新选择一次。");
@@ -5940,7 +6296,7 @@ async function sendWorldMessage() {
       text: messageText,
       attachment,
     });
-    clearPendingWorldImage({ resetInput: false });
+    clearPendingWorldImage();
     addWorldMessage(message);
     syncWorldMessages();
 
@@ -5995,21 +6351,204 @@ async function prepareWorldImage(event) {
     return;
   }
 
-  clearPendingWorldImage({ resetInput: false });
+  clearPendingWorldImage({ resetInput: false, updateStatus: false });
   pendingWorldImage = {
     sourceFile: file,
     sourcePreviewUrl: URL.createObjectURL(file),
     file: null,
     previewUrl: "",
     mode: "original",
+    crop: createDefaultCropState({
+      mode: "original",
+      aspectRatio: WORLD_IMAGE_CROP_MODES.original.aspectRatio,
+    }),
     width: 0,
     height: 0,
+    sourceWidth: 0,
+    sourceHeight: 0,
     error: "",
   };
   updatePendingImagePreview();
-  setUploadStatus("正在生成发送前预览…");
-  showToast("图片已加入待发送。");
-  await processPendingWorldImageMode("original");
+  openWorldImageCropModal();
+  setUploadStatus("图片已选择，请在弹窗里调整后点「使用这张图」。");
+}
+
+function getWorldCropFrameAspect(mode, dimensions = {}) {
+  const cropMode = getWorldCropMode(mode);
+  const aspectRatio = WORLD_IMAGE_CROP_MODES[cropMode].aspectRatio;
+
+  if (!aspectRatio) {
+    const sourceWidth = Number(dimensions.width || dimensions.sourceWidth);
+    const sourceHeight = Number(dimensions.height || dimensions.sourceHeight);
+
+    if (Number.isFinite(sourceWidth) && Number.isFinite(sourceHeight) && sourceWidth > 0 && sourceHeight > 0) {
+      return `${sourceWidth} / ${sourceHeight}`;
+    }
+
+    return "4 / 3";
+  }
+
+  if (aspectRatio === 1) {
+    return "1 / 1";
+  }
+
+  return aspectRatio > 1 ? "4 / 3" : "3 / 4";
+}
+
+function openWorldImageCropModal() {
+  if (!pendingWorldImage?.sourceFile) {
+    return;
+  }
+
+  renderWorldImageCropModal();
+}
+
+function renderWorldImageCropModal() {
+  if (!pendingWorldImage?.sourceFile) {
+    return;
+  }
+
+  let modal = document.querySelector("#worldImageCropModal");
+
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "worldImageCropModal";
+    document.body.appendChild(modal);
+  }
+
+  const mode = getWorldCropMode(pendingWorldImage.mode);
+  const modeConfig = WORLD_IMAGE_CROP_MODES[mode];
+
+  cleanupImageCropInteraction("world");
+  modal.className = "image-crop-modal world-image-crop-modal";
+  modal.tabIndex = -1;
+  modal.innerHTML = `
+    <div class="image-crop-dialog world-image-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="worldImageCropTitle">
+      <div class="floating-panel-header">
+        <div>
+          <strong id="worldImageCropTitle">调整图片</strong>
+          <small>选择比例后拖动图片调整位置，滚轮或双指可以放大缩小。</small>
+        </div>
+        <button class="ghost-button compact-ghost" id="worldImageCropCancelTop" type="button">关闭</button>
+      </div>
+      <div class="image-crop-body">
+        <div class="world-crop-modal-layout">
+          <div class="image-crop-frame world-crop-frame${modeConfig.aspectRatio ? "" : " is-original"}" id="worldCropFrame" style="--world-crop-frame-aspect: ${getWorldCropFrameAspect(mode, pendingWorldImage)};">
+            <img id="worldCropImage" src="${escapeHtml(pendingWorldImage.sourcePreviewUrl)}" alt="待发送图片裁剪预览" />
+          </div>
+          <div class="avatar-crop-tips">
+            <strong id="worldCropPreviewTitle">${escapeHtml(modeConfig.label)}预览</strong>
+            <small id="worldCropPreviewMeta">${modeConfig.aspectRatio ? "拖动图片调整位置，滚轮或双指可以放大缩小。" : "原图模式会保留比例，只压缩尺寸。"}</small>
+          </div>
+        </div>
+        <div class="world-crop-options" id="worldCropOptions" aria-label="图片裁剪比例">
+          ${Object.entries(WORLD_IMAGE_CROP_MODES).map(([cropMode, option]) => `
+            <button class="world-crop-option${cropMode === mode ? " is-active" : ""}" type="button" data-world-crop-mode="${cropMode}">
+              ${escapeHtml(option.label)}
+            </button>
+          `).join("")}
+        </div>
+        <div class="crop-nudge-actions world-crop-tools" id="worldCropTools" aria-label="图片缩放快捷按钮">
+          <button class="secondary-button" id="worldCropZoomOut" type="button">－</button>
+          <button class="secondary-button" id="worldCropResetButton" type="button">重置</button>
+          <button class="secondary-button" id="worldCropZoomIn" type="button">＋</button>
+        </div>
+      </div>
+      <div class="image-crop-actions">
+        <button class="primary-button compact-primary" id="worldImageCropConfirmButton" type="button">使用这张图</button>
+        <button class="secondary-button" id="worldImageCropCancelButton" type="button">取消</button>
+      </div>
+    </div>
+  `;
+  modal.hidden = false;
+  modal.querySelector("#worldImageCropCancelTop").addEventListener("click", () => closeWorldImageCropModal({ clearPending: true }));
+  modal.querySelector("#worldImageCropCancelButton").addEventListener("click", () => closeWorldImageCropModal({ clearPending: true }));
+  modal.querySelector("#worldImageCropConfirmButton").addEventListener("click", confirmWorldImageCrop);
+  modal.querySelectorAll("[data-world-crop-mode]").forEach((button) => {
+    button.addEventListener("click", () => changeWorldImageCropMode(button.dataset.worldCropMode));
+  });
+  modal.querySelector("#worldCropZoomOut").addEventListener("click", () => updateCropZoom("world", -0.12));
+  modal.querySelector("#worldCropZoomIn").addEventListener("click", () => updateCropZoom("world", 0.12));
+  modal.querySelector("#worldCropResetButton").addEventListener("click", () => resetCropState("world"));
+
+  setupImageCropInteraction({
+    key: "world",
+    frameEl: modal.querySelector("#worldCropFrame"),
+    imgEl: modal.querySelector("#worldCropImage"),
+    getState: () => pendingWorldImage?.crop || createDefaultCropState({
+      mode,
+      aspectRatio: modeConfig.aspectRatio,
+    }),
+    setState: (nextState) => setWorldCropState(nextState, { invalidateFile: false }),
+    onChange: (nextState) => setWorldCropState(nextState, { invalidateFile: true }),
+  });
+  syncWorldCropModalControls();
+  window.setTimeout(() => modal.focus({ preventScroll: true }), 0);
+}
+
+function closeWorldImageCropModal(options = {}) {
+  const { clearPending = false, focusInput = true } = options;
+  const modal = document.querySelector("#worldImageCropModal");
+
+  cleanupImageCropInteraction("world");
+
+  if (modal) {
+    modal.hidden = true;
+    modal.innerHTML = "";
+  }
+
+  if (clearPending) {
+    clearPendingWorldImage({ closeModal: false });
+    if (focusInput) {
+      window.setTimeout(() => document.querySelector("#worldMessageInput")?.focus({ preventScroll: true }), 0);
+    }
+    return;
+  }
+
+  if (focusInput) {
+    window.setTimeout(() => document.querySelector("#worldMessageInput")?.focus({ preventScroll: true }), 0);
+  }
+}
+
+function syncWorldCropModalControls() {
+  const modal = document.querySelector("#worldImageCropModal");
+
+  if (!modal || modal.hidden || !pendingWorldImage) {
+    return;
+  }
+
+  const mode = getWorldCropMode(pendingWorldImage.mode);
+  const modeConfig = WORLD_IMAGE_CROP_MODES[mode];
+  const frameEl = modal.querySelector("#worldCropFrame");
+  const titleEl = modal.querySelector("#worldCropPreviewTitle");
+  const metaEl = modal.querySelector("#worldCropPreviewMeta");
+  const cropTools = modal.querySelectorAll("#worldCropZoomOut, #worldCropZoomIn, #worldCropResetButton");
+
+  if (frameEl) {
+    frameEl.style.setProperty("--world-crop-frame-aspect", getWorldCropFrameAspect(mode, pendingWorldImage));
+    frameEl.classList.toggle("is-original", !modeConfig.aspectRatio);
+  }
+
+  if (titleEl) {
+    titleEl.textContent = isWorldImageProcessing ? "正在处理图片…" : `${modeConfig.label}预览`;
+  }
+
+  if (metaEl) {
+    metaEl.textContent = pendingWorldImage.error
+      ? pendingWorldImage.error
+      : modeConfig.aspectRatio
+        ? "拖动图片调整位置，滚轮或双指可以放大缩小。"
+        : "原图模式会保留比例，只压缩尺寸。";
+  }
+
+  modal.querySelectorAll("[data-world-crop-mode]").forEach((button) => {
+    const isActive = button.dataset.worldCropMode === mode;
+    button.classList.toggle("is-active", isActive);
+    button.disabled = isWorldImageProcessing;
+  });
+  cropTools.forEach((button) => {
+    button.disabled = isWorldImageProcessing || !modeConfig.aspectRatio;
+  });
 }
 
 function updatePendingImagePreview() {
@@ -6017,15 +6556,15 @@ function updatePendingImagePreview() {
   const previewImage = document.querySelector("#worldPendingImageThumb");
   const previewName = document.querySelector("#worldPendingImageName");
   const previewMeta = document.querySelector("#worldPendingImageMeta");
-  const cropOptions = document.querySelectorAll("[data-world-crop-mode]");
 
   if (!previewPanel || !previewImage || !previewName) {
     return;
   }
 
-  previewPanel.hidden = !pendingWorldImage;
+  const hasConfirmedImage = Boolean(pendingWorldImage?.file);
+  previewPanel.hidden = !hasConfirmedImage;
 
-  if (!pendingWorldImage) {
+  if (!hasConfirmedImage) {
     previewImage.removeAttribute("src");
     previewName.textContent = "";
     if (previewMeta) {
@@ -6034,32 +6573,27 @@ function updatePendingImagePreview() {
     return;
   }
 
+  const modeConfig = WORLD_IMAGE_CROP_MODES[getWorldCropMode(pendingWorldImage.mode)];
   previewImage.src = pendingWorldImage.previewUrl || pendingWorldImage.sourcePreviewUrl;
-  previewName.textContent = isWorldImageProcessing
-    ? "正在处理图片…"
-    : `${WORLD_IMAGE_CROP_MODES[getWorldCropMode(pendingWorldImage.mode)].label}预览已准备`;
+  previewName.textContent = `${modeConfig.label}图片已准备`;
 
   if (previewMeta) {
     previewMeta.textContent = pendingWorldImage.error
       ? pendingWorldImage.error
-      : pendingWorldImage.file
-        ? `${pendingWorldImage.width}×${pendingWorldImage.height} · ${formatFileSize(pendingWorldImage.file.size)}`
-        : "确认裁剪比例后点「发送消息」。";
+      : `${pendingWorldImage.width}×${pendingWorldImage.height} · ${formatFileSize(pendingWorldImage.file.size)}`;
   }
-
-  cropOptions.forEach((button) => {
-    const isActive = button.dataset.worldCropMode === getWorldCropMode(pendingWorldImage.mode);
-    button.classList.toggle("is-active", isActive);
-    button.disabled = isWorldImageProcessing;
-  });
 }
 
 function clearPendingWorldImage(options = {}) {
-  const { resetInput = true } = options;
+  const { resetInput = true, updateStatus = true, closeModal = true } = options;
 
+  if (closeModal) {
+    closeWorldImageCropModal({ clearPending: false, focusInput: false });
+  }
+
+  cleanupImageCropInteraction("world");
   revokeObjectUrl(pendingWorldImage?.previewUrl);
   revokeObjectUrl(pendingWorldImage?.sourcePreviewUrl);
-
   pendingWorldImage = null;
   isWorldImageProcessing = false;
 
@@ -6072,15 +6606,102 @@ function clearPendingWorldImage(options = {}) {
   }
 
   updatePendingImagePreview();
-  setUploadStatus("选择图片后会先预览，可选原图 / 方形 / 横图 / 竖图，点发送才上传。");
+
+  if (updateStatus) {
+    setUploadStatus("选择图片后会先预览，可选原图 / 方形 / 横图 / 竖图，点发送才上传。");
+  }
 }
 
-async function changeWorldImageCropMode(mode) {
+function changeWorldImageCropMode(mode) {
   if (!pendingWorldImage || isWorldImageProcessing) {
     return;
   }
 
-  await processPendingWorldImageMode(mode);
+  const cropMode = getWorldCropMode(mode);
+  const cropOption = WORLD_IMAGE_CROP_MODES[cropMode];
+  setWorldCropState({
+    ...(pendingWorldImage.crop || {}),
+    mode: cropMode,
+    aspectRatio: cropOption.aspectRatio,
+  }, { invalidateFile: true });
+  pendingWorldImage.mode = cropMode;
+  pendingWorldImage.error = "";
+  syncWorldCropModalControls();
+  refreshCropInteractionView("world");
+  updatePendingImagePreview();
+}
+
+function setWorldCropState(nextState, options = {}) {
+  if (!pendingWorldImage) {
+    return createDefaultCropState();
+  }
+
+  const mode = getWorldCropMode(nextState.mode || pendingWorldImage.mode);
+  const cropOption = WORLD_IMAGE_CROP_MODES[mode];
+  pendingWorldImage.crop = normalizeCropState({
+    ...pendingWorldImage.crop,
+    ...nextState,
+    mode,
+    aspectRatio: cropOption.aspectRatio,
+  });
+  pendingWorldImage.mode = mode;
+
+  if (options.invalidateFile) {
+    revokeObjectUrl(pendingWorldImage.previewUrl);
+    pendingWorldImage.file = null;
+    pendingWorldImage.previewUrl = "";
+    pendingWorldImage.width = 0;
+    pendingWorldImage.height = 0;
+    pendingWorldImage.error = "";
+  }
+
+  syncWorldCropModalControls();
+  return pendingWorldImage.crop;
+}
+
+async function confirmWorldImageCrop() {
+  if (!pendingWorldImage?.sourceFile) {
+    return;
+  }
+
+  const confirmButton = document.querySelector("#worldImageCropConfirmButton");
+
+  try {
+    if (confirmButton) {
+      confirmButton.disabled = true;
+      confirmButton.textContent = "正在处理…";
+    }
+
+    const processedImage = await processPendingWorldImageMode(pendingWorldImage.mode || "original");
+
+    if (!processedImage?.file) {
+      throw new Error("图片还没准备好，请重新选择一次。");
+    }
+
+    closeWorldImageCropModal({ clearPending: false });
+    updatePendingImagePreview();
+    setUploadStatus("图片已准备，点「发送消息」才上传。");
+    showToast("图片已准备，点发送才上传。");
+  } catch (error) {
+    reportClientError(error, {
+      type: "world-image-confirm-failed",
+      source: "client-canvas",
+    });
+    const friendlyMsg = getFriendlyErrorMessage(error, "图片处理失败，请换一张图片试试。");
+    if (pendingWorldImage) {
+      pendingWorldImage.error = friendlyMsg;
+    }
+    syncWorldCropModalControls();
+    setUploadStatus(friendlyMsg);
+    showToast(friendlyMsg);
+  } finally {
+    const currentConfirmButton = document.querySelector("#worldImageCropConfirmButton");
+
+    if (currentConfirmButton) {
+      currentConfirmButton.disabled = false;
+      currentConfirmButton.textContent = "使用这张图";
+    }
+  }
 }
 
 async function processPendingWorldImageMode(mode) {
@@ -6090,15 +6711,22 @@ async function processPendingWorldImageMode(mode) {
 
   const sourceFile = pendingWorldImage.sourceFile;
   const sourcePreviewUrl = pendingWorldImage.sourcePreviewUrl;
-  const cropMode = getWorldCropMode(mode);
+  const cropMode = getWorldCropMode(mode || pendingWorldImage.mode);
   const cropOption = WORLD_IMAGE_CROP_MODES[cropMode];
+  const cropState = normalizeCropState({
+    ...pendingWorldImage.crop,
+    mode: cropMode,
+    aspectRatio: cropOption.aspectRatio,
+  });
 
   isWorldImageProcessing = true;
   pendingWorldImage = {
     ...pendingWorldImage,
     mode: cropMode,
+    crop: cropState,
     error: "",
   };
+  syncWorldCropModalControls();
   updatePendingImagePreview();
 
   try {
@@ -6107,6 +6735,9 @@ async function processPendingWorldImageMode(mode) {
       maxSide: WORLD_IMAGE_MAX_SIDE,
       contentType: "image/jpeg",
       suffix: cropMode,
+      zoom: cropState.zoom,
+      panX: cropState.panX,
+      panY: cropState.panY,
     });
 
     if (!pendingWorldImage || pendingWorldImage.sourceFile !== sourceFile || pendingWorldImage.sourcePreviewUrl !== sourcePreviewUrl) {
@@ -6122,7 +6753,7 @@ async function processPendingWorldImageMode(mode) {
       height: processed.height,
       error: "",
     };
-    setUploadStatus(`${cropOption.label}预览已准备，点「发送消息」才上传。`);
+    setUploadStatus(`${cropOption.label}图片已准备，点「发送消息」才上传。`);
     return pendingWorldImage;
   } catch (error) {
     if (!pendingWorldImage || pendingWorldImage.sourceFile !== sourceFile || pendingWorldImage.sourcePreviewUrl !== sourcePreviewUrl) {
@@ -6132,7 +6763,7 @@ async function processPendingWorldImageMode(mode) {
     pendingWorldImage = {
       ...pendingWorldImage,
       file: null,
-      error: error.message || "图片处理失败，请换一张图片试试。",
+      error: getFriendlyErrorMessage(error, "图片处理失败，请换一张图片试试。"),
     };
     reportClientError(error, {
       type: "world-image-process-failed",
@@ -6143,10 +6774,10 @@ async function processPendingWorldImageMode(mode) {
     return null;
   } finally {
     isWorldImageProcessing = false;
+    syncWorldCropModalControls();
     updatePendingImagePreview();
   }
 }
-
 function formatFileSize(size) {
   const bytes = Number(size) || 0;
 

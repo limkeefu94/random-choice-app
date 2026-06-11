@@ -1192,6 +1192,15 @@ button {
   line-height: 1.35;
 }
 
+.world-crop-copy {
+  min-width: 0;
+}
+
+.world-crop-frame {
+  width: min(100%, 380px);
+  margin-inline: auto;
+}
+
 .world-crop-options {
   display: flex;
   grid-column: 1 / -1;
@@ -1223,10 +1232,28 @@ button {
   opacity: 0.68;
 }
 
+.crop-nudge-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.crop-nudge-actions > button {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding-inline: 8px;
+}
+
+.world-crop-tools {
+  grid-column: 1 / -1;
+}
+
 .image-crop-modal {
   position: fixed;
   inset: 0;
-  z-index: 30;
+  z-index: 9999;
+  isolation: isolate;
   display: grid;
   place-items: center;
   padding: 18px;
@@ -1239,6 +1266,8 @@ button {
 }
 
 .image-crop-dialog {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   width: min(420px, calc(100vw - 28px));
@@ -1256,6 +1285,10 @@ button {
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
 }
 
+.world-image-crop-dialog {
+  width: min(520px, calc(100vw - 28px));
+}
+
 .image-crop-body {
   flex: 1 1 auto;
   overflow-y: auto;
@@ -1267,6 +1300,12 @@ button {
 }
 
 .avatar-crop-layout {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+
+.world-crop-modal-layout {
   display: grid;
   justify-items: center;
   gap: 10px;
@@ -1286,13 +1325,33 @@ button {
   box-shadow:
     inset 0 0 0 999px rgba(255, 255, 255, 0.06),
     0 18px 34px rgba(96, 199, 160, 0.16);
+  cursor: grab;
+  touch-action: none;
+}
+
+.image-crop-frame.world-crop-frame {
+  width: min(100%, 380px);
+  aspect-ratio: var(--world-crop-frame-aspect, 4 / 3);
+  margin-inline: auto;
 }
 
 .image-crop-frame.is-circle {
   border-radius: 999px;
 }
 
+.image-crop-frame.is-original {
+  cursor: default;
+}
+
+.image-crop-frame.is-dragging {
+  cursor: grabbing;
+}
+
 .image-crop-frame img {
+  position: absolute;
+  max-width: none;
+  border: 0;
+  border-radius: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -3291,6 +3350,20 @@ button {
     width: 48px;
     height: 38px;
     border-radius: 9px;
+  }
+
+  .world-crop-frame {
+    width: min(100%, 280px);
+  }
+
+  .image-crop-frame.world-crop-frame {
+    width: min(100%, 280px);
+  }
+
+  .image-crop-frame img {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
   }
 
   .pending-image-preview strong {
