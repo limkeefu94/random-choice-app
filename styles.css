@@ -1154,9 +1154,9 @@ button {
 
 .pending-image-preview {
   display: grid;
-  grid-template-columns: 74px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
-  align-items: center;
+  align-items: start;
   padding: 10px;
   border: 1px solid rgba(96, 199, 160, 0.22);
   border-radius: 18px;
@@ -1192,6 +1192,23 @@ button {
   line-height: 1.35;
 }
 
+.world-crop-preview {
+  display: grid;
+  grid-column: 1 / -1;
+  place-items: center;
+  min-width: 0;
+}
+
+.world-crop-copy {
+  min-width: 0;
+}
+
+.world-crop-frame {
+  width: min(100%, 340px);
+  aspect-ratio: 4 / 3;
+  margin-inline: auto;
+}
+
 .world-crop-options {
   display: flex;
   grid-column: 1 / -1;
@@ -1221,6 +1238,23 @@ button {
 .world-crop-option:disabled {
   cursor: wait;
   opacity: 0.68;
+}
+
+.crop-nudge-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.crop-nudge-actions > button {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding-inline: 8px;
+}
+
+.world-crop-tools {
+  grid-column: 1 / -1;
 }
 
 .image-crop-modal {
@@ -1286,13 +1320,27 @@ button {
   box-shadow:
     inset 0 0 0 999px rgba(255, 255, 255, 0.06),
     0 18px 34px rgba(96, 199, 160, 0.16);
+  cursor: grab;
+  touch-action: none;
 }
 
 .image-crop-frame.is-circle {
   border-radius: 999px;
 }
 
+.image-crop-frame.is-original {
+  cursor: default;
+}
+
+.image-crop-frame.is-dragging {
+  cursor: grabbing;
+}
+
 .image-crop-frame img {
+  position: absolute;
+  max-width: none;
+  border: 0;
+  border-radius: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -3281,16 +3329,20 @@ button {
   }
 
   .pending-image-preview {
-    grid-template-columns: 48px minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
     padding: 6px 8px;
     border-radius: 12px;
   }
 
-  .pending-image-preview img {
-    width: 48px;
-    height: 38px;
-    border-radius: 9px;
+  .world-crop-frame {
+    width: min(100%, 280px);
+  }
+
+  .image-crop-frame img {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
   }
 
   .pending-image-preview strong {
