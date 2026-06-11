@@ -1198,7 +1198,7 @@ button {
 
 .world-crop-frame {
   width: min(100%, 380px);
-  aspect-ratio: 4 / 3;
+  aspect-ratio: var(--world-crop-frame-aspect, 4 / 3);
   margin-inline: auto;
 }
 

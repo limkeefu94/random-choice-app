@@ -5027,7 +5027,9 @@ function createDefaultCropState(overrides = {}) {
 function getAdjustedCropRect(image, options) {
   const aspectRatio = options.aspectRatio || null;
   const cropState = normalizeCropState(options);
-  const baseCrop = getBaseCropRect(image.naturalWidth || image.width, image.naturalHeight || image.height, aspectRatio);
+  const imageWidth = image.naturalWidth || image.width;
+  const imageHeight = image.naturalHeight || image.height;
+  const baseCrop = getBaseCropRect(imageWidth, imageHeight, aspectRatio);
 
   if (!aspectRatio) {
     return baseCrop;
@@ -5035,12 +5037,10 @@ function getAdjustedCropRect(image, options) {
 
   const cropWidth = baseCrop.width / cropState.zoom;
   const cropHeight = baseCrop.height / cropState.zoom;
-  const maxOffsetX = (baseCrop.width - cropWidth) / 2;
-  const maxOffsetY = (baseCrop.height - cropHeight) / 2;
-  const centerX = baseCrop.x + baseCrop.width / 2 - maxOffsetX * cropState.panX;
-  const centerY = baseCrop.y + baseCrop.height / 2 - maxOffsetY * cropState.panY;
-  const imageWidth = image.naturalWidth || image.width;
-  const imageHeight = image.naturalHeight || image.height;
+  const maxOffsetX = (imageWidth - cropWidth) / 2;
+  const maxOffsetY = (imageHeight - cropHeight) / 2;
+  const centerX = imageWidth / 2 - maxOffsetX * cropState.panX;
+  const centerY = imageHeight / 2 - maxOffsetY * cropState.panY;
 
   return {
     x: Math.min(Math.max(centerX - cropWidth / 2, 0), imageWidth - cropWidth),
@@ -5265,7 +5265,15 @@ function setupImageCropInteraction({ key, frameEl, imgEl, getState, setState, on
     });
   };
 
-  const onImageLoad = () => commitState(getState(), { notify: false });
+  const onImageLoad = () => {
+    if (key === "world" && pendingWorldImage && imgEl.naturalWidth && imgEl.naturalHeight) {
+      pendingWorldImage.sourceWidth = imgEl.naturalWidth;
+      pendingWorldImage.sourceHeight = imgEl.naturalHeight;
+      syncWorldCropModalControls();
+    }
+
+    commitState(getState(), { notify: false });
+  };
   const onDragStart = (event) => event.preventDefault();
 
   frameEl.addEventListener("pointerdown", onPointerDown);
@@ -6355,6 +6363,8 @@ async function prepareWorldImage(event) {
     }),
     width: 0,
     height: 0,
+    sourceWidth: 0,
+    sourceHeight: 0,
     error: "",
   };
   updatePendingImagePreview();
@@ -6362,11 +6372,18 @@ async function prepareWorldImage(event) {
   setUploadStatus("图片已选择，请在弹窗里调整后点「使用这张图」。");
 }
 
-function getWorldCropFrameAspect(mode) {
+function getWorldCropFrameAspect(mode, dimensions = {}) {
   const cropMode = getWorldCropMode(mode);
   const aspectRatio = WORLD_IMAGE_CROP_MODES[cropMode].aspectRatio;
 
   if (!aspectRatio) {
+    const sourceWidth = Number(dimensions.width || dimensions.sourceWidth);
+    const sourceHeight = Number(dimensions.height || dimensions.sourceHeight);
+
+    if (Number.isFinite(sourceWidth) && Number.isFinite(sourceHeight) && sourceWidth > 0 && sourceHeight > 0) {
+      return `${sourceWidth} / ${sourceHeight}`;
+    }
+
     return "4 / 3";
   }
 
@@ -6415,7 +6432,7 @@ function renderWorldImageCropModal() {
       </div>
       <div class="image-crop-body">
         <div class="world-crop-modal-layout">
-          <div class="image-crop-frame world-crop-frame${modeConfig.aspectRatio ? "" : " is-original"}" id="worldCropFrame" style="aspect-ratio: ${getWorldCropFrameAspect(mode)};">
+          <div class="image-crop-frame world-crop-frame${modeConfig.aspectRatio ? "" : " is-original"}" id="worldCropFrame" style="--world-crop-frame-aspect: ${getWorldCropFrameAspect(mode, pendingWorldImage)};">
             <img id="worldCropImage" src="${escapeHtml(pendingWorldImage.sourcePreviewUrl)}" alt="待发送图片裁剪预览" />
           </div>
           <div class="avatar-crop-tips">
@@ -6507,7 +6524,7 @@ function syncWorldCropModalControls() {
   const cropTools = modal.querySelectorAll("#worldCropZoomOut, #worldCropZoomIn, #worldCropResetButton");
 
   if (frameEl) {
-    frameEl.style.aspectRatio = getWorldCropFrameAspect(mode);
+    frameEl.style.setProperty("--world-crop-frame-aspect", getWorldCropFrameAspect(mode, pendingWorldImage));
     frameEl.classList.toggle("is-original", !modeConfig.aspectRatio);
   }
 
