@@ -1154,9 +1154,9 @@ button {
 
 .pending-image-preview {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 74px minmax(0, 1fr) auto;
   gap: 12px;
-  align-items: start;
+  align-items: center;
   padding: 10px;
   border: 1px solid rgba(96, 199, 160, 0.22);
   border-radius: 18px;
@@ -1192,19 +1192,12 @@ button {
   line-height: 1.35;
 }
 
-.world-crop-preview {
-  display: grid;
-  grid-column: 1 / -1;
-  place-items: center;
-  min-width: 0;
-}
-
 .world-crop-copy {
   min-width: 0;
 }
 
 .world-crop-frame {
-  width: min(100%, 340px);
+  width: min(100%, 380px);
   aspect-ratio: 4 / 3;
   margin-inline: auto;
 }
@@ -1260,7 +1253,8 @@ button {
 .image-crop-modal {
   position: fixed;
   inset: 0;
-  z-index: 30;
+  z-index: 9999;
+  isolation: isolate;
   display: grid;
   place-items: center;
   padding: 18px;
@@ -1273,6 +1267,8 @@ button {
 }
 
 .image-crop-dialog {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   width: min(420px, calc(100vw - 28px));
@@ -1290,6 +1286,10 @@ button {
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
 }
 
+.world-image-crop-dialog {
+  width: min(520px, calc(100vw - 28px));
+}
+
 .image-crop-body {
   flex: 1 1 auto;
   overflow-y: auto;
@@ -1301,6 +1301,12 @@ button {
 }
 
 .avatar-crop-layout {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+
+.world-crop-modal-layout {
   display: grid;
   justify-items: center;
   gap: 10px;
@@ -3329,10 +3335,16 @@ button {
   }
 
   .pending-image-preview {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
     gap: 8px;
     padding: 6px 8px;
     border-radius: 12px;
+  }
+
+  .pending-image-preview img {
+    width: 48px;
+    height: 38px;
+    border-radius: 9px;
   }
 
   .world-crop-frame {
