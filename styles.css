@@ -1198,7 +1198,6 @@ button {
 
 .world-crop-frame {
   width: min(100%, 380px);
-  aspect-ratio: var(--world-crop-frame-aspect, 4 / 3);
   margin-inline: auto;
 }
 
@@ -1328,6 +1327,12 @@ button {
     0 18px 34px rgba(96, 199, 160, 0.16);
   cursor: grab;
   touch-action: none;
+}
+
+.image-crop-frame.world-crop-frame {
+  width: min(100%, 380px);
+  aspect-ratio: var(--world-crop-frame-aspect, 4 / 3);
+  margin-inline: auto;
 }
 
 .image-crop-frame.is-circle {
@@ -3348,6 +3353,10 @@ button {
   }
 
   .world-crop-frame {
+    width: min(100%, 280px);
+  }
+
+  .image-crop-frame.world-crop-frame {
     width: min(100%, 280px);
   }
 
