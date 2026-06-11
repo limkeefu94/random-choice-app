@@ -4544,6 +4544,7 @@ function clearAuthSession(options = {}) {
   if (clearLocalRecords) {
     state.history = [];
     state.favorites = [];
+    state.uploads = [];
     state.currentResult = null;
     state.users = [];
     myWorldMessages = [];
