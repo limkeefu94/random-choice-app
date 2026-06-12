@@ -1765,8 +1765,9 @@ const WORLD_CHANNEL_ENDPOINT = "/api/world-channel";
 const FEEDBACK_ENDPOINT = "/api/feedback";
 const CLIENT_ERROR_ENDPOINT = "/api/client-error";
 const WORLD_MESSAGE_MAX_LENGTH = 220;
+const DEFAULT_WORLD_PLACEHOLDER = "生活上想多了没用，先发一句。";
 const WORLD_PLACEHOLDERS = [
-  "生活上想多了没用，先发一句。",
+  DEFAULT_WORLD_PLACEHOLDER,
   "今天随机到什么奇怪东西？",
   "把你的选择困难丢出来～",
   "今天有什么小发现？",
@@ -3453,12 +3454,18 @@ function renderWorldControls() {
 }
 
 function pickWorldPlaceholder() {
-  currentWorldPlaceholder = randomChoice(WORLD_PLACEHOLDERS) || WORLD_PLACEHOLDERS[0] || "世界频道等你丢一句话。";
+  const placeholders = Array.isArray(WORLD_PLACEHOLDERS)
+    ? WORLD_PLACEHOLDERS.filter((placeholder) => typeof placeholder === "string" && placeholder.trim())
+    : [];
+
+  currentWorldPlaceholder = choose(placeholders) || DEFAULT_WORLD_PLACEHOLDER;
   return currentWorldPlaceholder;
 }
 
 function getWorldPlaceholder() {
-  return currentWorldPlaceholder || pickWorldPlaceholder();
+  return typeof currentWorldPlaceholder === "string" && currentWorldPlaceholder.trim()
+    ? currentWorldPlaceholder
+    : pickWorldPlaceholder();
 }
 
 function getWorldCharacterHint(length) {
