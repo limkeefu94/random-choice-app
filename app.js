@@ -1775,10 +1775,30 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.6.4";
+const APP_VERSION = "0.6.5";
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const RELEASE_NOTES = [
+  {
+    version: "0.6.5",
+    title: "图片浏览器桌面优化",
+    date: "2026-06-12",
+    summary: "这次优化了世界频道图片浏览器的桌面布局，图片和文字说明会并排显示，减少需要滚动查看的情况。",
+    userChanges: [
+      "桌面端查看世界频道图片时，图片和文字说明改为左右布局。",
+      "大图不会在电脑上撑得过高。",
+      "关闭按钮更容易找到。",
+      "图片说明不会被挤到图片下方。",
+      "手机端仍保持适合小屏幕的上下浏览方式。",
+    ],
+    technicalChanges: [
+      "Added responsive desktop split layout for the world image viewer.",
+      "Limited image viewer modal height on desktop.",
+      "Moved captions into a side information panel on wider screens.",
+      "Preserved existing zoom, pan, overlay close, button close, and Escape close behavior.",
+      "Improved mobile fallback layout for smaller screens.",
+    ],
+  },
   {
     version: "0.6.4",
     title: "世界频道图片浏览优化",
@@ -4153,16 +4173,22 @@ function openWorldImageViewer({ url, alt, caption = "" }) {
   };
   modal.innerHTML = `
     <div class="world-image-viewer-dialog" role="dialog" aria-modal="true" aria-labelledby="worldImageViewerTitle">
-      <div class="world-image-viewer-header">
-        <strong id="worldImageViewerTitle">世界频道图片</strong>
-        <button class="ghost-button compact-ghost" id="worldImageViewerClose" type="button" aria-label="关闭图片预览">关闭</button>
+      <div class="world-image-viewer-media">
+        <div class="world-image-viewer-frame" id="worldImageViewerFrame">
+          <img id="worldImageViewerImage" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(imageAlt)}" draggable="false" />
+          <p class="world-image-viewer-error" hidden>图片加载失败</p>
+        </div>
       </div>
-      <div class="world-image-viewer-frame" id="worldImageViewerFrame">
-        <img id="worldImageViewerImage" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(imageAlt)}" draggable="false" />
-        <p class="world-image-viewer-error" hidden>图片加载失败</p>
-      </div>
-      ${captionText ? `<p class="world-image-viewer-caption">${escapeHtml(captionText)}</p>` : ""}
-      <small class="world-image-viewer-hint">滚轮或双指可以放大缩小；放大后可拖动查看细节。</small>
+      <aside class="world-image-viewer-info">
+        <div class="world-image-viewer-header">
+          <strong id="worldImageViewerTitle">世界频道图片</strong>
+          <button class="ghost-button compact-ghost" id="worldImageViewerClose" type="button" aria-label="关闭图片预览">关闭</button>
+        </div>
+        <div class="world-image-viewer-body">
+          <p class="world-image-viewer-caption${captionText ? "" : " is-empty"}">${captionText ? escapeHtml(captionText) : "这张图片没有文字说明"}</p>
+          <small class="world-image-viewer-hint">滚轮缩放，拖动查看细节。手机上可双指缩放。</small>
+        </div>
+      </aside>
     </div>
   `;
   modal.hidden = false;
