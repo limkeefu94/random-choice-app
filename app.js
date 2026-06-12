@@ -1775,8 +1775,27 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.6.3";
+const APP_VERSION = "0.6.4";
 const RELEASE_NOTES = [
+  {
+    version: "0.6.4",
+    title: "世界频道图片浏览优化",
+    date: "2026-06-12",
+    summary: "这次优化了世界频道发图区域的排版，也加入了点击图片放大浏览，让图片内容更容易查看。",
+    userChanges: [
+      "世界频道的选择图片按钮变得更紧凑。",
+      "图片提示移到按钮旁边，输入区看起来更整齐。",
+      "世界频道里的图片现在可以点击放大查看。",
+      "大图可以点击关闭或按 Esc 关闭。",
+    ],
+    technicalChanges: [
+      "Compact world image upload action layout.",
+      "Added world image preview modal.",
+      "Preserved existing image upload and crop flow.",
+      "Added safe modal close handling for overlay, close button, and Escape key.",
+      "Improved responsive image preview sizing.",
+    ],
+  },
   {
     version: "0.6.3",
     title: "世界频道体验优化",
@@ -2086,6 +2105,7 @@ let authMode = "login";
 let profilePanelView = "home";
 let editingWorldMessageId = "";
 let currentWorldPlaceholder = "";
+let activeWorldImageViewer = null;
 let myWorldMessages = [];
 let isMyWorldMessagesLoading = false;
 let myWorldMessagesError = "";
@@ -3427,7 +3447,7 @@ function renderWorldControls() {
         <div class="world-image-action">
           <label class="image-upload-button">
             <input id="worldImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
-            选择图片
+            图片
           </label>
           <small class="upload-status" id="worldUploadStatus">先预览再发送</small>
         </div>
@@ -4064,11 +4084,95 @@ function renderWorldAttachment(attachment) {
     return "";
   }
 
+  const imageAlt = attachment.alt || attachment.name || "世界频道图片";
+
   return `
-    <a class="world-image-link" href="${escapeHtml(attachment.url)}" target="_blank" rel="noreferrer">
-      <img src="${escapeHtml(attachment.url)}" alt="聊天图片" loading="lazy" />
-    </a>
+    <button class="world-image-link" type="button" data-world-image-url="${escapeHtml(attachment.url)}" data-world-image-alt="${escapeHtml(imageAlt)}" aria-label="打开世界频道图片预览">
+      <img src="${escapeHtml(attachment.url)}" alt="${escapeHtml(imageAlt)}" loading="lazy" />
+    </button>
   `;
+}
+
+function handleWorldChatClick(event) {
+  const imageButton = event.target.closest("[data-world-image-url]");
+
+  if (!imageButton) {
+    return;
+  }
+
+  event.preventDefault();
+  openWorldImageViewer({
+    url: imageButton.dataset.worldImageUrl,
+    alt: imageButton.dataset.worldImageAlt || "世界频道图片",
+  });
+}
+
+function ensureWorldImageViewerModal() {
+  let modal = document.querySelector("#worldImageViewerModal");
+
+  if (modal) {
+    return modal;
+  }
+
+  modal = document.createElement("div");
+  modal.id = "worldImageViewerModal";
+  modal.className = "world-image-viewer-modal";
+  modal.hidden = true;
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) {
+      closeWorldImageViewer();
+    }
+  });
+  document.body.appendChild(modal);
+
+  return modal;
+}
+
+function openWorldImageViewer({ url, alt }) {
+  const imageUrl = String(url || "").trim();
+
+  if (!imageUrl) {
+    return;
+  }
+
+  const imageAlt = String(alt || "世界频道图片").trim() || "世界频道图片";
+  const modal = ensureWorldImageViewerModal();
+  activeWorldImageViewer = { url: imageUrl, alt: imageAlt };
+  modal.innerHTML = `
+    <div class="world-image-viewer-dialog" role="dialog" aria-modal="true" aria-labelledby="worldImageViewerTitle">
+      <div class="world-image-viewer-header">
+        <strong id="worldImageViewerTitle">世界频道图片</strong>
+        <button class="ghost-button compact-ghost" id="worldImageViewerClose" type="button" aria-label="关闭图片预览">关闭</button>
+      </div>
+      <div class="world-image-viewer-frame">
+        <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(imageAlt)}" />
+        <p class="world-image-viewer-error" hidden>图片加载失败</p>
+      </div>
+    </div>
+  `;
+  modal.hidden = false;
+
+  const previewImage = modal.querySelector("img");
+  const errorMessage = modal.querySelector(".world-image-viewer-error");
+
+  previewImage.addEventListener("error", () => {
+    previewImage.hidden = true;
+    errorMessage.hidden = false;
+  });
+  modal.querySelector("#worldImageViewerClose").addEventListener("click", closeWorldImageViewer);
+  window.setTimeout(() => modal.querySelector("#worldImageViewerClose")?.focus({ preventScroll: true }), 0);
+}
+
+function closeWorldImageViewer() {
+  const modal = document.querySelector("#worldImageViewerModal");
+  activeWorldImageViewer = null;
+
+  if (!modal) {
+    return;
+  }
+
+  modal.hidden = true;
+  modal.innerHTML = "";
 }
 
 function renderOptionChip(item) {
@@ -4630,6 +4734,7 @@ function clearAuthSession(options = {}) {
   const { clearLocalRecords = false } = options;
 
   closeAvatarCropModal({ resetInput: true, silent: true, restorePrevious: false });
+  closeWorldImageViewer();
   clearPendingWorldImage({ updateStatus: false });
   clearPendingProfileAvatarImage({ renderPreview: false });
   cleanupAllImageCropInteractions();
@@ -4788,6 +4893,8 @@ function toggleWorldChat() {
   state.worldOpen = !state.worldOpen;
   if (state.worldOpen) {
     pickWorldPlaceholder();
+  } else {
+    closeWorldImageViewer();
   }
   elements.sidebar.classList.remove("is-menu-open");
   elements.modeMenuToggle.setAttribute("aria-expanded", "false");
@@ -4798,6 +4905,7 @@ function toggleWorldChat() {
 
 function closeWorldChat() {
   state.worldOpen = false;
+  closeWorldImageViewer();
   saveState();
   render();
   showToast("世界聊天窗口已关闭。");
@@ -4996,6 +5104,11 @@ function handleDocumentClick(event) {
 }
 
 function handleGlobalKeydown(event) {
+  if (event.key === "Escape" && activeWorldImageViewer) {
+    closeWorldImageViewer();
+    return;
+  }
+
   if (event.key === "Escape" && activeAvatarCrop) {
     closeAvatarCropModal({ resetInput: true });
   }
@@ -8020,6 +8133,7 @@ elements.optionPreview.addEventListener("click", (event) => {
     toggleLock(lockButton.dataset.lockTitle);
   }
 });
+document.addEventListener("click", handleWorldChatClick);
 document.addEventListener("click", handleDocumentClick);
 document.addEventListener("keydown", handleGlobalKeydown);
 

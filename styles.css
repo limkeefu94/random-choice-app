@@ -1615,29 +1615,46 @@ button {
 
 .world-composer-actions {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr);
+  grid-template-columns: minmax(86px, 0.75fr) minmax(0, 1.25fr);
   align-items: center;
   gap: 8px;
 }
 
-.world-composer-actions .compact-primary,
-.world-composer-actions .image-upload-button {
+.world-composer-actions .compact-primary {
   width: 100%;
   min-height: 40px;
 }
 
+.world-composer-actions .image-upload-button {
+  width: auto;
+  min-width: 66px;
+  min-height: 40px;
+  justify-content: center;
+  padding: 0 13px;
+  white-space: nowrap;
+}
+
 .world-image-action {
-  display: grid;
-  gap: 3px;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.world-image-action .image-upload-button {
+  flex: 0 0 auto;
   min-width: 0;
 }
 
 .world-image-action .upload-status {
   display: block;
+  min-width: 0;
   overflow: hidden;
-  font-size: 0.68rem;
-  line-height: 1.15;
-  text-align: center;
+  color: rgba(95, 70, 56, 0.58);
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1698,9 +1715,21 @@ button {
 
 .world-image-link {
   display: grid;
+  width: 100%;
   margin-top: 10px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 18px;
   color: #6b4d3e;
+  cursor: zoom-in;
+  background: transparent;
   text-decoration: none;
+}
+
+.world-image-link:focus-visible {
+  outline: 3px solid rgba(255, 122, 61, 0.45);
+  outline-offset: 3px;
 }
 
 .world-image-link img {
@@ -1711,6 +1740,75 @@ button {
   border: 1px solid rgba(80, 45, 24, 0.1);
   border-radius: 18px;
   background: #fff7ef;
+}
+
+.world-image-viewer-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(30, 22, 18, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.world-image-viewer-modal[hidden] {
+  display: none;
+}
+
+.world-image-viewer-dialog {
+  display: grid;
+  width: min(92vw, 980px);
+  max-height: 90dvh;
+  gap: 12px;
+  padding: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 24px;
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(255, 248, 239, 0.94)),
+    #fff8ef;
+  box-shadow: 0 30px 88px rgba(28, 18, 12, 0.34);
+}
+
+.world-image-viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.world-image-viewer-header strong {
+  color: #4d3025;
+  font-size: 0.95rem;
+}
+
+.world-image-viewer-frame {
+  display: grid;
+  min-height: 160px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 122, 61, 0.08), rgba(96, 199, 160, 0.12)),
+    rgba(255, 255, 255, 0.7);
+}
+
+.world-image-viewer-frame img {
+  display: block;
+  max-width: min(92vw, 940px);
+  max-height: min(86vh, calc(90dvh - 86px));
+  object-fit: contain;
+  border-radius: 16px;
+}
+
+.world-image-viewer-error {
+  margin: 0;
+  padding: 34px 22px;
+  color: var(--muted);
+  font-weight: 800;
+  text-align: center;
 }
 
 .chip-cloud {
@@ -3497,7 +3595,7 @@ button {
   }
 
   .world-composer-actions {
-    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr);
+    grid-template-columns: minmax(72px, 0.7fr) minmax(0, 1.3fr);
     gap: 7px;
   }
 
@@ -3507,10 +3605,25 @@ button {
     gap: 8px;
   }
 
-  .world-composer-actions .compact-primary,
-  .world-composer-actions .image-upload-button {
+  .world-composer-actions .compact-primary {
     width: 100%;
     min-height: 38px;
+  }
+
+  .world-composer-actions .image-upload-button {
+    width: auto;
+    min-width: 54px;
+    min-height: 38px;
+    padding: 0 10px;
+  }
+
+  .world-image-action {
+    gap: 6px;
+  }
+
+  .world-image-action .upload-status {
+    font-size: 0.62rem;
+    white-space: normal;
   }
 
   .image-upload-button {
@@ -3538,6 +3651,34 @@ button {
 
   .image-crop-frame.world-crop-frame {
     width: min(100%, 280px);
+  }
+
+  .world-image-viewer-modal {
+    padding: max(12px, env(safe-area-inset-top)) 10px max(12px, env(safe-area-inset-bottom));
+  }
+
+  .world-image-viewer-dialog {
+    width: min(100%, calc(100vw - 20px));
+    max-height: calc(100dvh - 24px);
+    gap: 10px;
+    padding: 10px;
+    border-radius: 20px;
+  }
+
+  .world-image-viewer-header .compact-ghost {
+    min-height: 36px;
+    padding: 0 10px;
+  }
+
+  .world-image-viewer-frame {
+    min-height: 140px;
+    border-radius: 16px;
+  }
+
+  .world-image-viewer-frame img {
+    max-width: calc(100vw - 40px);
+    max-height: calc(100dvh - 118px);
+    border-radius: 14px;
   }
 
   .image-crop-frame img {
