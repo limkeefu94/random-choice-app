@@ -1763,7 +1763,8 @@ button {
   max-height: 90dvh;
   gap: 12px;
   padding: 14px;
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid rgba(255, 255, 255, 0.42);
   border-radius: 24px;
   background:
@@ -1790,9 +1791,20 @@ button {
   place-items: center;
   overflow: hidden;
   border-radius: 18px;
+  cursor: zoom-in;
+  touch-action: none;
+  user-select: none;
   background:
     linear-gradient(135deg, rgba(255, 122, 61, 0.08), rgba(96, 199, 160, 0.12)),
     rgba(255, 255, 255, 0.7);
+}
+
+.world-image-viewer-frame.is-zoomed {
+  cursor: grab;
+}
+
+.world-image-viewer-frame.is-dragging {
+  cursor: grabbing;
 }
 
 .world-image-viewer-frame img {
@@ -1801,12 +1813,40 @@ button {
   max-height: min(86vh, calc(90dvh - 86px));
   object-fit: contain;
   border-radius: 16px;
+  transform-origin: center center;
+  transition: transform 120ms ease;
+  will-change: transform;
+}
+
+.world-image-viewer-frame.is-dragging img {
+  transition: none;
 }
 
 .world-image-viewer-error {
   margin: 0;
   padding: 34px 22px;
   color: var(--muted);
+  font-weight: 800;
+  text-align: center;
+}
+
+.world-image-viewer-caption {
+  margin: 0;
+  max-height: 4.4em;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid rgba(80, 45, 24, 0.1);
+  border-radius: 16px;
+  color: #5f4638;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.world-image-viewer-hint {
+  color: rgba(95, 70, 56, 0.62);
+  font-size: 0.72rem;
   font-weight: 800;
   text-align: center;
 }
@@ -3677,8 +3717,18 @@ button {
 
   .world-image-viewer-frame img {
     max-width: calc(100vw - 40px);
-    max-height: calc(100dvh - 118px);
+    max-height: calc(100dvh - 190px);
     border-radius: 14px;
+  }
+
+  .world-image-viewer-caption {
+    max-height: 4em;
+    padding: 8px 10px;
+    font-size: 0.8rem;
+  }
+
+  .world-image-viewer-hint {
+    font-size: 0.66rem;
   }
 
   .image-crop-frame img {
