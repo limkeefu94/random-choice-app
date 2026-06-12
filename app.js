@@ -1764,8 +1764,39 @@ const AUTH_ENDPOINT = "/api/auth";
 const WORLD_CHANNEL_ENDPOINT = "/api/world-channel";
 const FEEDBACK_ENDPOINT = "/api/feedback";
 const CLIENT_ERROR_ENDPOINT = "/api/client-error";
-const APP_VERSION = "0.6.2";
+const WORLD_MESSAGE_MAX_LENGTH = 220;
+const DEFAULT_WORLD_PLACEHOLDER = "生活上想多了没用，先发一句。";
+const WORLD_PLACEHOLDERS = [
+  DEFAULT_WORLD_PLACEHOLDER,
+  "今天随机到什么奇怪东西？",
+  "把你的选择困难丢出来～",
+  "今天有什么小发现？",
+  "刚刚随机到了什么？",
+  "世界频道等你丢一句话。",
+  "今天的灵感掉在哪里？",
+];
+const APP_VERSION = "0.6.3";
 const RELEASE_NOTES = [
+  {
+    version: "0.6.3",
+    title: "世界频道体验优化",
+    date: "2026-06-12",
+    summary: "这次主要压缩世界频道的输入区，让手机上可以看到更多消息，也让发言提示更自然。",
+    userChanges: [
+      "世界频道顶部和输入区变得更紧凑。",
+      "账号在线状态移到输入区里，不再额外占一张卡。",
+      "发言提示变得更自然，不再一开始显示字数限制。",
+      "输入接近字数上限时，才会显示剩余字数。",
+      "图片选择提示变得更简短。",
+    ],
+    technicalChanges: [
+      "Compact world-channel header and composer layout.",
+      "Moved world connection identity into the composer.",
+      "Added dynamic remaining-character hint after 200 characters.",
+      "Reduced persistent helper text in the world composer.",
+      "Improved mobile space usage for the world channel panel.",
+    ],
+  },
   {
     version: "0.6.2",
     title: "图片裁剪交互修复",
@@ -2054,6 +2085,7 @@ let shouldRemoveProfileAvatarImage = false;
 let authMode = "login";
 let profilePanelView = "home";
 let editingWorldMessageId = "";
+let currentWorldPlaceholder = "";
 let myWorldMessages = [];
 let isMyWorldMessagesLoading = false;
 let myWorldMessagesError = "";
@@ -3300,7 +3332,7 @@ function renderWorldControls() {
       <form class="world-panel auth-panel" id="authForm">
         <div class="world-panel-header">
           <strong>${isRegisterMode ? "注册新账号" : "登入世界频道"}</strong>
-          <small>发消息前先确认是你本人</small>
+          <small>登录后可发送</small>
         </div>
         <div class="auth-mode-tabs" role="tablist" aria-label="登入注册切换">
           <button class="auth-mode-tab${!isRegisterMode ? " is-active" : ""}" type="button" data-auth-mode="login" aria-pressed="${!isRegisterMode}">登入</button>
@@ -3362,54 +3394,120 @@ function renderWorldControls() {
     return;
   }
 
+  const displayName = getUserDisplayName(currentUser);
+  const worldPlaceholder = getWorldPlaceholder();
+
   elements.worldAuthPanel.innerHTML = `
-    <div class="world-panel identity-panel">
-      <div class="world-identity-card">
-        <span class="world-avatar world-identity-avatar" aria-hidden="true">
-          ${renderAvatarContent({
-            avatar: getUserAvatar(currentUser),
-            avatarUrl: getUserAvatarUrl(currentUser),
-            name: getUserDisplayName(currentUser),
-            className: "world-avatar-image",
-          })}
-        </span>
-        <div class="world-identity-copy">
-          <strong>${escapeHtml(getUserDisplayName(currentUser))}</strong>
-          <small data-cloud-sync-identity>${escapeHtml(getCloudIdentityText())}</small>
+    <form class="world-panel message-panel world-composer-panel" id="worldMessageForm">
+      <div class="world-composer-top">
+        <div class="world-composer-user">
+          <span class="world-avatar world-composer-avatar" aria-hidden="true">
+            ${renderAvatarContent({
+              avatar: getUserAvatar(currentUser),
+              avatarUrl: getUserAvatarUrl(currentUser),
+              name: displayName,
+              className: "world-avatar-image",
+            })}
+          </span>
+          <div class="world-composer-copy">
+            <strong>${escapeHtml(displayName)}</strong>
+            <small><span class="world-online-dot" aria-hidden="true"></span>在线</small>
+          </div>
         </div>
       </div>
-    </div>
-    <form class="world-panel message-panel" id="worldMessageForm">
-      <div class="field">
-        <label for="worldMessageInput">发送到世界频道</label>
-        <textarea id="worldMessageInput" maxlength="220" placeholder="写一句话，最多 220 字。"></textarea>
+      <div class="field world-message-field">
+        <label for="worldMessageInput">发一句到世界频道</label>
+        <div class="world-textarea-wrap">
+          <textarea id="worldMessageInput" maxlength="${WORLD_MESSAGE_MAX_LENGTH}" rows="2" placeholder="${escapeHtml(worldPlaceholder)}"></textarea>
+          <small class="world-character-hint" id="worldCharacterHint" aria-live="polite" hidden></small>
+        </div>
       </div>
-      <div class="custom-actions">
-        <button class="primary-button compact-primary" id="worldSendButton" type="submit">发送消息</button>
-        <label class="image-upload-button">
-          <input id="worldImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
-          选择图片
-        </label>
+      <div class="world-composer-actions">
+        <button class="primary-button compact-primary" id="worldSendButton" type="submit">发送</button>
+        <div class="world-image-action">
+          <label class="image-upload-button">
+            <input id="worldImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
+            选择图片
+          </label>
+          <small class="upload-status" id="worldUploadStatus">先预览再发送</small>
+        </div>
       </div>
       <div class="pending-image-preview" id="worldPendingImage" hidden>
         <img id="worldPendingImageThumb" alt="待发送图片缩略图" />
         <div class="world-crop-copy">
           <strong id="worldPendingImageName"></strong>
-          <small id="worldPendingImageMeta">图片已准备，点「发送消息」才上传。</small>
+          <small id="worldPendingImageMeta">图片已准备，点「发送」才上传。</small>
         </div>
         <button class="ghost-button compact-ghost" id="clearWorldImageButton" type="button">移除</button>
       </div>
-      <small class="upload-status" id="worldUploadStatus">选择图片后会先预览，可选原图 / 方形 / 横图 / 竖图，点发送才上传。</small>
     </form>
   `;
-
   document.querySelector("#worldMessageForm").addEventListener("submit", (event) => {
     event.preventDefault();
     sendWorldMessage();
   });
+  document.querySelector("#worldMessageInput").addEventListener("input", updateWorldCharacterHint);
   document.querySelector("#worldImageInput").addEventListener("change", prepareWorldImage);
   document.querySelector("#clearWorldImageButton").addEventListener("click", () => clearPendingWorldImage());
+  updateWorldCharacterHint();
   updatePendingImagePreview();
+}
+
+function pickWorldPlaceholder() {
+  const placeholders = Array.isArray(WORLD_PLACEHOLDERS)
+    ? WORLD_PLACEHOLDERS.filter((placeholder) => typeof placeholder === "string" && placeholder.trim())
+    : [];
+
+  currentWorldPlaceholder = choose(placeholders) || DEFAULT_WORLD_PLACEHOLDER;
+  return currentWorldPlaceholder;
+}
+
+function getWorldPlaceholder() {
+  return typeof currentWorldPlaceholder === "string" && currentWorldPlaceholder.trim()
+    ? currentWorldPlaceholder
+    : pickWorldPlaceholder();
+}
+
+function getWorldCharacterHint(length) {
+  const remaining = Math.max(WORLD_MESSAGE_MAX_LENGTH - length, 0);
+
+  if (length >= WORLD_MESSAGE_MAX_LENGTH) {
+    return "字数满了，先发出去吧";
+  }
+
+  if (length >= 215) {
+    return `快满了，还剩 ${remaining} 字`;
+  }
+
+  if (length >= 200) {
+    return `还可以输入 ${remaining} 字`;
+  }
+
+  return "";
+}
+
+function resizeWorldMessageInput(textarea = document.querySelector("#worldMessageInput")) {
+  if (!textarea) {
+    return;
+  }
+
+  textarea.style.height = "auto";
+  textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+}
+
+function updateWorldCharacterHint() {
+  const input = document.querySelector("#worldMessageInput");
+  const hint = document.querySelector("#worldCharacterHint");
+
+  if (!input || !hint) {
+    return;
+  }
+
+  const textLength = input.value.length;
+  const message = getWorldCharacterHint(textLength);
+  hint.textContent = message;
+  hint.hidden = !message;
+  resizeWorldMessageInput(input);
 }
 
 function renderTravelControls() {
@@ -4688,6 +4786,9 @@ function getWorldMessageText(message) {
 
 function toggleWorldChat() {
   state.worldOpen = !state.worldOpen;
+  if (state.worldOpen) {
+    pickWorldPlaceholder();
+  }
   elements.sidebar.classList.remove("is-menu-open");
   elements.modeMenuToggle.setAttribute("aria-expanded", "false");
   saveState();
@@ -6301,7 +6402,8 @@ async function sendWorldMessage() {
     syncWorldMessages();
 
     input.value = "";
-    setUploadStatus(imageToSend ? "图片已发送成功，可以继续选择下一张。" : "选择图片后会先预览，可选原图 / 方形 / 横图 / 竖图，点发送才上传。");
+    updateWorldCharacterHint();
+    setUploadStatus(imageToSend ? "图片已发送成功。" : "先预览再发送");
     showToast(imageToSend ? "图片已发送到世界频道。" : "消息已发送到世界频道。");
   } catch (error) {
     console.warn("World image send failed.", error);
@@ -6370,7 +6472,7 @@ async function prepareWorldImage(event) {
   };
   updatePendingImagePreview();
   openWorldImageCropModal();
-  setUploadStatus("图片已选择，请在弹窗里调整后点「使用这张图」。");
+  setUploadStatus("调整后使用");
 }
 
 function getWorldCropFrameAspect(mode, dimensions = {}) {
@@ -6608,7 +6710,7 @@ function clearPendingWorldImage(options = {}) {
   updatePendingImagePreview();
 
   if (updateStatus) {
-    setUploadStatus("选择图片后会先预览，可选原图 / 方形 / 横图 / 竖图，点发送才上传。");
+    setUploadStatus("先预览再发送");
   }
 }
 
@@ -6680,7 +6782,7 @@ async function confirmWorldImageCrop() {
 
     closeWorldImageCropModal({ clearPending: false });
     updatePendingImagePreview();
-    setUploadStatus("图片已准备，点「发送消息」才上传。");
+    setUploadStatus("图片已准备，点发送。");
     showToast("图片已准备，点发送才上传。");
   } catch (error) {
     reportClientError(error, {
@@ -6753,7 +6855,7 @@ async function processPendingWorldImageMode(mode) {
       height: processed.height,
       error: "",
     };
-    setUploadStatus(`${cropOption.label}图片已准备，点「发送消息」才上传。`);
+    setUploadStatus(`${cropOption.label}图片已准备。`);
     return pendingWorldImage;
   } catch (error) {
     if (!pendingWorldImage || pendingWorldImage.sourceFile !== sourceFile || pendingWorldImage.sourcePreviewUrl !== sourcePreviewUrl) {
