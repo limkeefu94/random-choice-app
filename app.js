@@ -1775,48 +1775,49 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.6.5";
+const APP_VERSION = "0.6.6";
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const RELEASE_NOTES = [
   {
-    version: "0.6.5",
-    title: "世界频道爱心互动",
+    version: "0.6.6",
+    title: "世界频道稳定性优化",
     date: "2026-06-13",
-    summary: "这次加入了世界频道的爱心功能，看到喜欢的内容可以轻轻点一下，让频道开始有更多互动感。",
+    summary: "这次主要整理世界频道最近新增功能的细节，修正排版、状态清理和版本显示，让图片、爱心和输入体验更稳定。",
+    userChanges: [
+      "整理世界频道最近更新的版本显示。",
+      "优化爱心按钮和消息操作区的细节。",
+      "优化图片预览和裁剪关闭后的状态清理。",
+      "改善登录、登出后世界频道状态刷新。",
+      "修正手机端可能出现的按钮拥挤或底部遮挡问题。",
+    ],
+    technicalChanges: [
+      "Normalized recent world-channel release notes.",
+      "Checked world message action layout consistency.",
+      "Hardened modal cleanup for image preview and crop states.",
+      "Improved auth/logout refresh handling for world-channel state.",
+      "Reviewed mobile safe-area spacing around composer actions.",
+    ],
+  },
+  {
+    version: "0.6.5",
+    title: "世界频道图片与爱心互动",
+    date: "2026-06-13",
+    summary: "这次补齐世界频道图片浏览和爱心互动，让图片内容更好看，也让频道开始有轻量互动。",
     userChanges: [
       "世界频道消息现在可以点爱心。",
-      "爱心旁边会显示数量。",
-      "已点过的消息会显示实心爱心。",
-      "再点一次可以取消爱心。",
-      "未登录时点击爱心会提示先登录。",
+      "爱心旁边会显示数量，已点过会显示实心爱心。",
+      "桌面端查看世界频道图片时，图片和文字说明改为左右布局。",
+      "大图不会在电脑上撑得过高。",
+      "关闭按钮更容易找到。",
+      "手机端仍保持适合小屏幕的上下浏览方式。",
     ],
     technicalChanges: [
       "Added owner-safe world message like toggling.",
       "Added like count and viewer-liked state rendering.",
       "Added optimistic like UI with request protection.",
-      "Preserved existing image upload, crop, preview, edit, and remove flows.",
-      "Added fallback handling for older messages without like fields.",
-    ],
-  },
-  {
-    version: "0.6.5",
-    title: "图片浏览器桌面优化",
-    date: "2026-06-12",
-    summary: "这次优化了世界频道图片浏览器的桌面布局，图片和文字说明会并排显示，减少需要滚动查看的情况。",
-    userChanges: [
-      "桌面端查看世界频道图片时，图片和文字说明改为左右布局。",
-      "大图不会在电脑上撑得过高。",
-      "关闭按钮更容易找到。",
-      "图片说明不会被挤到图片下方。",
-      "手机端仍保持适合小屏幕的上下浏览方式。",
-    ],
-    technicalChanges: [
       "Added responsive desktop split layout for the world image viewer.",
-      "Limited image viewer modal height on desktop.",
-      "Moved captions into a side information panel on wider screens.",
       "Preserved existing zoom, pan, overlay close, button close, and Escape close behavior.",
-      "Improved mobile fallback layout for smaller screens.",
     ],
   },
   {
@@ -4987,7 +4988,20 @@ function applyAccountPreferences(user) {
 }
 
 function applyAuthSession(payload) {
+  const previousUser = getCurrentUser();
+  const previousIdentity = previousUser?.id || previousUser?.userId || previousUser?.username || state.auth.currentUser;
   const user = rememberAuthUser(payload.user);
+  const nextIdentity = user.id || user.userId || user.username;
+
+  if (previousIdentity && nextIdentity && previousIdentity !== nextIdentity) {
+    pendingWorldLikeIds.clear();
+    closeWorldImageViewer();
+    clearPendingWorldImage({ updateStatus: false });
+    myWorldMessages = [];
+    myWorldMessagesError = "";
+    editingWorldMessageId = "";
+  }
+
   applyAccountPreferences(user);
   state.auth.currentUser = user.username;
   state.auth.token = payload.token || state.auth.token;
@@ -5000,6 +5014,7 @@ function applyAuthSession(payload) {
 function clearAuthSession(options = {}) {
   const { clearLocalRecords = false } = options;
 
+  pendingWorldLikeIds.clear();
   closeAvatarCropModal({ resetInput: true, silent: true, restorePrevious: false });
   closeWorldImageViewer();
   clearPendingWorldImage({ updateStatus: false });
@@ -5161,7 +5176,7 @@ function toggleWorldChat() {
   if (state.worldOpen) {
     pickWorldPlaceholder();
   } else {
-    closeWorldImageViewer();
+    closeWorldChannelTransientModals();
   }
   elements.sidebar.classList.remove("is-menu-open");
   elements.modeMenuToggle.setAttribute("aria-expanded", "false");
@@ -5172,10 +5187,20 @@ function toggleWorldChat() {
 
 function closeWorldChat() {
   state.worldOpen = false;
-  closeWorldImageViewer();
+  closeWorldChannelTransientModals();
   saveState();
   render();
   showToast("世界聊天窗口已关闭。");
+}
+
+function closeWorldChannelTransientModals() {
+  closeWorldImageViewer();
+
+  const cropModal = document.querySelector("#worldImageCropModal");
+
+  if (cropModal && !cropModal.hidden) {
+    closeWorldImageCropModal({ clearPending: true, focusInput: false });
+  }
 }
 
 function setAuthMode(mode) {
@@ -6584,7 +6609,7 @@ async function updateOwnWorldMessage(messageId, text) {
   const payload = await readJsonResponse(response);
 
   if (!response.ok || !payload.ok) {
-    throw new Error(payload.detail || payload.error || "内容暂时保存不了");
+    throw new Error(payload.error || "内容暂时保存不了");
   }
 
   return payload.message;
@@ -6604,7 +6629,7 @@ async function deleteOwnWorldMessage(messageId) {
   const payload = await readJsonResponse(response);
 
   if (!response.ok || !payload.ok) {
-    throw new Error(payload.detail || payload.error || "内容暂时移除不了");
+    throw new Error(payload.error || "内容暂时移除不了");
   }
 
   return payload;
@@ -6651,7 +6676,7 @@ async function requestToggleWorldMessageLike(messageId) {
   const payload = await readJsonResponse(response);
 
   if (!response.ok || !payload.ok) {
-    throw new Error(payload.detail || payload.error || "爱心暂时点不了");
+    throw new Error(payload.error || "爱心暂时点不了");
   }
 
   return payload.message;
@@ -6815,7 +6840,7 @@ async function postWorldMessage({ text, attachment }) {
   const payload = await readJsonResponse(response);
 
   if (!response.ok || !payload.ok) {
-    throw new Error(payload.detail || payload.error || "消息发送失败");
+    throw new Error(payload.error || "消息发送失败");
   }
 
   return payload.message;
