@@ -1759,11 +1759,12 @@ button {
 
 .world-image-viewer-dialog {
   display: grid;
-  width: min(92vw, 980px);
-  max-height: 90dvh;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  width: min(1120px, 92vw);
+  max-height: 88dvh;
+  gap: 16px;
   padding: 14px;
-  overflow-y: auto;
+  overflow: hidden;
   overscroll-behavior: contain;
   border: 1px solid rgba(255, 255, 255, 0.42);
   border-radius: 24px;
@@ -1771,6 +1772,20 @@ button {
     linear-gradient(150deg, rgba(255, 255, 255, 0.96), rgba(255, 248, 239, 0.94)),
     #fff8ef;
   box-shadow: 0 30px 88px rgba(28, 18, 12, 0.34);
+}
+
+.world-image-viewer-media {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+}
+
+.world-image-viewer-info {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  max-height: calc(88dvh - 28px);
+  overflow: hidden;
 }
 
 .world-image-viewer-header {
@@ -1785,9 +1800,22 @@ button {
   font-size: 0.95rem;
 }
 
+.world-image-viewer-body {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 0;
+  margin-top: 12px;
+  overflow-y: auto;
+  padding-right: 2px;
+  overscroll-behavior: contain;
+}
+
 .world-image-viewer-frame {
   display: grid;
-  min-height: 160px;
+  height: clamp(260px, 78dvh, 720px);
+  max-height: calc(88dvh - 28px);
+  min-height: 0;
   place-items: center;
   overflow: hidden;
   border-radius: 18px;
@@ -1809,8 +1837,8 @@ button {
 
 .world-image-viewer-frame img {
   display: block;
-  max-width: min(92vw, 940px);
-  max-height: min(86vh, calc(90dvh - 86px));
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   border-radius: 16px;
   transform-origin: center center;
@@ -1832,8 +1860,8 @@ button {
 
 .world-image-viewer-caption {
   margin: 0;
-  max-height: 4.4em;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
   padding: 10px 12px;
   border: 1px solid rgba(80, 45, 24, 0.1);
   border-radius: 16px;
@@ -1844,11 +1872,15 @@ button {
   background: rgba(255, 255, 255, 0.72);
 }
 
+.world-image-viewer-caption.is-empty {
+  color: var(--muted);
+}
+
 .world-image-viewer-hint {
   color: rgba(95, 70, 56, 0.62);
   font-size: 0.72rem;
   font-weight: 800;
-  text-align: center;
+  line-height: 1.45;
 }
 
 .chip-cloud {
@@ -3698,11 +3730,23 @@ button {
   }
 
   .world-image-viewer-dialog {
+    grid-template-columns: 1fr;
     width: min(100%, calc(100vw - 20px));
     max-height: calc(100dvh - 24px);
     gap: 10px;
     padding: 10px;
+    overflow-y: auto;
     border-radius: 20px;
+  }
+
+  .world-image-viewer-info {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .world-image-viewer-body {
+    margin-top: 8px;
+    overflow: visible;
   }
 
   .world-image-viewer-header .compact-ghost {
@@ -3711,6 +3755,8 @@ button {
   }
 
   .world-image-viewer-frame {
+    height: min(58dvh, calc(100dvh - 220px));
+    max-height: calc(100dvh - 220px);
     min-height: 140px;
     border-radius: 16px;
   }
