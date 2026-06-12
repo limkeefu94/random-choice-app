@@ -1775,8 +1775,30 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.6.3";
+const APP_VERSION = "0.6.4";
+const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
+const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const RELEASE_NOTES = [
+  {
+    version: "0.6.4",
+    title: "世界频道图片浏览优化",
+    date: "2026-06-12",
+    summary: "这次优化了世界频道发图区域的排版，也加入了点击图片放大浏览，让图片内容更容易查看。",
+    userChanges: [
+      "世界频道的选择图片按钮变得更紧凑。",
+      "图片提示移到按钮旁边，输入区看起来更整齐。",
+      "世界频道里的图片现在可以点击放大查看。",
+      "大图可以用滚轮或双指放大，也会显示原消息。",
+      "大图可以点击关闭或按 Esc 关闭。",
+    ],
+    technicalChanges: [
+      "Compact world image upload action layout.",
+      "Added world image preview modal.",
+      "Preserved existing image upload and crop flow.",
+      "Added safe modal close handling for overlay, close button, and Escape key.",
+      "Improved responsive image preview sizing.",
+    ],
+  },
   {
     version: "0.6.3",
     title: "世界频道体验优化",
@@ -2086,6 +2108,7 @@ let authMode = "login";
 let profilePanelView = "home";
 let editingWorldMessageId = "";
 let currentWorldPlaceholder = "";
+let activeWorldImageViewer = null;
 let myWorldMessages = [];
 let isMyWorldMessagesLoading = false;
 let myWorldMessagesError = "";
@@ -2722,7 +2745,7 @@ function renderMyProfileMessage(message) {
         ${likeMarkup}
       </div>
       ${isEditing ? renderMyProfileEditForm(message, displayText) : `<p class="my-profile-message-text">${escapeHtml(displayText)}</p>`}
-      ${renderWorldAttachment(message.attachment)}
+      ${renderWorldAttachment(message.attachment, message)}
       <div class="my-profile-message-actions">
         ${isEditing
           ? `
@@ -3427,7 +3450,7 @@ function renderWorldControls() {
         <div class="world-image-action">
           <label class="image-upload-button">
             <input id="worldImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
-            选择图片
+            图片
           </label>
           <small class="upload-status" id="worldUploadStatus">先预览再发送</small>
         </div>
@@ -4043,7 +4066,7 @@ function renderWorldChannel() {
                   <small>${escapeHtml(message.time)}</small>
                 </div>
                 ${getWorldMessageText(message) ? `<p>${escapeHtml(getWorldMessageText(message))}</p>` : ""}
-                ${renderWorldAttachment(message.attachment)}
+                ${renderWorldAttachment(message.attachment, message)}
               </div>
             </article>
           `,
@@ -4059,16 +4082,287 @@ function scrollWorldChatToBottom() {
   }
 }
 
-function renderWorldAttachment(attachment) {
+function renderWorldAttachment(attachment, message = null) {
   if (!attachment || attachment.type !== "image" || !attachment.url) {
     return "";
   }
 
+  const imageAlt = attachment.alt || attachment.name || "世界频道图片";
+  const caption = message ? getWorldMessageText(message) : "";
+
   return `
-    <a class="world-image-link" href="${escapeHtml(attachment.url)}" target="_blank" rel="noreferrer">
-      <img src="${escapeHtml(attachment.url)}" alt="聊天图片" loading="lazy" />
-    </a>
+    <button class="world-image-link" type="button" data-world-image-url="${escapeHtml(attachment.url)}" data-world-image-alt="${escapeHtml(imageAlt)}" data-world-image-caption="${escapeHtml(caption)}" aria-label="打开世界频道图片预览">
+      <img src="${escapeHtml(attachment.url)}" alt="${escapeHtml(imageAlt)}" loading="lazy" />
+    </button>
   `;
+}
+
+function handleWorldChatClick(event) {
+  const imageButton = event.target.closest("[data-world-image-url]");
+
+  if (!imageButton) {
+    return;
+  }
+
+  event.preventDefault();
+  openWorldImageViewer({
+    url: imageButton.dataset.worldImageUrl,
+    alt: imageButton.dataset.worldImageAlt || "世界频道图片",
+    caption: imageButton.dataset.worldImageCaption || "",
+  });
+}
+
+function ensureWorldImageViewerModal() {
+  let modal = document.querySelector("#worldImageViewerModal");
+
+  if (modal) {
+    return modal;
+  }
+
+  modal = document.createElement("div");
+  modal.id = "worldImageViewerModal";
+  modal.className = "world-image-viewer-modal";
+  modal.hidden = true;
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) {
+      closeWorldImageViewer();
+    }
+  });
+  document.body.appendChild(modal);
+
+  return modal;
+}
+
+function openWorldImageViewer({ url, alt, caption = "" }) {
+  const imageUrl = String(url || "").trim();
+
+  if (!imageUrl) {
+    return;
+  }
+
+  const imageAlt = String(alt || "世界频道图片").trim() || "世界频道图片";
+  const captionText = String(caption || "").trim();
+  const modal = ensureWorldImageViewerModal();
+  activeWorldImageViewer = {
+    url: imageUrl,
+    alt: imageAlt,
+    caption: captionText,
+    scale: 1,
+    panX: 0,
+    panY: 0,
+  };
+  modal.innerHTML = `
+    <div class="world-image-viewer-dialog" role="dialog" aria-modal="true" aria-labelledby="worldImageViewerTitle">
+      <div class="world-image-viewer-header">
+        <strong id="worldImageViewerTitle">世界频道图片</strong>
+        <button class="ghost-button compact-ghost" id="worldImageViewerClose" type="button" aria-label="关闭图片预览">关闭</button>
+      </div>
+      <div class="world-image-viewer-frame" id="worldImageViewerFrame">
+        <img id="worldImageViewerImage" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(imageAlt)}" draggable="false" />
+        <p class="world-image-viewer-error" hidden>图片加载失败</p>
+      </div>
+      ${captionText ? `<p class="world-image-viewer-caption">${escapeHtml(captionText)}</p>` : ""}
+      <small class="world-image-viewer-hint">滚轮或双指可以放大缩小；放大后可拖动查看细节。</small>
+    </div>
+  `;
+  modal.hidden = false;
+
+  const previewImage = modal.querySelector("img");
+  const errorMessage = modal.querySelector(".world-image-viewer-error");
+
+  previewImage.addEventListener("error", () => {
+    previewImage.hidden = true;
+    errorMessage.hidden = false;
+  });
+  previewImage.addEventListener("load", () => {
+    setWorldImageViewerTransform({
+      scale: activeWorldImageViewer?.scale || 1,
+      panX: activeWorldImageViewer?.panX || 0,
+      panY: activeWorldImageViewer?.panY || 0,
+    });
+  });
+  modal.querySelector("#worldImageViewerClose").addEventListener("click", closeWorldImageViewer);
+  setupWorldImageViewerInteraction(modal);
+  applyWorldImageViewerTransform();
+  window.setTimeout(() => modal.querySelector("#worldImageViewerClose")?.focus({ preventScroll: true }), 0);
+}
+
+function closeWorldImageViewer() {
+  const modal = document.querySelector("#worldImageViewerModal");
+  activeWorldImageViewer = null;
+
+  if (!modal) {
+    return;
+  }
+
+  modal.hidden = true;
+  modal.innerHTML = "";
+}
+
+function setupWorldImageViewerInteraction(modal) {
+  const frame = modal.querySelector("#worldImageViewerFrame");
+  const image = modal.querySelector("#worldImageViewerImage");
+
+  if (!frame || !image) {
+    return;
+  }
+
+  const pointers = new Map();
+  let dragStart = null;
+  let pinchStart = null;
+  const getDistance = (first, second) => Math.hypot(first.x - second.x, first.y - second.y);
+  const getMidpoint = (first, second) => ({
+    x: (first.x + second.x) / 2,
+    y: (first.y + second.y) / 2,
+  });
+
+  const onPointerDown = (event) => {
+    event.preventDefault();
+    frame.setPointerCapture?.(event.pointerId);
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (pointers.size === 1) {
+      dragStart = {
+        point: { x: event.clientX, y: event.clientY },
+        panX: activeWorldImageViewer?.panX || 0,
+        panY: activeWorldImageViewer?.panY || 0,
+      };
+      frame.classList.add("is-dragging");
+      return;
+    }
+
+    if (pointers.size >= 2) {
+      const [first, second] = [...pointers.values()];
+      pinchStart = {
+        distance: getDistance(first, second) || 1,
+        midpoint: getMidpoint(first, second),
+        scale: activeWorldImageViewer?.scale || 1,
+        panX: activeWorldImageViewer?.panX || 0,
+        panY: activeWorldImageViewer?.panY || 0,
+      };
+    }
+  };
+
+  const onPointerMove = (event) => {
+    if (!pointers.has(event.pointerId)) {
+      return;
+    }
+
+    event.preventDefault();
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (pointers.size >= 2 && pinchStart) {
+      const [first, second] = [...pointers.values()];
+      const distance = getDistance(first, second) || pinchStart.distance;
+      const midpoint = getMidpoint(first, second);
+      const scale = pinchStart.scale * (distance / Math.max(pinchStart.distance, 1));
+
+      setWorldImageViewerTransform({
+        scale,
+        panX: pinchStart.panX + midpoint.x - pinchStart.midpoint.x,
+        panY: pinchStart.panY + midpoint.y - pinchStart.midpoint.y,
+      });
+      return;
+    }
+
+    if (pointers.size === 1 && dragStart) {
+      const currentPoint = pointers.get(event.pointerId);
+      setWorldImageViewerTransform({
+        panX: dragStart.panX + currentPoint.x - dragStart.point.x,
+        panY: dragStart.panY + currentPoint.y - dragStart.point.y,
+      });
+    }
+  };
+
+  const onPointerEnd = (event) => {
+    pointers.delete(event.pointerId);
+    if (frame.hasPointerCapture?.(event.pointerId)) {
+      frame.releasePointerCapture(event.pointerId);
+    }
+
+    if (!pointers.size) {
+      dragStart = null;
+      pinchStart = null;
+      frame.classList.remove("is-dragging");
+      return;
+    }
+
+    if (pointers.size === 1) {
+      const [point] = [...pointers.values()];
+      dragStart = {
+        point,
+        panX: activeWorldImageViewer?.panX || 0,
+        panY: activeWorldImageViewer?.panY || 0,
+      };
+      pinchStart = null;
+    }
+  };
+
+  frame.addEventListener("pointerdown", onPointerDown);
+  frame.addEventListener("pointermove", onPointerMove);
+  frame.addEventListener("pointerup", onPointerEnd);
+  frame.addEventListener("pointercancel", onPointerEnd);
+  frame.addEventListener("lostpointercapture", onPointerEnd);
+  frame.addEventListener("wheel", handleWorldImageViewerWheel, { passive: false });
+  image.addEventListener("dragstart", (event) => event.preventDefault());
+}
+
+function handleWorldImageViewerWheel(event) {
+  if (!activeWorldImageViewer) {
+    return;
+  }
+
+  event.preventDefault();
+  const scaleFactor = Math.exp(-event.deltaY * 0.0016);
+  setWorldImageViewerTransform({
+    scale: activeWorldImageViewer.scale * scaleFactor,
+  });
+}
+
+function setWorldImageViewerTransform(next = {}) {
+  if (!activeWorldImageViewer) {
+    return;
+  }
+
+  const nextScale = clampNumber(
+    next.scale ?? activeWorldImageViewer.scale,
+    WORLD_IMAGE_VIEWER_MIN_SCALE,
+    WORLD_IMAGE_VIEWER_MAX_SCALE,
+    1,
+  );
+  activeWorldImageViewer.scale = nextScale;
+  activeWorldImageViewer.panX = nextScale <= WORLD_IMAGE_VIEWER_MIN_SCALE ? 0 : Number(next.panX ?? activeWorldImageViewer.panX) || 0;
+  activeWorldImageViewer.panY = nextScale <= WORLD_IMAGE_VIEWER_MIN_SCALE ? 0 : Number(next.panY ?? activeWorldImageViewer.panY) || 0;
+  clampWorldImageViewerPan();
+  applyWorldImageViewerTransform();
+}
+
+function clampWorldImageViewerPan() {
+  const frame = document.querySelector("#worldImageViewerFrame");
+  const image = document.querySelector("#worldImageViewerImage");
+
+  if (!activeWorldImageViewer || !frame || !image) {
+    return;
+  }
+
+  const frameRect = frame.getBoundingClientRect();
+  const maxX = Math.max((image.offsetWidth * activeWorldImageViewer.scale - frameRect.width) / 2, 0);
+  const maxY = Math.max((image.offsetHeight * activeWorldImageViewer.scale - frameRect.height) / 2, 0);
+  activeWorldImageViewer.panX = clampNumber(activeWorldImageViewer.panX, -maxX, maxX, 0);
+  activeWorldImageViewer.panY = clampNumber(activeWorldImageViewer.panY, -maxY, maxY, 0);
+}
+
+function applyWorldImageViewerTransform() {
+  const frame = document.querySelector("#worldImageViewerFrame");
+  const image = document.querySelector("#worldImageViewerImage");
+
+  if (!activeWorldImageViewer || !frame || !image) {
+    return;
+  }
+
+  const { panX, panY, scale } = activeWorldImageViewer;
+  image.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${scale})`;
+  frame.classList.toggle("is-zoomed", scale > 1.01);
 }
 
 function renderOptionChip(item) {
@@ -4630,6 +4924,7 @@ function clearAuthSession(options = {}) {
   const { clearLocalRecords = false } = options;
 
   closeAvatarCropModal({ resetInput: true, silent: true, restorePrevious: false });
+  closeWorldImageViewer();
   clearPendingWorldImage({ updateStatus: false });
   clearPendingProfileAvatarImage({ renderPreview: false });
   cleanupAllImageCropInteractions();
@@ -4788,6 +5083,8 @@ function toggleWorldChat() {
   state.worldOpen = !state.worldOpen;
   if (state.worldOpen) {
     pickWorldPlaceholder();
+  } else {
+    closeWorldImageViewer();
   }
   elements.sidebar.classList.remove("is-menu-open");
   elements.modeMenuToggle.setAttribute("aria-expanded", "false");
@@ -4798,6 +5095,7 @@ function toggleWorldChat() {
 
 function closeWorldChat() {
   state.worldOpen = false;
+  closeWorldImageViewer();
   saveState();
   render();
   showToast("世界聊天窗口已关闭。");
@@ -4996,6 +5294,11 @@ function handleDocumentClick(event) {
 }
 
 function handleGlobalKeydown(event) {
+  if (event.key === "Escape" && activeWorldImageViewer) {
+    closeWorldImageViewer();
+    return;
+  }
+
   if (event.key === "Escape" && activeAvatarCrop) {
     closeAvatarCropModal({ resetInput: true });
   }
@@ -8020,6 +8323,7 @@ elements.optionPreview.addEventListener("click", (event) => {
     toggleLock(lockButton.dataset.lockTitle);
   }
 });
+document.addEventListener("click", handleWorldChatClick);
 document.addEventListener("click", handleDocumentClick);
 document.addEventListener("keydown", handleGlobalKeydown);
 
