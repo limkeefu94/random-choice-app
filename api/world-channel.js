@@ -1,4 +1,4 @@
-﻿const crypto = require("node:crypto");
+const crypto = require("node:crypto");
 const { getFirestore } = require("../server/firestore-client");
 const { cleanText, getAccountFromRequest, getBearerToken, normalizeAvatar } = require("../server/auth-utils");
 const { setCors } = require("../server/cors-utils");
@@ -7,6 +7,7 @@ const { checkRateLimit, recordRateLimitAttempt } = require("../server/rate-limit
 const WORLD_COLLECTION = "randomChoiceWorldMessages";
 const BLOCK_COLLECTION = "randomChoiceBlocks";
 const MAX_WORLD_MESSAGES = 80;
+const MAX_WORLD_MESSAGE_LIKES = 1000;
 const CORS_OPTIONS = {
   methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
 };
@@ -37,13 +38,31 @@ const WORLD_IMAGE_MINUTE_LIMIT = {
   maxEnv: "WORLD_IMAGE_MINUTE_RATE_LIMIT_MAX",
   windowEnv: "WORLD_IMAGE_MINUTE_RATE_LIMIT_WINDOW_MS",
 };
+const WORLD_LIKE_ACCOUNT_MINUTE_LIMIT = {
+  name: "world-like-account-1m",
+  max: 12,
+  devMax: 12,
+  windowMs: 60 * 1000,
+  devWindowMs: 60 * 1000,
+  maxEnv: "WORLD_LIKE_ACCOUNT_MINUTE_RATE_LIMIT_MAX",
+  windowEnv: "WORLD_LIKE_ACCOUNT_MINUTE_RATE_LIMIT_WINDOW_MS",
+};
+const WORLD_LIKE_IP_MINUTE_LIMIT = {
+  name: "world-like-ip-1m",
+  max: 60,
+  devMax: 60,
+  windowMs: 60 * 1000,
+  devWindowMs: 60 * 1000,
+  maxEnv: "WORLD_LIKE_IP_MINUTE_RATE_LIMIT_MAX",
+  windowEnv: "WORLD_LIKE_IP_MINUTE_RATE_LIMIT_WINDOW_MS",
+};
 
 function normalizeLikeAccountIds(value) {
   if (!Array.isArray(value)) {
     return [];
   }
 
-  return [...new Set(value.map((item) => cleanText(item, 160)).filter(Boolean))].slice(0, 1000);
+  return [...new Set(value.map((item) => cleanText(item, 160)).filter(Boolean))];
 }
 
 function normalizeLikeCount(value, likedBy = []) {
@@ -322,6 +341,16 @@ async function toggleWorldMessageLike(request, response, body) {
     return;
   }
 
+  const rateLimit = checkWorldLikeRateLimits(request, response, account);
+
+  if (!rateLimit.allowed) {
+    response.status(429).json({
+      ok: false,
+      error: "点爱心太快了，请稍后再试",
+    });
+    return;
+  }
+
   const documentRef = getFirestore().collection(WORLD_COLLECTION).doc(messageId);
 
   await getFirestore().runTransaction(async (transaction) => {
@@ -345,6 +374,10 @@ async function toggleWorldMessageLike(request, response, body) {
 
     if (likedBy.has(account.id)) {
       likedBy.delete(account.id);
+    } else if (likedBy.size >= MAX_WORLD_MESSAGE_LIKES) {
+      const error = new Error("这条内容的爱心已满，请稍后再试");
+      error.statusCode = 409;
+      throw error;
     } else {
       likedBy.add(account.id);
     }
@@ -402,6 +435,21 @@ function checkWorldMessageRateLimits(request, response, account, hasImage) {
     checks.push(checkRateLimit(request, response, { ...WORLD_IMAGE_MINUTE_LIMIT, key }));
   }
 
+  const blockedCheck = checks.find((check) => !check.allowed);
+
+  if (blockedCheck) {
+    return blockedCheck;
+  }
+
+  checks.forEach(recordRateLimitAttempt);
+  return { allowed: true };
+}
+
+function checkWorldLikeRateLimits(request, response, account) {
+  const checks = [
+    checkRateLimit(request, response, { ...WORLD_LIKE_ACCOUNT_MINUTE_LIMIT, key: account.id }),
+    checkRateLimit(request, response, WORLD_LIKE_IP_MINUTE_LIMIT),
+  ];
   const blockedCheck = checks.find((check) => !check.allowed);
 
   if (blockedCheck) {
