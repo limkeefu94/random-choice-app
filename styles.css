@@ -1763,9 +1763,12 @@ button {
 }
 
 .world-like-button strong {
+  min-width: 1.2em;
   color: inherit;
   font-size: 0.78rem;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 .world-image-link {
@@ -3557,7 +3560,7 @@ button {
     width: 100vw;
     height: 100dvh;
     max-height: none;
-    padding: max(8px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+    padding: max(8px, env(safe-area-inset-top)) 10px calc(16px + env(safe-area-inset-bottom, 0px));
     overflow: hidden;
     border: 0;
     border-radius: 0;
@@ -3669,7 +3672,7 @@ button {
   .world-auth-panel {
     gap: 6px;
     margin-top: 0;
-    padding-top: 6px;
+    padding: 6px 0 calc(4px + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid rgba(80, 45, 24, 0.1);
     overflow-y: auto;
     max-height: 38dvh;
