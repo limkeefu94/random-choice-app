@@ -1781,6 +1781,26 @@ const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const RELEASE_NOTES = [
   {
     version: "0.6.5",
+    title: "世界频道爱心互动",
+    date: "2026-06-13",
+    summary: "这次加入了世界频道的爱心功能，看到喜欢的内容可以轻轻点一下，让频道开始有更多互动感。",
+    userChanges: [
+      "世界频道消息现在可以点爱心。",
+      "爱心旁边会显示数量。",
+      "已点过的消息会显示实心爱心。",
+      "再点一次可以取消爱心。",
+      "未登录时点击爱心会提示先登录。",
+    ],
+    technicalChanges: [
+      "Added owner-safe world message like toggling.",
+      "Added like count and viewer-liked state rendering.",
+      "Added optimistic like UI with request protection.",
+      "Preserved existing image upload, crop, preview, edit, and remove flows.",
+      "Added fallback handling for older messages without like fields.",
+    ],
+  },
+  {
+    version: "0.6.5",
     title: "图片浏览器桌面优化",
     date: "2026-06-12",
     summary: "这次优化了世界频道图片浏览器的桌面布局，图片和文字说明会并排显示，减少需要滚动查看的情况。",
@@ -2129,6 +2149,7 @@ let profilePanelView = "home";
 let editingWorldMessageId = "";
 let currentWorldPlaceholder = "";
 let activeWorldImageViewer = null;
+let pendingWorldLikeIds = new Set();
 let myWorldMessages = [];
 let isMyWorldMessagesLoading = false;
 let myWorldMessagesError = "";
@@ -2756,7 +2777,7 @@ function renderMyProfileMessage(message) {
   const isEditing = editingWorldMessageId === message.id;
   const text = getWorldMessageText(message);
   const displayText = text || (message.attachment?.type === "image" ? "图片动态" : "（没有文字）");
-  const likeMarkup = Number(message.likeCount) > 0 ? `<small>♡ ${Number(message.likeCount)}</small>` : "";
+  const likeMarkup = Number(message.likeCount) > 0 ? `<small>${message.likedByCurrentUser ? "❤️" : "♡"} ${Number(message.likeCount)}</small>` : "";
 
   return `
     <article class="my-profile-message">
@@ -4087,12 +4108,34 @@ function renderWorldChannel() {
                 </div>
                 ${getWorldMessageText(message) ? `<p>${escapeHtml(getWorldMessageText(message))}</p>` : ""}
                 ${renderWorldAttachment(message.attachment, message)}
+                <div class="world-message-actions">
+                  ${renderWorldLikeButton(message)}
+                </div>
               </div>
             </article>
           `,
         )
         .join("")}
     </div>
+  `;
+}
+
+function renderWorldLikeButton(message) {
+  const currentAccount = getCurrentUser();
+  const isLiked = Boolean(currentAccount && message.likedByCurrentUser);
+  const isPending = pendingWorldLikeIds.has(message.id);
+  const likeCount = Math.max(Number(message.likeCount) || 0, 0);
+  const label = currentAccount
+    ? isLiked
+      ? "取消爱心"
+      : "点爱心"
+    : "登录后可以点爱心";
+
+  return `
+    <button class="world-like-button${isLiked ? " is-liked" : ""}${isPending ? " is-loading" : ""}" type="button" data-world-like="${escapeHtml(message.id)}" aria-pressed="${isLiked}" aria-label="${label}" ${isPending ? "disabled" : ""}>
+      <span aria-hidden="true">${isLiked ? "❤️" : "♡"}</span>
+      <strong>${likeCount}</strong>
+    </button>
   `;
 }
 
@@ -4118,6 +4161,14 @@ function renderWorldAttachment(attachment, message = null) {
 }
 
 function handleWorldChatClick(event) {
+  const likeButton = event.target.closest("[data-world-like]");
+
+  if (likeButton) {
+    event.preventDefault();
+    toggleWorldMessageLike(likeButton.dataset.worldLike);
+    return;
+  }
+
   const imageButton = event.target.closest("[data-world-image-url]");
 
   if (!imageButton) {
@@ -6393,7 +6444,8 @@ function normalizeWorldMessage(message) {
     createdAt: message.createdAt || new Date().toISOString(),
     updatedAt: message.updatedAt || "",
     time: message.time || formatWorldTime(message.createdAt),
-    likeCount: Number(message.likeCount) || 0,
+    likeCount: Math.max(Number(message.likeCount) || 0, 0),
+    likedByCurrentUser: message.likedByCurrentUser === true,
     isDeleted: message.isDeleted === true,
     deletedAt: message.deletedAt || "",
     deletedBy: message.deletedBy || "",
@@ -6556,6 +6608,117 @@ async function deleteOwnWorldMessage(messageId) {
   }
 
   return payload;
+}
+
+function refreshWorldLikeButtons(messageId) {
+  const message = getWorldMessageSnapshot(messageId);
+
+  if (!message) {
+    return;
+  }
+
+  document.querySelectorAll("[data-world-like]").forEach((button) => {
+    if (button.dataset.worldLike === messageId) {
+      button.outerHTML = renderWorldLikeButton(message);
+    }
+  });
+}
+
+function updateWorldMessageCaches(message) {
+  state.worldMessages = mergeWorldMessages(state.worldMessages, [message]);
+  myWorldMessages = mergeMyWorldMessageCache(myWorldMessages, message);
+}
+
+function getWorldMessageSnapshot(messageId) {
+  const message = state.worldMessages.find((item) => item.id === messageId)
+    || myWorldMessages.find((item) => item.id === messageId);
+
+  return message ? normalizeWorldMessage(message) : null;
+}
+
+async function requestToggleWorldMessageLike(messageId) {
+  const response = await fetch(WORLD_CHANNEL_ENDPOINT, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      action: "toggleLike",
+      id: messageId,
+    }),
+  });
+  const payload = await readJsonResponse(response);
+
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.detail || payload.error || "爱心暂时点不了");
+  }
+
+  return payload.message;
+}
+
+async function toggleWorldMessageLike(messageId) {
+  const currentAccount = getCurrentUser();
+  const safeMessageId = String(messageId || "");
+
+  if (!safeMessageId) {
+    return;
+  }
+
+  if (!currentAccount) {
+    showToast("登录后可以点爱心");
+    return;
+  }
+
+  if (pendingWorldLikeIds.has(safeMessageId)) {
+    return;
+  }
+
+  const previousMessage = getWorldMessageSnapshot(safeMessageId);
+
+  if (!previousMessage) {
+    showToast("这条内容暂时找不到。");
+    return;
+  }
+
+  const nextLiked = !previousMessage.likedByCurrentUser;
+  const optimisticMessage = {
+    ...previousMessage,
+    likedByCurrentUser: nextLiked,
+    likeCount: Math.max((Number(previousMessage.likeCount) || 0) + (nextLiked ? 1 : -1), 0),
+  };
+
+  pendingWorldLikeIds.add(safeMessageId);
+  updateWorldMessageCaches(optimisticMessage);
+  saveState();
+  refreshWorldLikeButtons(safeMessageId);
+
+  if (isProfilePanelOpen && profilePanelView === "home") {
+    renderProfilePanel();
+  }
+
+  try {
+    const message = await requestToggleWorldMessageLike(safeMessageId);
+    updateWorldMessageCaches(message);
+    saveState();
+    showToast(message.likedByCurrentUser ? "已点爱心。" : "已取消爱心。");
+  } catch (error) {
+    updateWorldMessageCaches(previousMessage);
+    saveState();
+    reportClientError(error, {
+      type: "world-message-like-failed",
+      source: WORLD_CHANNEL_ENDPOINT,
+    });
+    showToast(error.message || "爱心暂时点不了。");
+    syncWorldMessages();
+  } finally {
+    pendingWorldLikeIds.delete(safeMessageId);
+    refreshWorldLikeButtons(safeMessageId);
+
+    if (isProfilePanelOpen && profilePanelView === "home") {
+      renderProfilePanel();
+    }
+  }
 }
 
 async function saveMyWorldMessageEdit(messageId) {

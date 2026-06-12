@@ -38,6 +38,24 @@ const WORLD_IMAGE_MINUTE_LIMIT = {
   windowEnv: "WORLD_IMAGE_MINUTE_RATE_LIMIT_WINDOW_MS",
 };
 
+function normalizeLikeAccountIds(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return [...new Set(value.map((item) => cleanText(item, 160)).filter(Boolean))].slice(0, 1000);
+}
+
+function normalizeLikeCount(value, likedBy = []) {
+  const count = Number(value);
+
+  if (Number.isFinite(count)) {
+    return Math.max(Math.floor(count), 0);
+  }
+
+  return normalizeLikeAccountIds(likedBy).length;
+}
+
 function parseBody(request) {
   if (typeof request.body === "string") {
     return JSON.parse(request.body || "{}");
@@ -116,8 +134,12 @@ function isAllowedGcsAttachment(url, publicUrl, objectName) {
   });
 }
 
-function toWorldMessage(documentSnapshot) {
+function toWorldMessage(documentSnapshot, viewerAccountId = "") {
   const data = documentSnapshot.data() || {};
+  const likedBy = normalizeLikeAccountIds(data.likedBy);
+  const likeCount = normalizeLikeCount(data.likeCount, likedBy);
+  const safeViewerAccountId = cleanText(viewerAccountId, 160);
+
   return {
     id: data.id || documentSnapshot.id,
     channelId: data.channelId || "world",
@@ -135,7 +157,8 @@ function toWorldMessage(documentSnapshot) {
     createdAt: data.createdAt || "",
     updatedAt: data.updatedAt || "",
     time: data.time || "",
-    likeCount: Number.isFinite(data.likeCount) ? data.likeCount : 0,
+    likeCount,
+    likedByCurrentUser: Boolean(safeViewerAccountId && likedBy.includes(safeViewerAccountId)),
     isDeleted: data.isDeleted === true,
     deletedAt: data.deletedAt || "",
   };
@@ -183,7 +206,7 @@ async function readWorldMessages(request, response) {
       .limit(Math.min(Math.max(limit * 4, 40), 200))
       .get();
     const messages = snapshot.docs
-      .map(toWorldMessage)
+      .map((documentSnapshot) => toWorldMessage(documentSnapshot, account.id))
       .filter((message) => !isDeletedWorldMessage(message))
       .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))
       .slice(0, limit);
@@ -203,7 +226,7 @@ async function readWorldMessages(request, response) {
     .limit(Math.min(limit * 2, MAX_WORLD_MESSAGES))
     .get();
   const messages = snapshot.docs
-    .map(toWorldMessage)
+    .map((documentSnapshot) => toWorldMessage(documentSnapshot, account?.id))
     .filter((message) => !isDeletedWorldMessage(message))
     .filter((message) => !blockedAccountIds.has(message.accountId))
     .slice(0, limit)
@@ -286,7 +309,62 @@ async function updateWorldMessage(request, response) {
 
   response.status(200).json({
     ok: true,
-    message: toWorldMessage(updatedSnapshot),
+    message: toWorldMessage(updatedSnapshot, ownedMessage.account.id),
+  });
+}
+
+async function toggleWorldMessageLike(request, response, body) {
+  const account = await getAccountFromRequest(request);
+  const messageId = getWorldMessageId(request, body);
+
+  if (!messageId) {
+    response.status(400).json({ ok: false, error: "找不到要点爱心的内容" });
+    return;
+  }
+
+  const documentRef = getFirestore().collection(WORLD_COLLECTION).doc(messageId);
+
+  await getFirestore().runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(documentRef);
+
+    if (!snapshot.exists) {
+      const error = new Error("这条内容不存在");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const data = snapshot.data() || {};
+
+    if (data.isDeleted === true || data.deletedAt) {
+      const error = new Error("这条内容已经移除");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const likedBy = new Set(normalizeLikeAccountIds(data.likedBy));
+
+    if (likedBy.has(account.id)) {
+      likedBy.delete(account.id);
+    } else {
+      likedBy.add(account.id);
+    }
+
+    const nextLikedBy = [...likedBy];
+    transaction.update(documentRef, {
+      likedBy: nextLikedBy,
+      likeCount: nextLikedBy.length,
+      likeUpdatedAt: new Date().toISOString(),
+    });
+  });
+
+  const updatedSnapshot = await documentRef.get();
+  const updatedMessage = toWorldMessage(updatedSnapshot, account.id);
+
+  response.status(200).json({
+    ok: true,
+    message: updatedMessage,
+    likeCount: updatedMessage.likeCount,
+    likedByCurrentUser: updatedMessage.likedByCurrentUser,
   });
 }
 
@@ -410,6 +488,13 @@ module.exports = async function handler(request, response) {
     }
 
     if (request.method === "PATCH") {
+      const body = parseBody(request);
+
+      if (cleanText(body.action, 40) === "toggleLike") {
+        await toggleWorldMessageLike(request, response, body);
+        return;
+      }
+
       await updateWorldMessage(request, response);
       return;
     }
@@ -423,9 +508,11 @@ module.exports = async function handler(request, response) {
   } catch (error) {
     const needsLogin = error.message === "Invalid token" || error.message === "Expired token" || error.message === "Account not found";
 
-    response.status(needsLogin ? 401 : 500).json({
+    const statusCode = error.statusCode || (needsLogin ? 401 : 500);
+
+    response.status(statusCode).json({
       ok: false,
-      error: needsLogin ? "请重新登入" : "世界频道暂时连不上",
+      error: error.statusCode ? error.message : needsLogin ? "请重新登入" : "世界频道暂时连不上",
       detail: error.message,
     });
   }

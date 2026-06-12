@@ -1713,6 +1713,61 @@ button {
   white-space: pre-wrap;
 }
 
+.world-message-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.world-like-button {
+  display: inline-flex;
+  min-width: 58px;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 1px solid rgba(80, 45, 24, 0.1);
+  border-radius: 999px;
+  color: #7b5a49;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.66);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.world-like-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(255, 122, 61, 0.28);
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.world-like-button.is-liked {
+  border-color: rgba(255, 122, 61, 0.26);
+  color: #d94f43;
+  background: rgba(255, 122, 61, 0.12);
+}
+
+.world-like-button.is-loading,
+.world-like-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.world-like-button span {
+  line-height: 1;
+}
+
+.world-like-button strong {
+  color: inherit;
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
 .world-image-link {
   display: grid;
   width: 100%;
@@ -3589,6 +3644,17 @@ button {
   .world-message p {
     font-size: 0.88rem;
     line-height: 1.45;
+  }
+
+  .world-message-actions {
+    margin-top: 7px;
+  }
+
+  .world-like-button {
+    min-width: 50px;
+    min-height: 30px;
+    padding: 0 8px;
+    font-size: 0.82rem;
   }
 
   .world-image-link {
