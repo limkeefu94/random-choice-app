@@ -1785,20 +1785,20 @@ const RELEASE_NOTES = [
     version: "0.6.7",
     title: "首页自定义布局",
     date: "2026-06-14",
-    summary: "这次加入了首页自定义功能，可以隐藏不常用的功能，也可以调整功能卡顺序，让首页更符合自己的使用习惯。",
+    summary: "这次加入了首页编辑模式，可以直接在首页隐藏、恢复和调整功能卡顺序，让首页更像自己的手机桌面。",
     userChanges: [
-      "首页功能卡可以调整顺序。",
-      "不常用的功能可以隐藏。",
-      "隐藏的功能可以在设置里找回来。",
+      "首页新增“编辑首页”模式。",
+      "点减号可以把不常用功能移到隐藏区。",
+      "点加号可以把隐藏功能恢复到首页。",
+      "可以调整首页功能卡顺序。",
       "可以一键恢复默认首页布局。",
-      "首页在功能变多时更清爽。",
     ],
     technicalChanges: [
-      "Added local home layout preference state.",
-      "Added safe fallback for older saved state.",
-      "Added home feature visibility controls.",
-      "Added simple move up / move down ordering.",
-      "Added default layout restore handling.",
+      "Added home-screen edit mode for feature cards.",
+      "Added visible and hidden home feature sections.",
+      "Added local layout persistence with safe fallback.",
+      "Added home feature hide / restore handling.",
+      "Preserved existing settings recovery path.",
     ],
   },
   {
@@ -2126,6 +2126,7 @@ const elements = {
   modeMenuToggle: document.querySelector("#modeMenuToggle"),
   modeMenuLabel: document.querySelector("#modeMenuLabel"),
   modeMenuHint: document.querySelector("#modeMenuHint"),
+  homeLayoutEditButton: document.querySelector("#homeLayoutEditButton"),
   sidebar: document.querySelector(".sidebar"),
   sidebarWorld: document.querySelector(".sidebar-world"),
   worldChannelButton: document.querySelector("#worldChannelButton"),
@@ -2188,6 +2189,7 @@ let isMoreMenuOpen = false;
 let isFeedbackPanelOpen = false;
 let isSettingsPanelOpen = false;
 let isReleaseNotesPanelOpen = false;
+let isHomeLayoutEditing = false;
 const clientErrorThrottle = new Map();
 
 function isValidAnonymousUserId(userId) {
@@ -2566,59 +2568,167 @@ function applyStaticTranslations() {
   elements.settingsPanel.setAttribute("aria-label", t("menu.settings", "设置"));
 }
 
+function renderHomeFeatureCard(feature, options = {}) {
+  const { isHidden = false, visibleIndex = -1, visibleCount = 0 } = options;
+  const isWorldFeature = feature.type === "world";
+  const isModeFeature = feature.type === "mode";
+  const isActive = (isModeFeature && feature.modeKey === state.mode) || (isWorldFeature && state.worldOpen);
+  const buttonAttributes = isHidden
+    ? "disabled"
+    : isModeFeature
+      ? `data-mode="${escapeHtml(feature.modeKey)}" aria-pressed="${isActive}"`
+      : `data-home-world="true" aria-pressed="${state.worldOpen}"`;
+  const activeClass = isActive ? " is-active" : "";
+  const hiddenClass = isHidden ? " is-hidden" : "";
+  const editClass = isHomeLayoutEditing ? " is-editing" : "";
+  const orderControls = isHomeLayoutEditing && !isHidden
+    ? `
+      <div class="home-feature-order-actions" aria-label="\u8c03\u6574\u987a\u5e8f">
+        <button class="home-feature-mini-button" type="button" data-home-layout-move="${escapeHtml(feature.id)}" data-home-layout-direction="-1" data-home-layout-scope="visible" ${visibleIndex <= 0 ? "disabled" : ""}>\u4e0a\u79fb</button>
+        <button class="home-feature-mini-button" type="button" data-home-layout-move="${escapeHtml(feature.id)}" data-home-layout-direction="1" data-home-layout-scope="visible" ${visibleIndex >= visibleCount - 1 ? "disabled" : ""}>\u4e0b\u79fb</button>
+      </div>
+    `
+    : "";
+  const editLabel = (isHidden ? "\u6062\u590d" : "\u9690\u85cf") + feature.title;
+  const editControl = isHomeLayoutEditing
+    ? `
+      <button
+        class="home-feature-toggle-button${isHidden ? " is-restore" : " is-hide"}"
+        type="button"
+        data-home-layout-action="${isHidden ? "show" : "hide"}"
+        data-home-layout-feature="${escapeHtml(feature.id)}"
+        aria-label="${escapeHtml(editLabel)}"
+        ${!isHidden && visibleCount <= 1 ? "disabled" : ""}
+      >${isHidden ? "+" : "-"}</button>
+    `
+    : "";
+
+  return `
+    <div class="home-feature-card${hiddenClass}${editClass}" data-home-feature-card="${escapeHtml(feature.id)}">
+      ${editControl}
+      <button class="mode-button${activeClass}${isWorldFeature ? " world-entry-button" : ""}" type="button" ${buttonAttributes}>
+        <span class="mode-icon">${feature.icon}</span>
+        <span class="mode-copy">
+          <strong>${escapeHtml(feature.title)}</strong>
+          <small>${escapeHtml(feature.description)}</small>
+        </span>
+      </button>
+      ${orderControls}
+    </div>
+  `;
+}
+
+function renderHomeFeatureSection(title, features, options = {}) {
+  const { isHidden = false, emptyText = "" } = options;
+
+  if (!features.length) {
+    return emptyText
+      ? `
+        <div class="home-layout-section${isHidden ? " is-hidden-section" : ""}">
+          <div class="home-layout-section-title"><span>${escapeHtml(title)}</span></div>
+          <p class="home-layout-empty-note">${escapeHtml(emptyText)}</p>
+        </div>
+      `
+      : "";
+  }
+
+  return `
+    <div class="home-layout-section${isHidden ? " is-hidden-section" : ""}">
+      <div class="home-layout-section-title"><span>${escapeHtml(title)}</span></div>
+      <div class="home-layout-section-list">
+        ${features.map((feature, index) => renderHomeFeatureCard(feature, {
+          isHidden,
+          visibleIndex: index,
+          visibleCount: features.length,
+        })).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function renderModes() {
   ensureVisibleHomeMode();
 
-  const modeEntries = getDisplayModeEntries();
-  const hiddenCount = getHiddenHomeFeatureCount();
+  const features = getHomeFeatures();
+  const hiddenIds = new Set(getHomeLayout().hidden);
+  const visibleFeatures = features.filter((feature) => !hiddenIds.has(feature.id));
+  const hiddenFeatures = features.filter((feature) => hiddenIds.has(feature.id));
+  const hiddenCount = hiddenFeatures.length;
 
-  elements.modeList.innerHTML = modeEntries.length
-    ? modeEntries
-    .map(([key, mode]) => {
-      const activeClass = key === state.mode ? " is-active" : "";
-      return `
-        <button class="mode-button${activeClass}" type="button" data-mode="${key}" aria-pressed="${key === state.mode}">
-          <span class="mode-icon">${mode.icon}</span>
-          <span class="mode-copy">
-            <strong>${getModeText(key, "title")}</strong>
-            <small>${getModeText(key, "short")}</small>
-          </span>
-        </button>
-      `;
-    })
-    .join("")
-    : `
-      <div class="home-layout-empty">
-        <strong>首页功能入口都隐藏了</strong>
-        <small>随机功能还在，可以到设置里重新显示。</small>
-        <button class="secondary-button" type="button" data-open-home-layout-settings>自定义首页</button>
+  elements.sidebar.classList.toggle("is-home-editing", isHomeLayoutEditing);
+
+  if (elements.homeLayoutEditButton) {
+    elements.homeLayoutEditButton.textContent = isHomeLayoutEditing ? "\u5b8c\u6210" : "\u7f16\u8f91\u9996\u9875";
+    elements.homeLayoutEditButton.setAttribute("aria-pressed", String(isHomeLayoutEditing));
+  }
+
+  if (isHomeLayoutEditing) {
+    elements.modeList.innerHTML = `
+      ${renderHomeFeatureSection("\u663e\u793a\u4e2d\u7684\u529f\u80fd", visibleFeatures, {
+        emptyText: "\u81f3\u5c11\u4fdd\u7559\u4e00\u4e2a\u9996\u9875\u5165\u53e3\uff0c\u65b9\u4fbf\u968f\u65f6\u627e\u56de\u529f\u80fd\u3002",
+      })}
+      ${renderHomeFeatureSection("\u2014\u2014 \u5df2\u9690\u85cf \u2014\u2014", hiddenFeatures, {
+        isHidden: true,
+        emptyText: "\u6682\u65f6\u6ca1\u6709\u9690\u85cf\u7684\u529f\u80fd\u3002",
+      })}
+      <div class="home-layout-editor-footer">
+        <button class="secondary-button" type="button" data-home-layout-reset>\u6062\u590d\u9ed8\u8ba4\u9996\u9875\u5e03\u5c40</button>
+        <small>\u9690\u85cf\u53ea\u662f\u672c\u673a\u663e\u793a\u504f\u597d\uff0c\u4e0d\u4f1a\u5220\u9664\u4efb\u4f55\u8bb0\u5f55\u6216\u4e16\u754c\u9891\u9053\u5185\u5bb9\u3002</small>
       </div>
     `;
+  } else {
+    elements.modeList.innerHTML = visibleFeatures.length
+      ? visibleFeatures.map((feature) => renderHomeFeatureCard(feature)).join("")
+      : `
+        <div class="home-layout-empty">
+          <strong>\u9996\u9875\u529f\u80fd\u5165\u53e3\u90fd\u9690\u85cf\u4e86</strong>
+          <small>\u529f\u80fd\u8fd8\u5728\uff0c\u53ef\u4ee5\u70b9\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002</small>
+          <button class="secondary-button" type="button" data-open-home-layout-editor>\u7f16\u8f91\u9996\u9875</button>
+        </div>
+      `;
 
-  if (hiddenCount > 0) {
-    elements.modeList.insertAdjacentHTML("beforeend", `
-      <div class="home-layout-hint">
-        <span>你隐藏了一些功能，可以在设置里找回来。</span>
-        <button type="button" data-open-home-layout-settings>自定义首页</button>
-      </div>
-    `);
+    if (hiddenCount > 0) {
+      elements.modeList.insertAdjacentHTML("beforeend", `
+        <div class="home-layout-hint">
+          <span>\u6709\u9690\u85cf\u529f\u80fd\uff0c\u53ef\u70b9\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002</span>
+          <button type="button" data-open-home-layout-editor>\u7f16\u8f91\u9996\u9875</button>
+        </div>
+      `);
+    }
   }
 
   elements.modeList.querySelectorAll("[data-mode]").forEach((button) => {
     button.addEventListener("click", () => switchMode(button.dataset.mode));
   });
-  elements.modeList.querySelectorAll("[data-open-home-layout-settings]").forEach((button) => {
-    button.addEventListener("click", openHomeLayoutSettings);
+  elements.modeList.querySelectorAll("[data-home-world]").forEach((button) => {
+    button.addEventListener("click", toggleWorldChat);
+  });
+  elements.modeList.querySelectorAll("[data-open-home-layout-editor]").forEach((button) => {
+    button.addEventListener("click", () => setHomeLayoutEditing(true));
+  });
+  elements.modeList.querySelectorAll("[data-home-layout-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      setHomeFeatureVisible(button.dataset.homeLayoutFeature, button.dataset.homeLayoutAction === "show");
+    });
+  });
+  elements.modeList.querySelectorAll("[data-home-layout-move]").forEach((button) => {
+    button.addEventListener("click", () => moveHomeFeature(
+      button.dataset.homeLayoutMove,
+      Number(button.dataset.homeLayoutDirection),
+      button.dataset.homeLayoutScope || "all",
+    ));
+  });
+  elements.modeList.querySelectorAll("[data-home-layout-reset]").forEach((button) => {
+    button.addEventListener("click", resetHomeLayout);
   });
 
   elements.modeMenuLabel.textContent = getModeTitle(state.mode);
-  elements.modeMenuHint.textContent = hiddenCount > 0
-    ? "已隐藏的功能可以在设置里的「自定义首页」找回。"
-    : "第一次用？先从吃什么、买什么或自定义随机开始，其他普通模式也在这里。";
-  elements.sidebarWorld.hidden = isHomeFeatureHidden(HOME_WORLD_FEATURE_ID);
-  elements.worldChannelButton.classList.toggle("is-active", state.worldOpen);
-  elements.worldChannelButton.setAttribute("aria-pressed", String(state.worldOpen));
-  elements.worldChannelButton.onclick = toggleWorldChat;
+  elements.modeMenuHint.textContent = isHomeLayoutEditing
+    ? "\u7f16\u8f91\u6a21\u5f0f\u4e2d\uff1a\u70b9\u51cf\u53f7\u9690\u85cf\uff0c\u70b9\u52a0\u53f7\u6062\u590d\uff0c\u7528\u4e0a\u79fb / \u4e0b\u79fb\u8c03\u6574\u987a\u5e8f\u3002"
+    : hiddenCount > 0
+      ? "\u6709\u9690\u85cf\u529f\u80fd\uff0c\u53ef\u70b9\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002"
+      : "\u7b2c\u4e00\u6b21\u7528\uff1f\u5148\u4ece\u5403\u4ec0\u4e48\u3001\u4e70\u4ec0\u4e48\u6216\u81ea\u5b9a\u4e49\u968f\u673a\u5f00\u59cb\uff0c\u5176\u4ed6\u666e\u901a\u6a21\u5f0f\u4e5f\u5728\u8fd9\u91cc\u3002";
+  elements.sidebarWorld.hidden = true;
 }
 
 function switchMode(mode) {
@@ -3126,43 +3236,20 @@ function parseWorldTopics(value) {
 }
 
 function renderHomeLayoutSettingsSection() {
-  const layout = getHomeLayout();
-  const hidden = new Set(layout.hidden);
-  const features = getHomeFeatures();
-  const hiddenCount = hidden.size;
+  const hiddenCount = getHiddenHomeFeatureCount();
 
   return `
     <section class="settings-section home-layout-settings-section" id="homeLayoutSettingsSection">
       <div class="settings-section-heading">
-        <strong>自定义首页</strong>
-        <small>${hiddenCount > 0 ? `已隐藏 ${hiddenCount} 个功能，可随时找回。` : "调整首页功能卡顺序，也可以隐藏不常用的功能。"}</small>
+        <strong>\u81ea\u5b9a\u4e49\u9996\u9875</strong>
+        <small>\u4e3b\u8981\u7f16\u8f91\u53ef\u4ee5\u5728\u9996\u9875\u70b9\u201c\u7f16\u8f91\u9996\u9875\u201d\u5b8c\u6210\u3002</small>
       </div>
-      <div class="home-layout-list">
-        ${features.map((feature, index) => {
-          const isHidden = hidden.has(feature.id);
-
-          return `
-            <article class="home-layout-item${isHidden ? " is-hidden" : ""}" data-home-layout-item="${escapeHtml(feature.id)}">
-              <span class="home-layout-icon" aria-hidden="true">${feature.icon}</span>
-              <div class="home-layout-copy">
-                <strong>${escapeHtml(feature.title)}</strong>
-                <small>${escapeHtml(feature.description)}</small>
-              </div>
-              <label class="home-layout-switch">
-                <input type="checkbox" data-home-layout-visible="${escapeHtml(feature.id)}" ${isHidden ? "" : "checked"} />
-                <span>${isHidden ? "已隐藏" : "显示在首页"}</span>
-              </label>
-              <div class="home-layout-actions">
-                <button class="secondary-button" type="button" data-home-layout-move="${escapeHtml(feature.id)}" data-home-layout-direction="-1" ${index === 0 ? "disabled" : ""}>上移</button>
-                <button class="secondary-button" type="button" data-home-layout-move="${escapeHtml(feature.id)}" data-home-layout-direction="1" ${index === features.length - 1 ? "disabled" : ""}>下移</button>
-              </div>
-            </article>
-          `;
-        }).join("")}
-      </div>
-      <div class="home-layout-footer">
-        <p>隐藏只是本机显示偏好，不会删除世界频道消息、历史记录或任何云端资料。</p>
-        <button class="secondary-button" id="homeLayoutResetButton" type="button">恢复默认排序</button>
+      <div class="home-layout-settings-summary">
+        <p>\u5f53\u524d\u6709 ${hiddenCount} \u4e2a\u9690\u85cf\u529f\u80fd\u3002\u9690\u85cf\u53ea\u662f\u672c\u673a\u663e\u793a\u504f\u597d\uff0c\u4e0d\u4f1a\u5220\u9664\u4e16\u754c\u9891\u9053\u6d88\u606f\u3001\u5386\u53f2\u8bb0\u5f55\u6216\u4e91\u7aef\u8d44\u6599\u3002</p>
+        <div class="settings-action-grid settings-utility-actions">
+          <button class="secondary-button" id="settingsHomeEditButton" type="button">\u53bb\u9996\u9875\u7f16\u8f91</button>
+          <button class="secondary-button" id="homeLayoutResetButton" type="button">\u6062\u590d\u9ed8\u8ba4\u9996\u9875\u5e03\u5c40</button>
+        </div>
       </div>
     </section>
   `;
@@ -3340,39 +3427,80 @@ function renderSettingsPanel() {
 }
 
 function bindHomeLayoutSettingsControls() {
-  document.querySelectorAll("[data-home-layout-visible]").forEach((input) => {
-    input.addEventListener("change", () => setHomeFeatureVisible(input.dataset.homeLayoutVisible, input.checked));
-  });
-
-  document.querySelectorAll("[data-home-layout-move]").forEach((button) => {
-    button.addEventListener("click", () => moveHomeFeature(button.dataset.homeLayoutMove, Number(button.dataset.homeLayoutDirection)));
-  });
-
+  document.querySelector("#settingsHomeEditButton")?.addEventListener("click", openHomeLayoutEditorFromSettings);
   document.querySelector("#homeLayoutResetButton")?.addEventListener("click", resetHomeLayout);
+}
+
+function setHomeLayoutEditing(isEditing) {
+  isHomeLayoutEditing = Boolean(isEditing);
+  render();
+}
+
+function openHomeLayoutEditorFromSettings() {
+  closeSettingsPanel();
+  setHomeLayoutEditing(true);
+  window.setTimeout(() => elements.modeList?.scrollIntoView({ block: "nearest" }), 0);
 }
 
 function setHomeFeatureVisible(featureId, isVisible) {
   const layout = getHomeLayout();
   const hidden = new Set(layout.hidden);
+  const visibleCount = layout.order.filter((id) => !hidden.has(id)).length;
 
   if (isVisible) {
     hidden.delete(featureId);
+    const order = layout.order.filter((id) => id !== featureId);
+    order.push(featureId);
+    state.homeLayout = normalizeHomeLayout({
+      ...layout,
+      order,
+      hidden: [...hidden],
+    });
   } else {
+    if (visibleCount <= 1) {
+      showToast("\u81f3\u5c11\u4fdd\u7559\u4e00\u4e2a\u9996\u9875\u5165\u53e3\uff0c\u65b9\u4fbf\u627e\u56de\u529f\u80fd\u3002");
+      return;
+    }
+
     hidden.add(featureId);
+    state.homeLayout = normalizeHomeLayout({
+      ...layout,
+      hidden: [...hidden],
+    });
   }
 
-  state.homeLayout = normalizeHomeLayout({
-    ...layout,
-    hidden: [...hidden],
-  });
   ensureVisibleHomeMode();
   saveState();
   render();
-  showToast(isVisible ? "已显示在首页。" : "已从首页隐藏，可以在设置里找回。");
+  showToast(isVisible ? "\u5df2\u6062\u590d\u5230\u9996\u9875\u3002" : "\u5df2\u79fb\u5230\u9690\u85cf\u533a\uff0c\u53ef\u4ee5\u968f\u65f6\u6062\u590d\u3002");
 }
 
-function moveHomeFeature(featureId, direction) {
+function moveHomeFeature(featureId, direction, scope = "all") {
   const layout = getHomeLayout();
+  const hidden = new Set(layout.hidden);
+
+  if (scope === "visible") {
+    const visibleOrder = layout.order.filter((id) => !hidden.has(id));
+    const hiddenOrder = layout.order.filter((id) => hidden.has(id));
+    const currentVisibleIndex = visibleOrder.indexOf(featureId);
+    const nextVisibleIndex = currentVisibleIndex + (direction < 0 ? -1 : 1);
+
+    if (currentVisibleIndex < 0 || nextVisibleIndex < 0 || nextVisibleIndex >= visibleOrder.length) {
+      return;
+    }
+
+    const [item] = visibleOrder.splice(currentVisibleIndex, 1);
+    visibleOrder.splice(nextVisibleIndex, 0, item);
+    state.homeLayout = normalizeHomeLayout({
+      ...layout,
+      order: [...visibleOrder, ...hiddenOrder],
+    });
+    saveState();
+    render();
+    showToast("\u9996\u9875\u987a\u5e8f\u5df2\u66f4\u65b0\u3002");
+    return;
+  }
+
   const currentIndex = layout.order.indexOf(featureId);
   const nextIndex = currentIndex + (direction < 0 ? -1 : 1);
 
@@ -3389,7 +3517,7 @@ function moveHomeFeature(featureId, direction) {
   });
   saveState();
   render();
-  showToast("首页顺序已更新。");
+  showToast("\u9996\u9875\u987a\u5e8f\u5df2\u66f4\u65b0\u3002");
 }
 
 function resetHomeLayout() {
@@ -3397,7 +3525,7 @@ function resetHomeLayout() {
   ensureVisibleHomeMode();
   saveState();
   render();
-  showToast("首页布局已恢复默认。");
+  showToast("\u9996\u9875\u5e03\u5c40\u5df2\u6062\u590d\u9ed8\u8ba4\u3002");
 }
 
 function getSettingsFormPayload() {
@@ -5573,11 +5701,6 @@ function openSettingsPanel() {
   isProfilePanelOpen = false;
   isFeedbackPanelOpen = false;
   renderTopUserTools();
-}
-
-function openHomeLayoutSettings() {
-  openSettingsPanel();
-  window.setTimeout(() => document.querySelector("#homeLayoutSettingsSection")?.scrollIntoView({ block: "nearest" }), 0);
 }
 
 function closeSettingsPanel() {
@@ -8806,6 +8929,7 @@ elements.appRefreshButton.addEventListener("click", refreshApp);
 elements.notificationButton.addEventListener("click", toggleNotificationPanel);
 elements.profileAvatarButton.addEventListener("click", toggleProfilePanel);
 elements.moreMenuButton.addEventListener("click", toggleMoreMenu);
+elements.homeLayoutEditButton?.addEventListener("click", () => setHomeLayoutEditing(!isHomeLayoutEditing));
 elements.randomButton.addEventListener("click", drawResult);
 elements.copyResultButton.addEventListener("click", copyCurrentResult);
 elements.shareResultButton.addEventListener("click", shareCurrentResult);
