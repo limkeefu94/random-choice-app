@@ -447,6 +447,23 @@ button {
   opacity: 0.44;
 }
 
+.home-feature-locked-hint {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  left: 10px;
+  max-width: 96px;
+  padding: 5px 8px;
+  border: 1px solid rgba(96, 199, 160, 0.34);
+  border-radius: 999px;
+  color: #285b4a;
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1.2;
+  background: #ecfbf4;
+  box-shadow: 0 8px 18px rgba(96, 199, 160, 0.14);
+}
+
 .home-feature-order-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3297,6 +3314,13 @@ button {
     width: 36px;
     height: 36px;
     min-height: 36px;
+  }
+
+  .home-feature-locked-hint {
+    top: 11px;
+    left: 8px;
+    max-width: 86px;
+    padding: 4px 7px;
   }
 
   .home-feature-order-actions {

@@ -2373,7 +2373,7 @@ function normalizeHomeLayout(layout) {
   });
 
   const hidden = Array.isArray(source.hidden)
-    ? [...new Set(source.hidden.filter((id) => knownIds.has(id)))]
+    ? [...new Set(source.hidden.filter((id) => knownIds.has(id) && id !== HOME_WORLD_FEATURE_ID))]
     : [];
 
   return { order, hidden };
@@ -2440,7 +2440,7 @@ function getVisibleModeKeys() {
 }
 
 function getHiddenHomeFeatureCount() {
-  return getHomeLayout().hidden.length;
+  return getHomeLayout().hidden.filter((id) => id !== HOME_WORLD_FEATURE_ID).length;
 }
 
 function isHomeFeatureHidden(featureId) {
@@ -2589,16 +2589,19 @@ function renderHomeFeatureCard(feature, options = {}) {
       </div>
     `
     : "";
+  const canHideFeature = !isHidden && feature.id !== HOME_WORLD_FEATURE_ID;
   const editLabel = (isHidden ? "\u6062\u590d" : "\u9690\u85cf") + feature.title;
   const editControl = isHomeLayoutEditing
-    ? `
+    ? isWorldFeature && !isHidden
+      ? `<span class="home-feature-locked-hint" aria-label="\u4e16\u754c\u9891\u9053\u53ef\u79fb\u52a8\uff0c\u4e0d\u53ef\u9690\u85cf">\u53ef\u79fb\u52a8\uff0c\u4e0d\u53ef\u9690\u85cf</span>`
+      : `
       <button
         class="home-feature-toggle-button${isHidden ? " is-restore" : " is-hide"}"
         type="button"
         data-home-layout-action="${isHidden ? "show" : "hide"}"
         data-home-layout-feature="${escapeHtml(feature.id)}"
         aria-label="${escapeHtml(editLabel)}"
-        ${!isHidden && visibleCount <= 1 ? "disabled" : ""}
+        ${canHideFeature && visibleCount <= 1 ? "disabled" : ""}
       >${isHidden ? "+" : "-"}</button>
     `
     : "";
@@ -3431,9 +3434,22 @@ function bindHomeLayoutSettingsControls() {
   document.querySelector("#homeLayoutResetButton")?.addEventListener("click", resetHomeLayout);
 }
 
+function refreshHomeLayoutUi() {
+  elements.modeTitle.textContent = getModeText(state.mode, "title");
+  elements.modeDescription.textContent = getModeText(state.mode, "description");
+  elements.controlHint.textContent = getModeText(state.mode, "hint");
+  elements.resultLabel.textContent = getModeText(state.mode, "label");
+  renderModes();
+  renderModeStage();
+  renderControls();
+  renderPreview();
+}
+
 function setHomeLayoutEditing(isEditing) {
   isHomeLayoutEditing = Boolean(isEditing);
-  render();
+  elements.sidebar.classList.toggle("is-menu-open", isHomeLayoutEditing);
+  elements.modeMenuToggle.setAttribute("aria-expanded", String(isHomeLayoutEditing));
+  refreshHomeLayoutUi();
 }
 
 function openHomeLayoutEditorFromSettings() {
@@ -3443,9 +3459,14 @@ function openHomeLayoutEditorFromSettings() {
 }
 
 function setHomeFeatureVisible(featureId, isVisible) {
+  if (featureId === HOME_WORLD_FEATURE_ID && !isVisible) {
+    showToast("\u4e16\u754c\u9891\u9053\u662f\u5fc5\u663e\u5165\u53e3\uff0c\u53ef\u4ee5\u79fb\u52a8\u4f46\u4e0d\u80fd\u9690\u85cf\u3002");
+    return;
+  }
+
   const layout = getHomeLayout();
   const hidden = new Set(layout.hidden);
-  const visibleCount = layout.order.filter((id) => !hidden.has(id)).length;
+  const visibleModeCount = layout.order.filter((id) => !hidden.has(id) && MODES[getModeKeyFromHomeFeature(id)]).length;
 
   if (isVisible) {
     hidden.delete(featureId);
@@ -3457,8 +3478,8 @@ function setHomeFeatureVisible(featureId, isVisible) {
       hidden: [...hidden],
     });
   } else {
-    if (visibleCount <= 1) {
-      showToast("\u81f3\u5c11\u4fdd\u7559\u4e00\u4e2a\u9996\u9875\u5165\u53e3\uff0c\u65b9\u4fbf\u627e\u56de\u529f\u80fd\u3002");
+    if (MODES[getModeKeyFromHomeFeature(featureId)] && visibleModeCount <= 1) {
+      showToast("\u81f3\u5c11\u4fdd\u7559\u4e00\u4e2a\u968f\u673a\u6a21\u5f0f\uff0c\u65b9\u4fbf\u627e\u56de\u529f\u80fd\u3002");
       return;
     }
 
@@ -3471,7 +3492,7 @@ function setHomeFeatureVisible(featureId, isVisible) {
 
   ensureVisibleHomeMode();
   saveState();
-  render();
+  refreshHomeLayoutUi();
   showToast(isVisible ? "\u5df2\u6062\u590d\u5230\u9996\u9875\u3002" : "\u5df2\u79fb\u5230\u9690\u85cf\u533a\uff0c\u53ef\u4ee5\u968f\u65f6\u6062\u590d\u3002");
 }
 
@@ -3496,7 +3517,7 @@ function moveHomeFeature(featureId, direction, scope = "all") {
       order: [...visibleOrder, ...hiddenOrder],
     });
     saveState();
-    render();
+    refreshHomeLayoutUi();
     showToast("\u9996\u9875\u987a\u5e8f\u5df2\u66f4\u65b0\u3002");
     return;
   }
@@ -3516,7 +3537,7 @@ function moveHomeFeature(featureId, direction, scope = "all") {
     order,
   });
   saveState();
-  render();
+  refreshHomeLayoutUi();
   showToast("\u9996\u9875\u987a\u5e8f\u5df2\u66f4\u65b0\u3002");
 }
 
@@ -3524,7 +3545,7 @@ function resetHomeLayout() {
   state.homeLayout = createDefaultHomeLayout();
   ensureVisibleHomeMode();
   saveState();
-  render();
+  refreshHomeLayoutUi();
   showToast("\u9996\u9875\u5e03\u5c40\u5df2\u6062\u590d\u9ed8\u8ba4\u3002");
 }
 
