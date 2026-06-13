@@ -50,6 +50,8 @@ const MODES = {
 };
 
 const MODE_DISPLAY_ORDER = ["food", "shopping", "custom", "drink", "travel", "number"];
+const HOME_FEATURE_MODE_PREFIX = "mode:";
+const HOME_WORLD_FEATURE_ID = "world";
 const FOOD_CATEGORIES = ["全部", "Mamak", "快餐连锁", "外卖平台热门", "油炸类", "素食类", "低卡类", "快餐", "嘴馋零嘴类", "高热量", "健康类"];
 const SPECIAL_FOOD_CATEGORIES = new Set(["Mamak", "快餐连锁", "外卖平台热门"]);
 const SPECIAL_REGION_KEYS = new Set(["全国 Mamak", "快餐连锁", "外卖平台热门"]);
@@ -1775,10 +1777,30 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.6.6";
+const APP_VERSION = "0.6.7";
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const RELEASE_NOTES = [
+  {
+    version: "0.6.7",
+    title: "首页自定义布局",
+    date: "2026-06-14",
+    summary: "这次加入了首页自定义功能，可以隐藏不常用的功能，也可以调整功能卡顺序，让首页更符合自己的使用习惯。",
+    userChanges: [
+      "首页功能卡可以调整顺序。",
+      "不常用的功能可以隐藏。",
+      "隐藏的功能可以在设置里找回来。",
+      "可以一键恢复默认首页布局。",
+      "首页在功能变多时更清爽。",
+    ],
+    technicalChanges: [
+      "Added local home layout preference state.",
+      "Added safe fallback for older saved state.",
+      "Added home feature visibility controls.",
+      "Added simple move up / move down ordering.",
+      "Added default layout restore handling.",
+    ],
+  },
   {
     version: "0.6.6",
     title: "世界频道稳定性优化",
@@ -2017,6 +2039,10 @@ const state = {
   features: {
     social: SOCIAL_FEATURES_ENABLED,
   },
+  homeLayout: {
+    order: [],
+    hidden: [],
+  },
   language: "zh-CN",
   languageManuallySelected: false,
   currency: "MYR",
@@ -2099,7 +2125,9 @@ const elements = {
   modeList: document.querySelector("#modeList"),
   modeMenuToggle: document.querySelector("#modeMenuToggle"),
   modeMenuLabel: document.querySelector("#modeMenuLabel"),
+  modeMenuHint: document.querySelector("#modeMenuHint"),
   sidebar: document.querySelector(".sidebar"),
+  sidebarWorld: document.querySelector(".sidebar-world"),
   worldChannelButton: document.querySelector("#worldChannelButton"),
   worldCloseButton: document.querySelector("#worldCloseButton"),
   todayLabel: document.querySelector("#todayLabel"),
@@ -2218,6 +2246,7 @@ function loadState() {
     state.languageManuallySelected = saved.languageManuallySelected === true;
     state.language = state.languageManuallySelected ? normalizeLanguage(saved.language) : "zh-CN";
     state.currency = CURRENCY_RATES[saved.currency] ? saved.currency : state.currency;
+    state.homeLayout = normalizeHomeLayout(saved.homeLayout);
     state.food = { ...state.food, ...saved.food };
     state.travel = { ...state.travel, ...saved.travel };
     state.number = { ...state.number, ...saved.number };
@@ -2259,6 +2288,7 @@ function saveState() {
     language: state.language,
     languageManuallySelected: state.languageManuallySelected,
     currency: state.currency,
+    homeLayout: normalizeHomeLayout(state.homeLayout),
     food: state.food,
     drink: state.drink,
     travel: state.travel,
@@ -2307,10 +2337,127 @@ function getLotteryDisclaimer() {
   return t("lottery.disclaimer", LOTTERY_DISCLAIMER);
 }
 
-function getDisplayModeEntries() {
-  const orderedKeys = [...MODE_DISPLAY_ORDER, ...Object.keys(MODES).filter((key) => !MODE_DISPLAY_ORDER.includes(key))];
+function getDefaultHomeFeatureIds() {
+  const orderedModeKeys = [...MODE_DISPLAY_ORDER, ...Object.keys(MODES).filter((key) => !MODE_DISPLAY_ORDER.includes(key))];
 
-  return orderedKeys.map((key) => [key, MODES[key]]).filter(([, mode]) => mode);
+  return [...orderedModeKeys.map((mode) => `${HOME_FEATURE_MODE_PREFIX}${mode}`), HOME_WORLD_FEATURE_ID];
+}
+
+function createDefaultHomeLayout() {
+  return {
+    order: getDefaultHomeFeatureIds(),
+    hidden: [],
+  };
+}
+
+function normalizeHomeLayout(layout) {
+  const defaultIds = getDefaultHomeFeatureIds();
+  const knownIds = new Set(defaultIds);
+  const source = layout && typeof layout === "object" ? layout : {};
+  const order = [];
+
+  if (Array.isArray(source.order)) {
+    source.order.forEach((id) => {
+      if (knownIds.has(id) && !order.includes(id)) {
+        order.push(id);
+      }
+    });
+  }
+
+  defaultIds.forEach((id) => {
+    if (!order.includes(id)) {
+      order.push(id);
+    }
+  });
+
+  const hidden = Array.isArray(source.hidden)
+    ? [...new Set(source.hidden.filter((id) => knownIds.has(id)))]
+    : [];
+
+  return { order, hidden };
+}
+
+function getHomeLayout() {
+  const normalized = normalizeHomeLayout(state.homeLayout);
+  state.homeLayout = normalized;
+
+  return normalized;
+}
+
+function getModeKeyFromHomeFeature(featureId) {
+  return String(featureId || "").startsWith(HOME_FEATURE_MODE_PREFIX)
+    ? String(featureId).slice(HOME_FEATURE_MODE_PREFIX.length)
+    : "";
+}
+
+function getHomeFeatureMeta(featureId) {
+  if (featureId === HOME_WORLD_FEATURE_ID) {
+    return {
+      id: HOME_WORLD_FEATURE_ID,
+      type: "world",
+      icon: "🌍",
+      title: t("world.title", "世界频道"),
+      description: t("world.subtitle", "打开独立聊天窗口"),
+    };
+  }
+
+  const modeKey = getModeKeyFromHomeFeature(featureId);
+  const mode = MODES[modeKey];
+
+  if (!mode) {
+    return null;
+  }
+
+  return {
+    id: featureId,
+    type: "mode",
+    modeKey,
+    icon: mode.icon,
+    title: getModeText(modeKey, "title"),
+    description: getModeText(modeKey, "short"),
+  };
+}
+
+function getHomeFeatures() {
+  const layout = getHomeLayout();
+
+  return layout.order.map(getHomeFeatureMeta).filter(Boolean);
+}
+
+function getVisibleHomeFeatureIds() {
+  const layout = getHomeLayout();
+  const hidden = new Set(layout.hidden);
+
+  return layout.order.filter((id) => !hidden.has(id));
+}
+
+function getVisibleModeKeys() {
+  return getVisibleHomeFeatureIds()
+    .map(getModeKeyFromHomeFeature)
+    .filter((modeKey) => MODES[modeKey]);
+}
+
+function getHiddenHomeFeatureCount() {
+  return getHomeLayout().hidden.length;
+}
+
+function isHomeFeatureHidden(featureId) {
+  return getHomeLayout().hidden.includes(featureId);
+}
+
+function ensureVisibleHomeMode() {
+  const visibleModeKeys = getVisibleModeKeys();
+
+  if (visibleModeKeys.length && !visibleModeKeys.includes(state.mode)) {
+    state.mode = visibleModeKeys[0];
+    state.currentResult = null;
+  }
+}
+
+function getDisplayModeEntries() {
+  const visibleModeKeys = getVisibleModeKeys();
+
+  return visibleModeKeys.map((key) => [key, MODES[key]]).filter(([, mode]) => mode);
 }
 
 function randomInt(max) {
@@ -2420,7 +2567,13 @@ function applyStaticTranslations() {
 }
 
 function renderModes() {
-  elements.modeList.innerHTML = getDisplayModeEntries()
+  ensureVisibleHomeMode();
+
+  const modeEntries = getDisplayModeEntries();
+  const hiddenCount = getHiddenHomeFeatureCount();
+
+  elements.modeList.innerHTML = modeEntries.length
+    ? modeEntries
     .map(([key, mode]) => {
       const activeClass = key === state.mode ? " is-active" : "";
       return `
@@ -2433,13 +2586,36 @@ function renderModes() {
         </button>
       `;
     })
-    .join("");
+    .join("")
+    : `
+      <div class="home-layout-empty">
+        <strong>首页功能入口都隐藏了</strong>
+        <small>随机功能还在，可以到设置里重新显示。</small>
+        <button class="secondary-button" type="button" data-open-home-layout-settings>自定义首页</button>
+      </div>
+    `;
+
+  if (hiddenCount > 0) {
+    elements.modeList.insertAdjacentHTML("beforeend", `
+      <div class="home-layout-hint">
+        <span>你隐藏了一些功能，可以在设置里找回来。</span>
+        <button type="button" data-open-home-layout-settings>自定义首页</button>
+      </div>
+    `);
+  }
 
   elements.modeList.querySelectorAll("[data-mode]").forEach((button) => {
     button.addEventListener("click", () => switchMode(button.dataset.mode));
   });
+  elements.modeList.querySelectorAll("[data-open-home-layout-settings]").forEach((button) => {
+    button.addEventListener("click", openHomeLayoutSettings);
+  });
 
   elements.modeMenuLabel.textContent = getModeTitle(state.mode);
+  elements.modeMenuHint.textContent = hiddenCount > 0
+    ? "已隐藏的功能可以在设置里的「自定义首页」找回。"
+    : "第一次用？先从吃什么、买什么或自定义随机开始，其他普通模式也在这里。";
+  elements.sidebarWorld.hidden = isHomeFeatureHidden(HOME_WORLD_FEATURE_ID);
   elements.worldChannelButton.classList.toggle("is-active", state.worldOpen);
   elements.worldChannelButton.setAttribute("aria-pressed", String(state.worldOpen));
   elements.worldChannelButton.onclick = toggleWorldChat;
@@ -2949,6 +3125,49 @@ function parseWorldTopics(value) {
   return [...new Set(topics)].slice(0, 12).length ? [...new Set(topics)].slice(0, 12) : [...DEFAULT_ACCOUNT_SETTINGS.preferences.worldTopics];
 }
 
+function renderHomeLayoutSettingsSection() {
+  const layout = getHomeLayout();
+  const hidden = new Set(layout.hidden);
+  const features = getHomeFeatures();
+  const hiddenCount = hidden.size;
+
+  return `
+    <section class="settings-section home-layout-settings-section" id="homeLayoutSettingsSection">
+      <div class="settings-section-heading">
+        <strong>自定义首页</strong>
+        <small>${hiddenCount > 0 ? `已隐藏 ${hiddenCount} 个功能，可随时找回。` : "调整首页功能卡顺序，也可以隐藏不常用的功能。"}</small>
+      </div>
+      <div class="home-layout-list">
+        ${features.map((feature, index) => {
+          const isHidden = hidden.has(feature.id);
+
+          return `
+            <article class="home-layout-item${isHidden ? " is-hidden" : ""}" data-home-layout-item="${escapeHtml(feature.id)}">
+              <span class="home-layout-icon" aria-hidden="true">${feature.icon}</span>
+              <div class="home-layout-copy">
+                <strong>${escapeHtml(feature.title)}</strong>
+                <small>${escapeHtml(feature.description)}</small>
+              </div>
+              <label class="home-layout-switch">
+                <input type="checkbox" data-home-layout-visible="${escapeHtml(feature.id)}" ${isHidden ? "" : "checked"} />
+                <span>${isHidden ? "已隐藏" : "显示在首页"}</span>
+              </label>
+              <div class="home-layout-actions">
+                <button class="secondary-button" type="button" data-home-layout-move="${escapeHtml(feature.id)}" data-home-layout-direction="-1" ${index === 0 ? "disabled" : ""}>上移</button>
+                <button class="secondary-button" type="button" data-home-layout-move="${escapeHtml(feature.id)}" data-home-layout-direction="1" ${index === features.length - 1 ? "disabled" : ""}>下移</button>
+              </div>
+            </article>
+          `;
+        }).join("")}
+      </div>
+      <div class="home-layout-footer">
+        <p>隐藏只是本机显示偏好，不会删除世界频道消息、历史记录或任何云端资料。</p>
+        <button class="secondary-button" id="homeLayoutResetButton" type="button">恢复默认排序</button>
+      </div>
+    </section>
+  `;
+}
+
 function renderSettingsPanel() {
   if (elements.settingsPanel.hidden) {
     return;
@@ -2980,6 +3199,7 @@ function renderSettingsPanel() {
           <button class="secondary-button profile-logout-button" id="settingsLogoutButton" type="button" ${disabled}>登出账号</button>
         </div>
       </section>
+      ${renderHomeLayoutSettingsSection()}
       <section class="settings-section">
         <div class="settings-section-heading">
           <strong>隐私</strong>
@@ -3115,7 +3335,69 @@ function renderSettingsPanel() {
   document.querySelector("#releaseNotesCloseButton")?.addEventListener("click", closeReleaseNotesFromSettings);
   document.querySelector("#settingsFeedbackButton").addEventListener("click", openFeedbackPanel);
   document.querySelector("#settingsClearLocalButton").addEventListener("click", clearHistory);
+  bindHomeLayoutSettingsControls();
   document.querySelector("#settingsForm").addEventListener("submit", saveSettingsCenter);
+}
+
+function bindHomeLayoutSettingsControls() {
+  document.querySelectorAll("[data-home-layout-visible]").forEach((input) => {
+    input.addEventListener("change", () => setHomeFeatureVisible(input.dataset.homeLayoutVisible, input.checked));
+  });
+
+  document.querySelectorAll("[data-home-layout-move]").forEach((button) => {
+    button.addEventListener("click", () => moveHomeFeature(button.dataset.homeLayoutMove, Number(button.dataset.homeLayoutDirection)));
+  });
+
+  document.querySelector("#homeLayoutResetButton")?.addEventListener("click", resetHomeLayout);
+}
+
+function setHomeFeatureVisible(featureId, isVisible) {
+  const layout = getHomeLayout();
+  const hidden = new Set(layout.hidden);
+
+  if (isVisible) {
+    hidden.delete(featureId);
+  } else {
+    hidden.add(featureId);
+  }
+
+  state.homeLayout = normalizeHomeLayout({
+    ...layout,
+    hidden: [...hidden],
+  });
+  ensureVisibleHomeMode();
+  saveState();
+  render();
+  showToast(isVisible ? "已显示在首页。" : "已从首页隐藏，可以在设置里找回。");
+}
+
+function moveHomeFeature(featureId, direction) {
+  const layout = getHomeLayout();
+  const currentIndex = layout.order.indexOf(featureId);
+  const nextIndex = currentIndex + (direction < 0 ? -1 : 1);
+
+  if (currentIndex < 0 || nextIndex < 0 || nextIndex >= layout.order.length) {
+    return;
+  }
+
+  const order = [...layout.order];
+  const [item] = order.splice(currentIndex, 1);
+  order.splice(nextIndex, 0, item);
+  state.homeLayout = normalizeHomeLayout({
+    ...layout,
+    order,
+  });
+  saveState();
+  render();
+  showToast("首页顺序已更新。");
+}
+
+function resetHomeLayout() {
+  state.homeLayout = createDefaultHomeLayout();
+  ensureVisibleHomeMode();
+  saveState();
+  render();
+  showToast("首页布局已恢复默认。");
 }
 
 function getSettingsFormPayload() {
@@ -5291,6 +5573,11 @@ function openSettingsPanel() {
   isProfilePanelOpen = false;
   isFeedbackPanelOpen = false;
   renderTopUserTools();
+}
+
+function openHomeLayoutSettings() {
+  openSettingsPanel();
+  window.setTimeout(() => document.querySelector("#homeLayoutSettingsSection")?.scrollIntoView({ block: "nearest" }), 0);
 }
 
 function closeSettingsPanel() {
@@ -8454,7 +8741,15 @@ function clearHistory() {
 }
 
 function surpriseMode() {
-  const modes = Object.keys(MODES).filter((mode) => mode !== state.mode);
+  const visibleModes = getVisibleModeKeys();
+  const modePool = visibleModes.length ? visibleModes : Object.keys(MODES);
+  const modes = modePool.filter((mode) => mode !== state.mode);
+
+  if (!modes.length) {
+    showToast("当前没有其他可切换的首页模式，可以到设置里重新显示。");
+    return;
+  }
+
   switchMode(choose(modes));
 }
 
