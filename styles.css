@@ -410,6 +410,11 @@ button {
   border-style: dashed;
 }
 
+.home-feature-card.is-editing .mode-button:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
 .home-feature-card.is-hidden .mode-button {
   opacity: 0.66;
   background: rgba(255, 255, 255, 0.42);
@@ -3421,11 +3426,13 @@ button {
     padding-top: 12px;
   }
 
-  .sidebar.is-menu-open .mode-list {
+  .sidebar.is-menu-open .mode-list,
+  .sidebar.is-home-editing .mode-list {
     display: grid;
   }
 
-  .sidebar.is-menu-open .mode-list {
+  .sidebar.is-menu-open .mode-list,
+  .sidebar.is-home-editing .mode-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin-top: 12px;
   }

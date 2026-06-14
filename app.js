@@ -1791,14 +1791,16 @@ const RELEASE_NOTES = [
       "点减号可以把不常用功能移到隐藏区。",
       "点加号可以把隐藏功能恢复到首页。",
       "可以调整首页功能卡顺序。",
-      "可以一键恢复默认首页布局。",
+      "世界频道可以移动，但不会被隐藏。",
+      "可以恢复默认首页布局。",
     ],
     technicalChanges: [
       "Added home-screen edit mode for feature cards.",
       "Added visible and hidden home feature sections.",
       "Added local layout persistence with safe fallback.",
       "Added home feature hide / restore handling.",
-      "Preserved existing settings recovery path.",
+      "Kept world channel visible while allowing reorder.",
+      "Protected at least one random mode from being hidden.",
     ],
   },
   {
@@ -2372,16 +2374,26 @@ function normalizeHomeLayout(layout) {
     }
   });
 
-  const hidden = Array.isArray(source.hidden)
+  const hiddenSet = new Set(Array.isArray(source.hidden)
     ? [...new Set(source.hidden.filter((id) => knownIds.has(id) && id !== HOME_WORLD_FEATURE_ID))]
-    : [];
+    : []);
+  const modeIds = defaultIds.filter(isHomeModeFeatureId);
 
-  return { order, hidden };
+  if (modeIds.length && modeIds.every((id) => hiddenSet.has(id))) {
+    hiddenSet.delete(modeIds[0]);
+  }
+
+  return { order, hidden: [...hiddenSet] };
 }
 
 function getHomeLayout() {
+  const current = state.homeLayout;
   const normalized = normalizeHomeLayout(state.homeLayout);
   state.homeLayout = normalized;
+
+  if (JSON.stringify(current) !== JSON.stringify(normalized)) {
+    saveState();
+  }
 
   return normalized;
 }
@@ -2390,6 +2402,10 @@ function getModeKeyFromHomeFeature(featureId) {
   return String(featureId || "").startsWith(HOME_FEATURE_MODE_PREFIX)
     ? String(featureId).slice(HOME_FEATURE_MODE_PREFIX.length)
     : "";
+}
+
+function isHomeModeFeatureId(featureId) {
+  return Boolean(MODES[getModeKeyFromHomeFeature(featureId)]);
 }
 
 function getHomeFeatureMeta(featureId) {
@@ -2569,12 +2585,12 @@ function applyStaticTranslations() {
 }
 
 function renderHomeFeatureCard(feature, options = {}) {
-  const { isHidden = false, visibleIndex = -1, visibleCount = 0 } = options;
+  const { isHidden = false, visibleIndex = -1, visibleCount = 0, visibleModeCount = 0 } = options;
   const isWorldFeature = feature.type === "world";
   const isModeFeature = feature.type === "mode";
   const isActive = (isModeFeature && feature.modeKey === state.mode) || (isWorldFeature && state.worldOpen);
-  const buttonAttributes = isHidden
-    ? "disabled"
+  const buttonAttributes = isHidden || isHomeLayoutEditing
+    ? "disabled aria-disabled=\"true\""
     : isModeFeature
       ? `data-mode="${escapeHtml(feature.modeKey)}" aria-pressed="${isActive}"`
       : `data-home-world="true" aria-pressed="${state.worldOpen}"`;
@@ -2601,7 +2617,7 @@ function renderHomeFeatureCard(feature, options = {}) {
         data-home-layout-action="${isHidden ? "show" : "hide"}"
         data-home-layout-feature="${escapeHtml(feature.id)}"
         aria-label="${escapeHtml(editLabel)}"
-        ${canHideFeature && visibleCount <= 1 ? "disabled" : ""}
+        ${canHideFeature && isModeFeature && visibleModeCount <= 1 ? "disabled" : ""}
       >${isHidden ? "+" : "-"}</button>
     `
     : "";
@@ -2622,7 +2638,7 @@ function renderHomeFeatureCard(feature, options = {}) {
 }
 
 function renderHomeFeatureSection(title, features, options = {}) {
-  const { isHidden = false, emptyText = "" } = options;
+  const { isHidden = false, emptyText = "", visibleModeCount = 0 } = options;
 
   if (!features.length) {
     return emptyText
@@ -2643,6 +2659,7 @@ function renderHomeFeatureSection(title, features, options = {}) {
           isHidden,
           visibleIndex: index,
           visibleCount: features.length,
+          visibleModeCount,
         })).join("")}
       </div>
     </div>
@@ -2657,6 +2674,7 @@ function renderModes() {
   const visibleFeatures = features.filter((feature) => !hiddenIds.has(feature.id));
   const hiddenFeatures = features.filter((feature) => hiddenIds.has(feature.id));
   const hiddenCount = hiddenFeatures.length;
+  const visibleModeCount = visibleFeatures.filter((feature) => feature.type === "mode").length;
 
   elements.sidebar.classList.toggle("is-home-editing", isHomeLayoutEditing);
 
@@ -2669,6 +2687,7 @@ function renderModes() {
     elements.modeList.innerHTML = `
       ${renderHomeFeatureSection("\u663e\u793a\u4e2d\u7684\u529f\u80fd", visibleFeatures, {
         emptyText: "\u81f3\u5c11\u4fdd\u7559\u4e00\u4e2a\u9996\u9875\u5165\u53e3\uff0c\u65b9\u4fbf\u968f\u65f6\u627e\u56de\u529f\u80fd\u3002",
+        visibleModeCount,
       })}
       ${renderHomeFeatureSection("\u2014\u2014 \u5df2\u9690\u85cf \u2014\u2014", hiddenFeatures, {
         isHidden: true,
@@ -2735,6 +2754,10 @@ function renderModes() {
 }
 
 function switchMode(mode) {
+  if (isHomeLayoutEditing) {
+    return;
+  }
+
   if (!MODES[mode]) {
     return;
   }
@@ -5603,6 +5626,10 @@ function getWorldMessageText(message) {
 }
 
 function toggleWorldChat() {
+  if (isHomeLayoutEditing) {
+    return;
+  }
+
   state.worldOpen = !state.worldOpen;
   if (state.worldOpen) {
     pickWorldPlaceholder();
@@ -8957,6 +8984,12 @@ elements.shareResultButton.addEventListener("click", shareCurrentResult);
 elements.favoriteButton.addEventListener("click", favoriteCurrent);
 elements.surpriseModeButton.addEventListener("click", surpriseMode);
 elements.modeMenuToggle.addEventListener("click", () => {
+  if (isHomeLayoutEditing) {
+    elements.sidebar.classList.add("is-menu-open");
+    elements.modeMenuToggle.setAttribute("aria-expanded", "true");
+    return;
+  }
+
   const expanded = !elements.sidebar.classList.contains("is-menu-open");
   elements.sidebar.classList.toggle("is-menu-open", expanded);
   elements.modeMenuToggle.setAttribute("aria-expanded", String(expanded));
