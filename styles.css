@@ -407,7 +407,7 @@ button {
 
 .home-feature-card.is-editing .mode-button {
   padding-left: 52px;
-  padding-right: 52px;
+  padding-right: 104px;
   border-style: dashed;
 }
 
@@ -480,13 +480,20 @@ button {
   box-shadow: 0 8px 18px rgba(96, 199, 160, 0.14);
 }
 
-.home-feature-drag-handle {
+.home-feature-sort-controls {
   position: absolute;
   z-index: 2;
-  top: 13px;
+  top: 12px;
   right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.home-feature-drag-handle,
+.home-feature-sort-step {
   display: grid;
-  width: 34px;
+  width: 30px;
   height: 34px;
   min-height: 34px;
   place-items: center;
@@ -494,25 +501,38 @@ button {
   border: 1px solid rgba(80, 45, 24, 0.1);
   border-radius: 12px;
   color: #6f4d36;
-  font-size: 1.08rem;
   font-weight: 900;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.home-feature-drag-handle {
+  font-size: 1.08rem;
   cursor: grab;
   touch-action: none;
   user-select: none;
-  background: rgba(255, 255, 255, 0.78);
+}
+
+.home-feature-sort-step {
+  font-size: 0.68rem;
+  cursor: pointer;
 }
 
 .home-feature-drag-handle:active {
   cursor: grabbing;
 }
 
-.home-feature-drag-handle:disabled {
+.home-feature-drag-handle:disabled,
+.home-feature-sort-step:disabled {
   cursor: not-allowed;
   opacity: 0.42;
 }
 
 .home-layout-section-list.is-dragging {
   user-select: none;
+}
+
+body.is-home-layout-dragging {
+  overscroll-behavior: contain;
 }
 
 .home-layout-section {
@@ -3323,7 +3343,7 @@ button {
 
   .home-feature-card.is-editing .mode-button {
     padding-left: 50px;
-    padding-right: 50px;
+    padding-right: 102px;
   }
 
   .home-feature-card.is-editing.is-locked .mode-button {
@@ -3345,10 +3365,15 @@ button {
     padding: 4px 7px;
   }
 
-  .home-feature-drag-handle {
+  .home-feature-sort-controls {
     top: 10px;
     right: 8px;
-    width: 36px;
+    gap: 3px;
+  }
+
+  .home-feature-drag-handle,
+  .home-feature-sort-step {
+    width: 30px;
     height: 36px;
     min-height: 36px;
   }
@@ -3452,6 +3477,15 @@ button {
   .sidebar.is-home-editing .mode-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin-top: 12px;
+  }
+
+  .sidebar.is-home-editing .mode-list {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar.is-home-editing .home-layout-section,
+  .sidebar.is-home-editing .home-layout-editor-footer {
+    grid-column: 1 / -1;
   }
 
   .decision-card {

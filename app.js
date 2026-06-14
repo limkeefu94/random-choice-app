@@ -2603,13 +2603,31 @@ function renderHomeFeatureCard(feature, options = {}) {
   const lockedClass = isHomeLayoutEditing && !isHidden && (isWorldFeature || isRequiredMode) ? " is-locked" : "";
   const orderControls = isHomeLayoutEditing && !isHidden
     ? `
-      <button
-        class="home-feature-drag-handle"
-        type="button"
-        data-home-layout-drag-handle="${escapeHtml(feature.id)}"
-        aria-label="\u62d6\u52a8${escapeHtml(feature.title)}\u8c03\u6574\u987a\u5e8f"
-        ${visibleCount <= 1 ? "disabled" : ""}
-      >\u2630</button>
+      <div class="home-feature-sort-controls" aria-label="\u8c03\u6574${escapeHtml(feature.title)}\u987a\u5e8f">
+        <button
+          class="home-feature-sort-step"
+          type="button"
+          data-home-layout-step="${escapeHtml(feature.id)}"
+          data-home-layout-direction="-1"
+          aria-label="\u4e0a\u79fb${escapeHtml(feature.title)}"
+          ${visibleIndex <= 0 ? "disabled" : ""}
+        >\u25b2</button>
+        <button
+          class="home-feature-drag-handle"
+          type="button"
+          data-home-layout-drag-handle="${escapeHtml(feature.id)}"
+          aria-label="\u62d6\u52a8${escapeHtml(feature.title)}\u8c03\u6574\u987a\u5e8f"
+          ${visibleCount <= 1 ? "disabled" : ""}
+        >\u2630</button>
+        <button
+          class="home-feature-sort-step"
+          type="button"
+          data-home-layout-step="${escapeHtml(feature.id)}"
+          data-home-layout-direction="1"
+          aria-label="\u4e0b\u79fb${escapeHtml(feature.title)}"
+          ${visibleIndex >= visibleCount - 1 ? "disabled" : ""}
+        >\u25bc</button>
+      </div>
     `
     : "";
   const canHideFeature = !isHidden && feature.id !== HOME_WORLD_FEATURE_ID;
@@ -2735,6 +2753,13 @@ function renderModes() {
   elements.modeList.querySelectorAll("[data-home-layout-action]").forEach((button) => {
     button.addEventListener("click", () => {
       setHomeFeatureVisible(button.dataset.homeLayoutFeature, button.dataset.homeLayoutAction === "show");
+    });
+  });
+  elements.modeList.querySelectorAll("[data-home-layout-step]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      moveVisibleHomeFeature(button.dataset.homeLayoutStep, Number(button.dataset.homeLayoutDirection));
     });
   });
   bindHomeLayoutDragHandles();
@@ -3482,7 +3507,10 @@ function openHomeLayoutEditorFromSettings() {
 function bindHomeLayoutDragHandles() {
   elements.modeList.querySelectorAll("[data-home-layout-drag-handle]").forEach((handle) => {
     handle.addEventListener("pointerdown", startHomeLayoutDrag);
-    handle.addEventListener("click", (event) => event.preventDefault());
+    handle.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
   });
 }
 
@@ -3510,10 +3538,12 @@ function startHomeLayoutDrag(event) {
   };
 
   handle.setPointerCapture?.(event.pointerId);
-  handle.addEventListener("pointermove", handleHomeLayoutDragMove);
-  handle.addEventListener("pointerup", finishHomeLayoutDrag);
-  handle.addEventListener("pointercancel", cancelHomeLayoutDrag);
+  document.addEventListener("pointermove", handleHomeLayoutDragMove, { passive: false });
+  document.addEventListener("pointerup", finishHomeLayoutDrag);
+  document.addEventListener("pointercancel", cancelHomeLayoutDrag);
+  document.body.classList.add("is-home-layout-dragging");
   event.preventDefault();
+  event.stopPropagation();
 }
 
 function getNearestHomeLayoutCard(list, currentCard, clientX, clientY) {
@@ -3577,18 +3607,23 @@ function cleanupHomeLayoutDrag() {
   if (dragState.handle.hasPointerCapture?.(dragState.pointerId)) {
     dragState.handle.releasePointerCapture(dragState.pointerId);
   }
-  dragState.handle.removeEventListener("pointermove", handleHomeLayoutDragMove);
-  dragState.handle.removeEventListener("pointerup", finishHomeLayoutDrag);
-  dragState.handle.removeEventListener("pointercancel", cancelHomeLayoutDrag);
+  document.removeEventListener("pointermove", handleHomeLayoutDragMove);
+  document.removeEventListener("pointerup", finishHomeLayoutDrag);
+  document.removeEventListener("pointercancel", cancelHomeLayoutDrag);
+  document.body.classList.remove("is-home-layout-dragging");
   homeLayoutDragState = null;
 
   return dragState;
 }
 
 function finishHomeLayoutDrag(event) {
+  if (!homeLayoutDragState || homeLayoutDragState.pointerId !== event.pointerId) {
+    return;
+  }
+
   const dragState = cleanupHomeLayoutDrag();
 
-  if (!dragState || dragState.pointerId !== event.pointerId) {
+  if (!dragState) {
     return;
   }
 
@@ -3602,9 +3637,13 @@ function finishHomeLayoutDrag(event) {
 }
 
 function cancelHomeLayoutDrag(event) {
+  if (!homeLayoutDragState || homeLayoutDragState.pointerId !== event.pointerId) {
+    return;
+  }
+
   const dragState = cleanupHomeLayoutDrag();
 
-  if (dragState?.pointerId === event.pointerId) {
+  if (dragState) {
     refreshHomeLayoutUi();
   }
 }
@@ -3625,6 +3664,29 @@ function setVisibleHomeFeatureOrder(visibleOrder) {
   state.homeLayout = normalizeHomeLayout({
     ...layout,
     order: [...nextVisible, ...hiddenOrder],
+  });
+  saveState();
+  refreshHomeLayoutUi();
+  showToast("\u9996\u9875\u987a\u5e8f\u5df2\u66f4\u65b0\u3002");
+}
+
+function moveVisibleHomeFeature(featureId, direction) {
+  const layout = getHomeLayout();
+  const hidden = new Set(layout.hidden);
+  const visibleOrder = layout.order.filter((id) => !hidden.has(id));
+  const hiddenOrder = layout.order.filter((id) => hidden.has(id));
+  const currentIndex = visibleOrder.indexOf(featureId);
+  const nextIndex = currentIndex + (direction < 0 ? -1 : 1);
+
+  if (currentIndex < 0 || nextIndex < 0 || nextIndex >= visibleOrder.length) {
+    return;
+  }
+
+  const [item] = visibleOrder.splice(currentIndex, 1);
+  visibleOrder.splice(nextIndex, 0, item);
+  state.homeLayout = normalizeHomeLayout({
+    ...layout,
+    order: [...visibleOrder, ...hiddenOrder],
   });
   saveState();
   refreshHomeLayoutUi();
