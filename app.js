@@ -1788,9 +1788,9 @@ const RELEASE_NOTES = [
     summary: "这次加入了首页编辑模式，可以直接在首页隐藏、恢复和调整功能卡顺序，让首页更像自己的手机桌面。",
     userChanges: [
       "首页新增“编辑首页”模式。",
-      "点减号可以把不常用功能移到隐藏区。",
-      "点加号可以把隐藏功能恢复到首页。",
-      "可以调整首页功能卡顺序。",
+      "左侧减号可以隐藏功能。",
+      "隐藏区左侧加号可以恢复功能。",
+      "右侧三条横线可以调整顺序。",
       "世界频道可以移动，但不会被隐藏。",
       "可以恢复默认首页布局。",
     ],
@@ -1799,6 +1799,7 @@ const RELEASE_NOTES = [
       "Added visible and hidden home feature sections.",
       "Added local layout persistence with safe fallback.",
       "Added home feature hide / restore handling.",
+      "Added pointer-based drag handle sorting.",
       "Kept world channel visible while allowing reorder.",
       "Protected at least one random mode from being hidden.",
     ],
@@ -2192,6 +2193,7 @@ let isFeedbackPanelOpen = false;
 let isSettingsPanelOpen = false;
 let isReleaseNotesPanelOpen = false;
 let isHomeLayoutEditing = false;
+let homeLayoutDragState = null;
 const clientErrorThrottle = new Map();
 
 function isValidAnonymousUserId(userId) {
@@ -2589,6 +2591,7 @@ function renderHomeFeatureCard(feature, options = {}) {
   const isWorldFeature = feature.type === "world";
   const isModeFeature = feature.type === "mode";
   const isActive = (isModeFeature && feature.modeKey === state.mode) || (isWorldFeature && state.worldOpen);
+  const isRequiredMode = !isHidden && isModeFeature && visibleModeCount <= 1;
   const buttonAttributes = isHidden || isHomeLayoutEditing
     ? "disabled aria-disabled=\"true\""
     : isModeFeature
@@ -2597,19 +2600,25 @@ function renderHomeFeatureCard(feature, options = {}) {
   const activeClass = isActive ? " is-active" : "";
   const hiddenClass = isHidden ? " is-hidden" : "";
   const editClass = isHomeLayoutEditing ? " is-editing" : "";
+  const lockedClass = isHomeLayoutEditing && !isHidden && (isWorldFeature || isRequiredMode) ? " is-locked" : "";
   const orderControls = isHomeLayoutEditing && !isHidden
     ? `
-      <div class="home-feature-order-actions" aria-label="\u8c03\u6574\u987a\u5e8f">
-        <button class="home-feature-mini-button" type="button" data-home-layout-move="${escapeHtml(feature.id)}" data-home-layout-direction="-1" data-home-layout-scope="visible" ${visibleIndex <= 0 ? "disabled" : ""}>\u4e0a\u79fb</button>
-        <button class="home-feature-mini-button" type="button" data-home-layout-move="${escapeHtml(feature.id)}" data-home-layout-direction="1" data-home-layout-scope="visible" ${visibleIndex >= visibleCount - 1 ? "disabled" : ""}>\u4e0b\u79fb</button>
-      </div>
+      <button
+        class="home-feature-drag-handle"
+        type="button"
+        data-home-layout-drag-handle="${escapeHtml(feature.id)}"
+        aria-label="\u62d6\u52a8${escapeHtml(feature.title)}\u8c03\u6574\u987a\u5e8f"
+        ${visibleCount <= 1 ? "disabled" : ""}
+      >\u2630</button>
     `
     : "";
   const canHideFeature = !isHidden && feature.id !== HOME_WORLD_FEATURE_ID;
   const editLabel = (isHidden ? "\u6062\u590d" : "\u9690\u85cf") + feature.title;
   const editControl = isHomeLayoutEditing
     ? isWorldFeature && !isHidden
-      ? `<span class="home-feature-locked-hint" aria-label="\u4e16\u754c\u9891\u9053\u53ef\u79fb\u52a8\uff0c\u4e0d\u53ef\u9690\u85cf">\u53ef\u79fb\u52a8\uff0c\u4e0d\u53ef\u9690\u85cf</span>`
+      ? `<span class="home-feature-locked-hint" aria-label="\u4e16\u754c\u9891\u9053\u53ef\u79fb\u52a8\uff0c\u4e0d\u53ef\u9690\u85cf">\u5fc5\u663e\u793a</span>`
+      : isRequiredMode
+        ? `<span class="home-feature-locked-hint" aria-label="\u81f3\u5c11\u4fdd\u7559\u4e00\u4e2a\u968f\u673a\u529f\u80fd">\u4fdd\u7559</span>`
       : `
       <button
         class="home-feature-toggle-button${isHidden ? " is-restore" : " is-hide"}"
@@ -2617,13 +2626,13 @@ function renderHomeFeatureCard(feature, options = {}) {
         data-home-layout-action="${isHidden ? "show" : "hide"}"
         data-home-layout-feature="${escapeHtml(feature.id)}"
         aria-label="${escapeHtml(editLabel)}"
-        ${canHideFeature && isModeFeature && visibleModeCount <= 1 ? "disabled" : ""}
+        ${!isHidden && !canHideFeature ? "disabled" : ""}
       >${isHidden ? "+" : "-"}</button>
     `
     : "";
 
   return `
-    <div class="home-feature-card${hiddenClass}${editClass}" data-home-feature-card="${escapeHtml(feature.id)}">
+    <div class="home-feature-card${hiddenClass}${editClass}${lockedClass}" data-home-feature-card="${escapeHtml(feature.id)}">
       ${editControl}
       <button class="mode-button${activeClass}${isWorldFeature ? " world-entry-button" : ""}" type="button" ${buttonAttributes}>
         <span class="mode-icon">${feature.icon}</span>
@@ -2704,16 +2713,14 @@ function renderModes() {
       : `
         <div class="home-layout-empty">
           <strong>\u9996\u9875\u529f\u80fd\u5165\u53e3\u90fd\u9690\u85cf\u4e86</strong>
-          <small>\u529f\u80fd\u8fd8\u5728\uff0c\u53ef\u4ee5\u70b9\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002</small>
-          <button class="secondary-button" type="button" data-open-home-layout-editor>\u7f16\u8f91\u9996\u9875</button>
+          <small>\u529f\u80fd\u8fd8\u5728\uff0c\u53ef\u4ee5\u7528\u4e0a\u65b9\u7684\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002</small>
         </div>
       `;
 
     if (hiddenCount > 0) {
       elements.modeList.insertAdjacentHTML("beforeend", `
         <div class="home-layout-hint">
-          <span>\u6709\u9690\u85cf\u529f\u80fd\uff0c\u53ef\u70b9\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002</span>
-          <button type="button" data-open-home-layout-editor>\u7f16\u8f91\u9996\u9875</button>
+          <span>\u6709\u9690\u85cf\u529f\u80fd\uff0c\u53ef\u7528\u4e0a\u65b9\u7684\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002</span>
         </div>
       `);
     }
@@ -2725,28 +2732,19 @@ function renderModes() {
   elements.modeList.querySelectorAll("[data-home-world]").forEach((button) => {
     button.addEventListener("click", toggleWorldChat);
   });
-  elements.modeList.querySelectorAll("[data-open-home-layout-editor]").forEach((button) => {
-    button.addEventListener("click", () => setHomeLayoutEditing(true));
-  });
   elements.modeList.querySelectorAll("[data-home-layout-action]").forEach((button) => {
     button.addEventListener("click", () => {
       setHomeFeatureVisible(button.dataset.homeLayoutFeature, button.dataset.homeLayoutAction === "show");
     });
   });
-  elements.modeList.querySelectorAll("[data-home-layout-move]").forEach((button) => {
-    button.addEventListener("click", () => moveHomeFeature(
-      button.dataset.homeLayoutMove,
-      Number(button.dataset.homeLayoutDirection),
-      button.dataset.homeLayoutScope || "all",
-    ));
-  });
+  bindHomeLayoutDragHandles();
   elements.modeList.querySelectorAll("[data-home-layout-reset]").forEach((button) => {
     button.addEventListener("click", resetHomeLayout);
   });
 
   elements.modeMenuLabel.textContent = getModeTitle(state.mode);
   elements.modeMenuHint.textContent = isHomeLayoutEditing
-    ? "\u7f16\u8f91\u6a21\u5f0f\u4e2d\uff1a\u70b9\u51cf\u53f7\u9690\u85cf\uff0c\u70b9\u52a0\u53f7\u6062\u590d\uff0c\u7528\u4e0a\u79fb / \u4e0b\u79fb\u8c03\u6574\u987a\u5e8f\u3002"
+    ? "\u7f16\u8f91\u6a21\u5f0f\u4e2d\uff1a\u70b9\u51cf\u53f7\u9690\u85cf\uff0c\u70b9\u52a0\u53f7\u6062\u590d\uff0c\u62d6\u52a8\u53f3\u4fa7\u4e09\u6761\u6a2a\u7ebf\u8c03\u6574\u987a\u5e8f\u3002"
     : hiddenCount > 0
       ? "\u6709\u9690\u85cf\u529f\u80fd\uff0c\u53ef\u70b9\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002"
       : "\u7b2c\u4e00\u6b21\u7528\uff1f\u5148\u4ece\u5403\u4ec0\u4e48\u3001\u4e70\u4ec0\u4e48\u6216\u81ea\u5b9a\u4e49\u968f\u673a\u5f00\u59cb\uff0c\u5176\u4ed6\u666e\u901a\u6a21\u5f0f\u4e5f\u5728\u8fd9\u91cc\u3002";
@@ -3481,6 +3479,158 @@ function openHomeLayoutEditorFromSettings() {
   window.setTimeout(() => elements.modeList?.scrollIntoView({ block: "nearest" }), 0);
 }
 
+function bindHomeLayoutDragHandles() {
+  elements.modeList.querySelectorAll("[data-home-layout-drag-handle]").forEach((handle) => {
+    handle.addEventListener("pointerdown", startHomeLayoutDrag);
+    handle.addEventListener("click", (event) => event.preventDefault());
+  });
+}
+
+function startHomeLayoutDrag(event) {
+  if (!isHomeLayoutEditing || event.currentTarget.disabled || (event.button !== undefined && event.button !== 0)) {
+    return;
+  }
+
+  const handle = event.currentTarget;
+  const card = handle.closest("[data-home-feature-card]");
+  const list = card?.closest(".home-layout-section-list");
+
+  if (!card || !list || card.closest(".is-hidden-section")) {
+    return;
+  }
+
+  homeLayoutDragState = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    handle,
+    card,
+    list,
+    didMove: false,
+  };
+
+  handle.setPointerCapture?.(event.pointerId);
+  handle.addEventListener("pointermove", handleHomeLayoutDragMove);
+  handle.addEventListener("pointerup", finishHomeLayoutDrag);
+  handle.addEventListener("pointercancel", cancelHomeLayoutDrag);
+  event.preventDefault();
+}
+
+function getNearestHomeLayoutCard(list, currentCard, clientX, clientY) {
+  const candidates = [...list.querySelectorAll("[data-home-feature-card]")]
+    .filter((card) => card !== currentCard && !card.classList.contains("is-hidden"));
+  let nearest = null;
+
+  candidates.forEach((card) => {
+    const rect = card.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const distance = ((clientX - centerX) ** 2) + ((clientY - centerY) ** 2);
+
+    if (!nearest || distance < nearest.distance) {
+      nearest = {
+        card,
+        distance,
+        before: clientY < centerY || (Math.abs(clientY - centerY) < 10 && clientX < centerX),
+      };
+    }
+  });
+
+  return nearest;
+}
+
+function handleHomeLayoutDragMove(event) {
+  const dragState = homeLayoutDragState;
+
+  if (!dragState || dragState.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const distance = Math.hypot(event.clientX - dragState.startX, event.clientY - dragState.startY);
+
+  if (!dragState.didMove && distance < 6) {
+    return;
+  }
+
+  dragState.didMove = true;
+  dragState.card.classList.add("is-dragging");
+  dragState.list.classList.add("is-dragging");
+
+  const nearest = getNearestHomeLayoutCard(dragState.list, dragState.card, event.clientX, event.clientY);
+
+  if (nearest?.card) {
+    dragState.list.insertBefore(dragState.card, nearest.before ? nearest.card : nearest.card.nextSibling);
+  }
+
+  event.preventDefault();
+}
+
+function cleanupHomeLayoutDrag() {
+  const dragState = homeLayoutDragState;
+
+  if (!dragState) {
+    return null;
+  }
+
+  dragState.card.classList.remove("is-dragging");
+  dragState.list.classList.remove("is-dragging");
+  if (dragState.handle.hasPointerCapture?.(dragState.pointerId)) {
+    dragState.handle.releasePointerCapture(dragState.pointerId);
+  }
+  dragState.handle.removeEventListener("pointermove", handleHomeLayoutDragMove);
+  dragState.handle.removeEventListener("pointerup", finishHomeLayoutDrag);
+  dragState.handle.removeEventListener("pointercancel", cancelHomeLayoutDrag);
+  homeLayoutDragState = null;
+
+  return dragState;
+}
+
+function finishHomeLayoutDrag(event) {
+  const dragState = cleanupHomeLayoutDrag();
+
+  if (!dragState || dragState.pointerId !== event.pointerId) {
+    return;
+  }
+
+  if (dragState.didMove) {
+    const visibleOrder = [...dragState.list.querySelectorAll("[data-home-feature-card]")]
+      .map((card) => card.dataset.homeFeatureCard)
+      .filter(Boolean);
+    setVisibleHomeFeatureOrder(visibleOrder);
+    event.preventDefault();
+  }
+}
+
+function cancelHomeLayoutDrag(event) {
+  const dragState = cleanupHomeLayoutDrag();
+
+  if (dragState?.pointerId === event.pointerId) {
+    refreshHomeLayoutUi();
+  }
+}
+
+function setVisibleHomeFeatureOrder(visibleOrder) {
+  const layout = getHomeLayout();
+  const hidden = new Set(layout.hidden);
+  const currentVisible = layout.order.filter((id) => !hidden.has(id));
+  const nextVisible = visibleOrder.filter((id) => currentVisible.includes(id));
+
+  currentVisible.forEach((id) => {
+    if (!nextVisible.includes(id)) {
+      nextVisible.push(id);
+    }
+  });
+
+  const hiddenOrder = layout.order.filter((id) => hidden.has(id));
+  state.homeLayout = normalizeHomeLayout({
+    ...layout,
+    order: [...nextVisible, ...hiddenOrder],
+  });
+  saveState();
+  refreshHomeLayoutUi();
+  showToast("\u9996\u9875\u987a\u5e8f\u5df2\u66f4\u65b0\u3002");
+}
+
 function setHomeFeatureVisible(featureId, isVisible) {
   if (featureId === HOME_WORLD_FEATURE_ID && !isVisible) {
     showToast("\u4e16\u754c\u9891\u9053\u662f\u5fc5\u663e\u5165\u53e3\uff0c\u53ef\u4ee5\u79fb\u52a8\u4f46\u4e0d\u80fd\u9690\u85cf\u3002");
@@ -3517,51 +3667,6 @@ function setHomeFeatureVisible(featureId, isVisible) {
   saveState();
   refreshHomeLayoutUi();
   showToast(isVisible ? "\u5df2\u6062\u590d\u5230\u9996\u9875\u3002" : "\u5df2\u79fb\u5230\u9690\u85cf\u533a\uff0c\u53ef\u4ee5\u968f\u65f6\u6062\u590d\u3002");
-}
-
-function moveHomeFeature(featureId, direction, scope = "all") {
-  const layout = getHomeLayout();
-  const hidden = new Set(layout.hidden);
-
-  if (scope === "visible") {
-    const visibleOrder = layout.order.filter((id) => !hidden.has(id));
-    const hiddenOrder = layout.order.filter((id) => hidden.has(id));
-    const currentVisibleIndex = visibleOrder.indexOf(featureId);
-    const nextVisibleIndex = currentVisibleIndex + (direction < 0 ? -1 : 1);
-
-    if (currentVisibleIndex < 0 || nextVisibleIndex < 0 || nextVisibleIndex >= visibleOrder.length) {
-      return;
-    }
-
-    const [item] = visibleOrder.splice(currentVisibleIndex, 1);
-    visibleOrder.splice(nextVisibleIndex, 0, item);
-    state.homeLayout = normalizeHomeLayout({
-      ...layout,
-      order: [...visibleOrder, ...hiddenOrder],
-    });
-    saveState();
-    refreshHomeLayoutUi();
-    showToast("\u9996\u9875\u987a\u5e8f\u5df2\u66f4\u65b0\u3002");
-    return;
-  }
-
-  const currentIndex = layout.order.indexOf(featureId);
-  const nextIndex = currentIndex + (direction < 0 ? -1 : 1);
-
-  if (currentIndex < 0 || nextIndex < 0 || nextIndex >= layout.order.length) {
-    return;
-  }
-
-  const order = [...layout.order];
-  const [item] = order.splice(currentIndex, 1);
-  order.splice(nextIndex, 0, item);
-  state.homeLayout = normalizeHomeLayout({
-    ...layout,
-    order,
-  });
-  saveState();
-  refreshHomeLayoutUi();
-  showToast("\u9996\u9875\u987a\u5e8f\u5df2\u66f4\u65b0\u3002");
 }
 
 function resetHomeLayout() {
