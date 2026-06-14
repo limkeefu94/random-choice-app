@@ -407,7 +407,7 @@ button {
 
 .home-feature-card.is-editing .mode-button {
   padding-left: 52px;
-  padding-right: 104px;
+  padding-right: 52px;
   border-style: dashed;
 }
 
@@ -480,20 +480,13 @@ button {
   box-shadow: 0 8px 18px rgba(96, 199, 160, 0.14);
 }
 
-.home-feature-sort-controls {
+.home-feature-drag-handle {
   position: absolute;
   z-index: 2;
-  top: 12px;
+  top: 13px;
   right: 10px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.home-feature-drag-handle,
-.home-feature-sort-step {
   display: grid;
-  width: 30px;
+  width: 34px;
   height: 34px;
   min-height: 34px;
   place-items: center;
@@ -501,28 +494,19 @@ button {
   border: 1px solid rgba(80, 45, 24, 0.1);
   border-radius: 12px;
   color: #6f4d36;
-  font-weight: 900;
-  background: rgba(255, 255, 255, 0.78);
-}
-
-.home-feature-drag-handle {
   font-size: 1.08rem;
+  font-weight: 900;
   cursor: grab;
   touch-action: none;
   user-select: none;
-}
-
-.home-feature-sort-step {
-  font-size: 0.68rem;
-  cursor: pointer;
+  background: rgba(255, 255, 255, 0.78);
 }
 
 .home-feature-drag-handle:active {
   cursor: grabbing;
 }
 
-.home-feature-drag-handle:disabled,
-.home-feature-sort-step:disabled {
+.home-feature-drag-handle:disabled {
   cursor: not-allowed;
   opacity: 0.42;
 }
@@ -657,6 +641,7 @@ body.is-home-layout-dragging {
   grid-template-columns: 42px 1fr;
   gap: 12px;
   width: 100%;
+  min-width: 0;
   padding: 12px;
   cursor: pointer;
   text-align: left;
@@ -691,14 +676,22 @@ body.is-home-layout-dragging {
   background: #fff4e8;
 }
 
+.mode-copy {
+  min-width: 0;
+}
+
 .mode-copy strong,
 .mode-copy small {
   display: block;
+  min-width: 0;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .mode-copy strong {
   margin-bottom: 3px;
   font-size: 0.98rem;
+  white-space: normal;
 }
 
 .mode-copy small {
@@ -3343,7 +3336,7 @@ body.is-home-layout-dragging {
 
   .home-feature-card.is-editing .mode-button {
     padding-left: 50px;
-    padding-right: 102px;
+    padding-right: 50px;
   }
 
   .home-feature-card.is-editing.is-locked .mode-button {
@@ -3365,15 +3358,10 @@ body.is-home-layout-dragging {
     padding: 4px 7px;
   }
 
-  .home-feature-sort-controls {
+  .home-feature-drag-handle {
     top: 10px;
     right: 8px;
-    gap: 3px;
-  }
-
-  .home-feature-drag-handle,
-  .home-feature-sort-step {
-    width: 30px;
+    width: 36px;
     height: 36px;
     min-height: 36px;
   }
