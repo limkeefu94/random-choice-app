@@ -39,6 +39,14 @@ const MODES = {
     hint: "选择购物类别和消费等级，避免冲动消费",
     label: "购物建议",
   },
+  gift: {
+    icon: "🎁",
+    title: "礼物交换随机",
+    short: "聚会互送礼物",
+    description: "家庭、朋友、公司聚会交换礼物用。输入名字后，系统会随机安排每个人要送礼物给谁。",
+    hint: "至少 3 人，系统会确保每个人只送一次、只收一次、不会抽到自己",
+    label: "礼物交换结果",
+  },
   custom: {
     icon: "🎲",
     title: "自定义随机池",
@@ -49,7 +57,7 @@ const MODES = {
   },
 };
 
-const MODE_DISPLAY_ORDER = ["food", "shopping", "custom", "drink", "travel", "number"];
+const MODE_DISPLAY_ORDER = ["food", "shopping", "custom", "gift", "drink", "travel", "number"];
 const HOME_FEATURE_MODE_PREFIX = "mode:";
 const HOME_WORLD_FEATURE_ID = "world";
 const FOOD_CATEGORIES = ["全部", "Mamak", "快餐连锁", "外卖平台热门", "油炸类", "素食类", "低卡类", "快餐", "嘴馋零嘴类", "高热量", "健康类"];
@@ -74,6 +82,10 @@ const TRAVEL_LEVELS = ["全部", "穷游", "低消费", "舒适", "轻奢", "奢
 const TRAVEL_TRANSPORTS = ["全部", "公共交通", "自驾游", "自由行", "跟团", "步行城市"];
 const SHOPPING_LEVELS = ["全部", "低消费", "中等", "高消费", "奢侈品", "理性"];
 const SHOPPING_MINDSETS = ["全部", "真的需要", "升级装备", "奖励自己", "先收藏不买", "工作需要", "旅行需要", "便宜小物", "长期投资"];
+const GIFT_REVEAL_MODES = {
+  single: "一个一个揭晓",
+  all: "全部一起生成",
+};
 const DEFAULT_PREVIEW_LIMIT = 24;
 const SHOPPING_PREVIEW_LIMIT = 30;
 const LOCKABLE_MODES = new Set(["food", "drink", "travel", "shopping", "custom"]);
@@ -1777,10 +1789,31 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.6.8";
+const APP_VERSION = "0.6.9";
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const RELEASE_NOTES = [
+  {
+    version: "0.6.9",
+    title: "礼物交换随机",
+    date: "2026-06-16",
+    summary: "这次新增礼物交换随机模式，适合家庭聚会、朋友聚会和公司活动。输入名字后，系统会随机安排每个人要送礼物给谁，并支持一个一个揭晓或全部一起生成。",
+    userChanges: [
+      "新增礼物交换随机模式。",
+      "支持输入多人名字并自动随机配对。",
+      "每个人只送一次、只收一次，不会抽到自己。",
+      "支持一个一个揭晓结果。",
+      "支持全部一起生成并逐条揭晓。",
+      "可以复制完整交换礼物结果。",
+    ],
+    technicalChanges: [
+      "Added local gift exchange mode state.",
+      "Added safe no-self pairing generation with fallback.",
+      "Added reveal-by-one and reveal-all result flows.",
+      "Added lightweight reveal animation.",
+      "Preserved existing auth, world channel, notifications, home layout, image, and like flows.",
+    ],
+  },
   {
     version: "0.6.8",
     title: "设置与通知中心优化",
@@ -2108,6 +2141,7 @@ const state = {
     level: "全部",
     mindset: "全部",
   },
+  gift: createDefaultGiftExchangeState(),
   auth: {
     currentUser: "",
     token: "",
@@ -2286,6 +2320,7 @@ function loadState() {
     state.travel = { ...state.travel, ...saved.travel };
     state.number = { ...state.number, ...saved.number };
     state.shopping = { ...state.shopping, ...saved.shopping };
+    state.gift = normalizeGiftExchangeState(saved.gift);
     state.auth = { ...state.auth, ...saved.auth };
     state.auth.token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || state.auth.token || "";
     state.users = Array.isArray(saved.users)
@@ -2330,6 +2365,7 @@ function saveState() {
     travel: state.travel,
     number: state.number,
     shopping: state.shopping,
+    gift: normalizeGiftExchangeState(state.gift),
     auth: state.auth,
     users: state.users.map(normalizeAccountUser).filter((user) => user.username),
     worldMessages: state.worldMessages,
@@ -2386,6 +2422,136 @@ function getUnreadNotifications() {
 
 function showComingSoonToast(message = "功能即将开放") {
   showToast(message);
+}
+
+function createDefaultGiftExchangeState() {
+  return {
+    participantsText: "",
+    revealMode: "single",
+    pairs: [],
+    revealedIndexes: [],
+    currentIndex: 0,
+    currentRevealed: false,
+    generatedAt: "",
+  };
+}
+
+function normalizeGiftExchangeState(gift) {
+  const source = gift && typeof gift === "object" ? gift : {};
+  const pairs = Array.isArray(source.pairs)
+    ? source.pairs
+      .map((pair) => ({
+        giver: String(pair?.giver || "").trim().slice(0, 40),
+        receiver: String(pair?.receiver || "").trim().slice(0, 40),
+      }))
+      .filter((pair) => pair.giver && pair.receiver && pair.giver !== pair.receiver)
+      .slice(0, 80)
+    : [];
+  const revealedIndexes = Array.isArray(source.revealedIndexes)
+    ? [...new Set(source.revealedIndexes.map((index) => Number(index)).filter((index) => Number.isInteger(index) && index >= 0 && index < pairs.length))]
+    : [];
+  const currentIndex = Number.isInteger(Number(source.currentIndex))
+    ? Math.min(Math.max(Number(source.currentIndex), 0), pairs.length)
+    : 0;
+
+  return {
+    participantsText: String(source.participantsText || "").slice(0, 2000),
+    revealMode: GIFT_REVEAL_MODES[source.revealMode] ? source.revealMode : "single",
+    pairs,
+    revealedIndexes,
+    currentIndex,
+    currentRevealed: Boolean(source.currentRevealed),
+    generatedAt: String(source.generatedAt || ""),
+  };
+}
+
+function parseGiftParticipants(text = state.gift.participantsText) {
+  return String(text || "")
+    .split(/[\n,，、;；]+/)
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map((name) => name.slice(0, 40));
+}
+
+function getGiftParticipantValidation(text = state.gift.participantsText) {
+  const participants = parseGiftParticipants(text);
+  const seenNames = new Set();
+  const duplicateNames = new Set();
+
+  participants.forEach((name) => {
+    const key = name.toLocaleLowerCase();
+
+    if (seenNames.has(key)) {
+      duplicateNames.add(name);
+      return;
+    }
+
+    seenNames.add(key);
+  });
+
+  return {
+    participants,
+    uniqueParticipants: participants.filter((name, index) =>
+      participants.findIndex((item) => item.toLocaleLowerCase() === name.toLocaleLowerCase()) === index,
+    ),
+    duplicateNames: [...duplicateNames],
+  };
+}
+
+function shuffleGiftReceivers(names) {
+  const receivers = [...names];
+
+  for (let index = receivers.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomInt(index + 1);
+    [receivers[index], receivers[swapIndex]] = [receivers[swapIndex], receivers[index]];
+  }
+
+  return receivers;
+}
+
+function generateGiftExchangePairs(names) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const receivers = shuffleGiftReceivers(names);
+
+    if (names.every((name, index) => name !== receivers[index])) {
+      return names.map((giver, index) => ({ giver, receiver: receivers[index] }));
+    }
+  }
+
+  const rotatedReceivers = [...names.slice(1), names[0]];
+  return names.map((giver, index) => ({ giver, receiver: rotatedReceivers[index] }));
+}
+
+function getGiftPairsText(pairs = state.gift.pairs) {
+  return pairs.map((pair) => `${pair.giver} → ${pair.receiver}`).join("\n");
+}
+
+function buildGiftCurrentResult() {
+  const pairCount = state.gift.pairs.length;
+
+  if (!pairCount) {
+    return null;
+  }
+
+  return {
+    mode: "gift",
+    title: "礼物交换配对已生成",
+    meta: `${pairCount} 位参与者 · ${GIFT_REVEAL_MODES[state.gift.revealMode] || GIFT_REVEAL_MODES.single} · 结果只保存在本机`,
+    giftPairs: state.gift.pairs,
+    giftRevealMode: state.gift.revealMode,
+  };
+}
+
+function resetGiftExchangeResult() {
+  state.gift.pairs = [];
+  state.gift.revealedIndexes = [];
+  state.gift.currentIndex = 0;
+  state.gift.currentRevealed = false;
+  state.gift.generatedAt = "";
+
+  if (state.currentResult?.mode === "gift") {
+    state.currentResult = null;
+  }
 }
 
 function getModeText(modeKey, field) {
@@ -4022,6 +4188,10 @@ function renderFeedbackPanel() {
 }
 
 function renderModeStage() {
+  if (state.mode === "gift" && (!state.currentResult || state.currentResult.mode !== "gift") && state.gift.pairs.length) {
+    state.currentResult = buildGiftCurrentResult();
+  }
+
   if (!state.currentResult || state.currentResult.mode !== state.mode) {
     elements.resultValue.textContent = "按下按钮，让今天轻一点";
     elements.resultMeta.textContent = "你可以先选模式，也可以直接随机。";
@@ -4058,6 +4228,11 @@ function renderControls() {
 
   if (state.mode === "shopping") {
     renderShoppingControls();
+    return;
+  }
+
+  if (state.mode === "gift") {
+    renderGiftControls();
     return;
   }
 
@@ -4728,6 +4903,438 @@ function renderShoppingControls() {
   });
 }
 
+function renderGiftParticipantChips(participants, duplicateNames) {
+  if (!participants.length) {
+    return `
+      <div class="gift-empty-note">
+        <strong>还没有参与者</strong>
+        <small>可以一行一个名字，也可以用逗号分开。</small>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="gift-participant-list" aria-label="礼物交换参与者">
+      ${participants.map((name) => `
+        <span class="gift-participant-chip${duplicateNames.includes(name) ? " is-duplicate" : ""}">
+          <span>${escapeHtml(name)}</span>
+          <button type="button" data-gift-remove="${escapeHtml(name)}" aria-label="删除 ${escapeHtml(name)}">×</button>
+        </span>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderGiftSingleReveal() {
+  const gift = normalizeGiftExchangeState(state.gift);
+  const pairs = gift.pairs;
+  const isFinished = pairs.length > 0 && gift.currentIndex >= pairs.length;
+  const currentPair = pairs[gift.currentIndex];
+  const revealedSet = new Set(gift.revealedIndexes);
+
+  if (!pairs.length) {
+    return "";
+  }
+
+  if (isFinished) {
+    return `
+      <article class="gift-reveal-card is-complete">
+        <span class="gift-party-icon" aria-hidden="true">🎉</span>
+        <strong>全部抽完啦</strong>
+        <small>${pairs.length} 位参与者都已经安排好了。</small>
+        <div class="gift-result-actions">
+          <button class="secondary-button" type="button" data-gift-view-all>查看全部结果</button>
+          <button class="secondary-button" type="button" data-gift-copy>复制结果</button>
+          <button class="primary-button compact-primary" type="button" data-gift-reshuffle>重新洗牌</button>
+        </div>
+      </article>
+    `;
+  }
+
+  const isRevealed = gift.currentRevealed || revealedSet.has(gift.currentIndex);
+
+  return `
+    <article class="gift-reveal-card">
+      <small>当前送礼人 · ${gift.currentIndex + 1} / ${pairs.length}</small>
+      <strong>${escapeHtml(currentPair.giver)}</strong>
+      <div class="gift-reveal-result${isRevealed ? " is-revealed" : ""}">
+        ${isRevealed
+          ? `<span>${escapeHtml(currentPair.giver)} 要送礼物给 ${escapeHtml(currentPair.receiver)}</span>`
+          : "<span>？？？</span>"}
+      </div>
+      <div class="gift-result-actions">
+        ${isRevealed
+          ? '<button class="primary-button compact-primary" type="button" data-gift-next>下一个</button>'
+          : '<button class="primary-button compact-primary" type="button" data-gift-reveal-current>点击揭晓</button>'}
+        <button class="secondary-button" type="button" data-gift-copy>复制结果</button>
+        <button class="secondary-button" type="button" data-gift-reshuffle>重新洗牌</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderGiftAllReveal() {
+  const gift = normalizeGiftExchangeState(state.gift);
+  const revealedSet = new Set(gift.revealedIndexes);
+
+  if (!gift.pairs.length) {
+    return "";
+  }
+
+  return `
+    <div class="gift-all-list" aria-label="全部礼物交换结果">
+      ${gift.pairs.map((pair, index) => {
+        const isRevealed = revealedSet.has(index);
+
+        return `
+          <article class="gift-all-item${isRevealed ? " is-revealed" : ""}">
+            <strong>${escapeHtml(pair.giver)}</strong>
+            <span aria-hidden="true">→</span>
+            <b>${isRevealed ? escapeHtml(pair.receiver) : "？？？"}</b>
+            <button class="secondary-button" type="button" data-gift-reveal-index="${index}" ${isRevealed ? "disabled" : ""}>
+              ${isRevealed ? "已揭晓" : "揭晓"}
+            </button>
+          </article>
+        `;
+      }).join("")}
+    </div>
+    <div class="gift-result-actions">
+      <button class="secondary-button" type="button" data-gift-reveal-all>全部揭晓</button>
+      <button class="secondary-button" type="button" data-gift-copy>复制结果</button>
+      <button class="primary-button compact-primary" type="button" data-gift-reshuffle>重新洗牌</button>
+    </div>
+  `;
+}
+
+function renderGiftResultSection() {
+  if (!state.gift.pairs.length) {
+    return `
+      <section class="gift-result-panel" id="giftExchangeResult" aria-live="polite">
+        <div class="gift-empty-note">
+          <strong>准备好名单后按「开始配对」</strong>
+          <small>结果只保存在本机，不会上传到世界频道、好友或云端房间。</small>
+        </div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="gift-result-panel" id="giftExchangeResult" aria-live="polite">
+      <div class="gift-result-heading">
+        <div>
+          <strong>${escapeHtml(GIFT_REVEAL_MODES[state.gift.revealMode] || GIFT_REVEAL_MODES.single)}</strong>
+          <small>${state.gift.pairs.length} 位参与者 · 只保存在本机</small>
+        </div>
+        <button class="ghost-button compact-ghost" type="button" data-gift-clear-result>清除本次</button>
+      </div>
+      ${state.gift.revealMode === "all" ? renderGiftAllReveal() : renderGiftSingleReveal()}
+    </section>
+  `;
+}
+
+function renderGiftControls() {
+  state.gift = normalizeGiftExchangeState(state.gift);
+  const { uniqueParticipants, duplicateNames } = getGiftParticipantValidation();
+  const duplicateHint = duplicateNames.length ? '<small class="field-hint is-danger">名字重复了，请改一下。</small>' : "";
+
+  elements.randomButtonLabel.textContent = state.gift.pairs.length ? "重新洗牌" : "开始配对";
+  elements.modeControls.innerHTML = `
+    <section class="gift-exchange-panel">
+      <div class="gift-setup-heading">
+        <div>
+          <strong>礼物交换随机</strong>
+          <small>输入参与者名字，系统会随机安排每个人要送礼物给谁。</small>
+        </div>
+        <span>${uniqueParticipants.length} 人</span>
+      </div>
+      <div class="gift-input-grid">
+        <div class="field gift-name-list-field">
+          <label for="giftParticipantsText">名字列表</label>
+          <textarea id="giftParticipantsText" rows="6" placeholder="阿明&#10;小美&#10;John&#10;Amy">${escapeHtml(state.gift.participantsText)}</textarea>
+          <small class="field-hint">至少 3 人；可一行一个名字，也可用逗号分开。</small>
+          ${duplicateHint}
+        </div>
+        <div class="gift-side-controls">
+          <div class="field">
+            <label for="giftNameInput">添加名字</label>
+            <input id="giftNameInput" maxlength="40" placeholder="输入一个名字" />
+          </div>
+          <div class="field">
+            <label for="giftRevealMode">揭晓方式</label>
+            <select id="giftRevealMode">
+              ${Object.entries(GIFT_REVEAL_MODES).map(([value, label]) => `<option value="${value}" ${state.gift.revealMode === value ? "selected" : ""}>${label}</option>`).join("")}
+            </select>
+          </div>
+          <div class="custom-actions gift-setup-actions">
+            <button class="secondary-button" id="giftAddNameButton" type="button">添加名字</button>
+            <button class="secondary-button" id="giftClearNamesButton" type="button">清空名单</button>
+            <button class="secondary-button settings-clear-button" id="giftClearAllButton" type="button">清除本次礼物交换数据</button>
+          </div>
+        </div>
+      </div>
+      ${renderGiftParticipantChips(uniqueParticipants, duplicateNames)}
+    </section>
+    ${renderGiftResultSection()}
+  `;
+
+  bindGiftControls();
+  renderModeStage();
+}
+
+function bindGiftControls() {
+  document.querySelector("#giftParticipantsText")?.addEventListener("input", (event) => {
+    state.gift.participantsText = event.target.value;
+    resetGiftExchangeResult();
+    saveState();
+    renderPreview();
+    renderModeStage();
+  });
+
+  document.querySelector("#giftParticipantsText")?.addEventListener("change", () => {
+    renderControls();
+    renderPreview();
+  });
+
+  document.querySelector("#giftRevealMode")?.addEventListener("change", (event) => {
+    state.gift.revealMode = GIFT_REVEAL_MODES[event.target.value] ? event.target.value : "single";
+    resetGiftExchangeResult();
+    saveState();
+    renderControls();
+    renderPreview();
+  });
+
+  document.querySelector("#giftAddNameButton")?.addEventListener("click", addGiftParticipantFromInput);
+  document.querySelector("#giftClearNamesButton")?.addEventListener("click", clearGiftParticipants);
+  document.querySelector("#giftClearAllButton")?.addEventListener("click", clearGiftExchangeData);
+  document.querySelectorAll("[data-gift-remove]").forEach((button) => {
+    button.addEventListener("click", () => removeGiftParticipant(button.dataset.giftRemove));
+  });
+  document.querySelector("#giftExchangeResult")?.addEventListener("click", handleGiftResultClick);
+}
+
+function addGiftParticipantFromInput() {
+  const input = document.querySelector("#giftNameInput");
+  const name = input?.value.trim() || "";
+
+  if (!name) {
+    showToast("名字不能为空。");
+    return;
+  }
+
+  const { participants } = getGiftParticipantValidation();
+  const exists = participants.some((participant) => participant.toLocaleLowerCase() === name.toLocaleLowerCase());
+
+  if (exists) {
+    showToast("名字重复了，请改一下。");
+    return;
+  }
+
+  state.gift.participantsText = [...participants, name].join("\n");
+  resetGiftExchangeResult();
+  saveState();
+  renderControls();
+  renderPreview();
+  showToast("已添加名字。");
+}
+
+function removeGiftParticipant(name) {
+  const targetName = String(name || "").trim();
+
+  if (!targetName) {
+    return;
+  }
+
+  const participants = parseGiftParticipants().filter((participant) => participant !== targetName);
+  state.gift.participantsText = participants.join("\n");
+  resetGiftExchangeResult();
+  saveState();
+  renderControls();
+  renderPreview();
+}
+
+function clearGiftParticipants() {
+  state.gift.participantsText = "";
+  resetGiftExchangeResult();
+  saveState();
+  renderControls();
+  renderPreview();
+  showToast("名单已清空。");
+}
+
+function clearGiftExchangeData() {
+  state.gift = createDefaultGiftExchangeState();
+  state.currentResult = null;
+  saveState();
+  renderControls();
+  renderPreview();
+  renderModeStage();
+  showToast("本次礼物交换数据已清除。");
+}
+
+function refreshGiftResultPanel() {
+  const panel = document.querySelector("#giftExchangeResult");
+
+  if (!panel) {
+    renderControls();
+    return;
+  }
+
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = renderGiftResultSection().trim();
+  panel.replaceWith(wrapper.firstElementChild);
+  document.querySelector("#giftExchangeResult")?.addEventListener("click", handleGiftResultClick);
+  state.currentResult = buildGiftCurrentResult();
+  renderModeStage();
+}
+
+function revealGiftIndex(index) {
+  if (!Number.isInteger(index) || index < 0 || index >= state.gift.pairs.length) {
+    return;
+  }
+
+  state.gift.revealedIndexes = [...new Set([...state.gift.revealedIndexes, index])].sort((first, second) => first - second);
+}
+
+function handleGiftResultClick(event) {
+  const target = event.target.closest("button");
+
+  if (!target) {
+    return;
+  }
+
+  if (target.matches("[data-gift-reveal-current]")) {
+    revealGiftIndex(state.gift.currentIndex);
+    state.gift.currentRevealed = true;
+    saveState();
+    refreshGiftResultPanel();
+    return;
+  }
+
+  if (target.matches("[data-gift-next]")) {
+    if (state.gift.currentIndex < state.gift.pairs.length - 1) {
+      state.gift.currentIndex += 1;
+      state.gift.currentRevealed = state.gift.revealedIndexes.includes(state.gift.currentIndex);
+    } else {
+      state.gift.currentIndex = state.gift.pairs.length;
+      state.gift.currentRevealed = true;
+    }
+
+    saveState();
+    refreshGiftResultPanel();
+    return;
+  }
+
+  const revealIndex = target.dataset.giftRevealIndex;
+
+  if (revealIndex !== undefined) {
+    revealGiftIndex(Number(revealIndex));
+    saveState();
+    refreshGiftResultPanel();
+    return;
+  }
+
+  if (target.matches("[data-gift-reveal-all]")) {
+    state.gift.revealedIndexes = state.gift.pairs.map((_, index) => index);
+    state.gift.currentRevealed = true;
+    saveState();
+    refreshGiftResultPanel();
+    return;
+  }
+
+  if (target.matches("[data-gift-view-all]")) {
+    state.gift.revealMode = "all";
+    state.gift.revealedIndexes = state.gift.pairs.map((_, index) => index);
+    state.gift.currentIndex = state.gift.pairs.length;
+    state.gift.currentRevealed = true;
+    saveState();
+    renderControls();
+    renderPreview();
+    return;
+  }
+
+  if (target.matches("[data-gift-copy]")) {
+    copyGiftExchangeResult({ confirmHidden: true });
+    return;
+  }
+
+  if (target.matches("[data-gift-reshuffle]")) {
+    startGiftExchange();
+    return;
+  }
+
+  if (target.matches("[data-gift-clear-result]")) {
+    resetGiftExchangeResult();
+    saveState();
+    renderControls();
+    renderPreview();
+    renderModeStage();
+  }
+}
+
+function startGiftExchange() {
+  const { participants, duplicateNames } = getGiftParticipantValidation();
+
+  if (!state.gift.participantsText.trim()) {
+    showToast("名字不能为空。");
+    return;
+  }
+
+  if (duplicateNames.length) {
+    showToast("名字重复了，请改一下。");
+    return;
+  }
+
+  if (participants.length < 3) {
+    showToast("至少需要 3 个人才能交换礼物。");
+    return;
+  }
+
+  const duration = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 120 : 900;
+  const hadExistingPairs = state.gift.pairs.length > 0;
+  elements.modeControls.classList.add("is-gift-shuffling");
+  elements.resultStage.classList.add("is-spinning");
+  elements.randomButton.disabled = true;
+
+  window.setTimeout(() => {
+    state.gift.pairs = generateGiftExchangePairs(participants);
+    state.gift.revealedIndexes = [];
+    state.gift.currentIndex = 0;
+    state.gift.currentRevealed = false;
+    state.gift.generatedAt = new Date().toISOString();
+    state.currentResult = buildGiftCurrentResult();
+    saveState();
+    renderResult(state.currentResult);
+    renderControls();
+    renderPreview();
+    elements.modeControls.classList.remove("is-gift-shuffling");
+    elements.resultStage.classList.remove("is-spinning");
+    elements.randomButton.disabled = false;
+    showToast(hadExistingPairs ? "已重新洗牌。" : "礼物交换结果已生成。");
+  }, duration);
+}
+
+async function copyGiftExchangeResult(options = {}) {
+  const { confirmHidden = false } = options;
+
+  if (!state.gift.pairs.length) {
+    showToast("先生成礼物交换结果。");
+    return;
+  }
+
+  const revealedCount = state.gift.revealedIndexes.length;
+
+  if (confirmHidden && revealedCount < state.gift.pairs.length && !window.confirm("这会显示全部结果，确定继续吗？")) {
+    return;
+  }
+
+  try {
+    await writeClipboardText(`🎁 礼物交换结果\n${getGiftPairsText()}`);
+    showToast("已复制礼物交换结果");
+  } catch (error) {
+    showToast("复制失败，请手动截图");
+  }
+}
+
 function renderCustomControls() {
   elements.modeControls.innerHTML = `
     <div class="custom-list">
@@ -4834,10 +5441,19 @@ function getCurrentOptions() {
     return getFilteredShoppingItems();
   }
 
+  if (state.mode === "gift") {
+    return getGiftParticipantValidation().uniqueParticipants.map((title) => ({ title }));
+  }
+
   return parseCustomOptions();
 }
 
 function renderPreview() {
+  if (state.mode === "gift") {
+    renderGiftPreview();
+    return;
+  }
+
   const options = getCurrentOptions();
   const lockedOptions = getActiveLockedOptions(options);
   const totalLocked = getLockedTitles().length;
@@ -4871,6 +5487,27 @@ function renderPreview() {
     : "";
 
   elements.optionPreview.innerHTML = `${optionMarkup}${overflowHint}${lockHint}${clearLockButton}`;
+}
+
+function renderGiftPreview() {
+  const { uniqueParticipants, duplicateNames } = getGiftParticipantValidation();
+
+  elements.previewCount.textContent = `${uniqueParticipants.length} 位参与者`;
+
+  if (!uniqueParticipants.length) {
+    elements.optionPreview.innerHTML = `<span class="chip is-muted">输入名字后会在这里预览参与者</span>`;
+    return;
+  }
+
+  const participantChips = uniqueParticipants
+    .slice(0, DEFAULT_PREVIEW_LIMIT)
+    .map((name) => `<span class="chip${duplicateNames.includes(name) ? " is-muted" : ""}">${escapeHtml(name)}</span>`)
+    .join("");
+  const overflowCount = Math.max(uniqueParticipants.length - DEFAULT_PREVIEW_LIMIT, 0);
+  const duplicateHint = duplicateNames.length ? `<span class="chip is-muted">名字重复了，请改一下</span>` : "";
+  const overflowHint = overflowCount ? `<span class="chip preview-overflow-chip">还有 ${overflowCount} 位未显示</span>` : "";
+
+  elements.optionPreview.innerHTML = `${participantChips}${overflowHint}${duplicateHint}`;
 }
 
 function renderWorldChannel() {
@@ -5820,6 +6457,7 @@ function clearAuthSession(options = {}) {
     state.history = [];
     state.favorites = [];
     state.uploads = [];
+    state.gift = createDefaultGiftExchangeState();
     state.currentResult = null;
     state.users = [];
     myWorldMessages = [];
@@ -8901,6 +9539,8 @@ function updateResultActionButtons(result) {
 
   elements.copyResultButton.disabled = !hasResult;
   elements.copyResultButton.textContent = isNumberResult ? "复制号码" : "复制结果";
+  elements.favoriteButton.disabled = !hasResult || result?.mode === "gift";
+  elements.favoriteButton.title = result?.mode === "gift" ? "礼物交换结果只保存在本机，可直接复制。" : "";
   elements.shareResultButton.hidden = typeof navigator.share !== "function";
   elements.shareResultButton.disabled = !hasResult || elements.shareResultButton.hidden;
 }
@@ -8960,6 +9600,11 @@ function getResultCopyText(result = state.currentResult) {
     return lines.join("\n");
   }
 
+  if (result.mode === "gift") {
+    const pairs = Array.isArray(result.giftPairs) && result.giftPairs.length ? result.giftPairs : state.gift.pairs;
+    return `🎁 礼物交换结果\n${getGiftPairsText(pairs)}`;
+  }
+
   const lines = [
     getModeTitle(result.mode),
     "",
@@ -9003,6 +9648,11 @@ async function copyCurrentResult() {
     return;
   }
 
+  if (state.currentResult.mode === "gift") {
+    await copyGiftExchangeResult({ confirmHidden: true });
+    return;
+  }
+
   try {
     await writeClipboardText(getResultCopyText());
     showToast(state.currentResult.mode === "number" ? "号码已复制。" : "结果已复制。");
@@ -9021,6 +9671,14 @@ async function shareCurrentResult() {
     return;
   }
 
+  if (state.currentResult.mode === "gift") {
+    const revealedCount = state.gift.revealedIndexes.length;
+
+    if (revealedCount < state.gift.pairs.length && !window.confirm("这会显示全部结果，确定继续吗？")) {
+      return;
+    }
+  }
+
   try {
     await navigator.share({
       title: getResultShareTitle(),
@@ -9034,6 +9692,11 @@ async function shareCurrentResult() {
 }
 
 function drawResult() {
+  if (state.mode === "gift") {
+    startGiftExchange();
+    return;
+  }
+
   const result = getResult();
 
   if (!result) {
@@ -9155,6 +9818,11 @@ function addHistory(result) {
 function favoriteCurrent() {
   if (!state.currentResult) {
     showToast("先随机一次，再收藏结果。");
+    return;
+  }
+
+  if (state.currentResult.mode === "gift") {
+    showToast("礼物交换结果只保存在本机，可直接复制结果。");
     return;
   }
 
