@@ -50,6 +50,8 @@ const MODES = {
 };
 
 const MODE_DISPLAY_ORDER = ["food", "shopping", "custom", "drink", "travel", "number"];
+const HOME_FEATURE_MODE_PREFIX = "mode:";
+const HOME_WORLD_FEATURE_ID = "world";
 const FOOD_CATEGORIES = ["全部", "Mamak", "快餐连锁", "外卖平台热门", "油炸类", "素食类", "低卡类", "快餐", "嘴馋零嘴类", "高热量", "健康类"];
 const SPECIAL_FOOD_CATEGORIES = new Set(["Mamak", "快餐连锁", "外卖平台热门"]);
 const SPECIAL_REGION_KEYS = new Set(["全国 Mamak", "快餐连锁", "外卖平台热门"]);
@@ -1775,10 +1777,35 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.6.6";
+const APP_VERSION = "0.6.7";
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const RELEASE_NOTES = [
+  {
+    version: "0.6.7",
+    title: "首页自定义布局",
+    date: "2026-06-14",
+    summary: "这次加入了首页编辑模式，可以直接在首页隐藏、恢复和调整功能卡顺序，让首页更像自己的手机桌面。",
+    userChanges: [
+      "首页新增“编辑首页”模式。",
+      "左侧减号可以隐藏功能。",
+      "隐藏区左侧加号可以恢复功能。",
+      "右侧三条横线可以调整顺序。",
+      "世界频道可以移动，但不会被隐藏。",
+      "可以恢复默认首页布局。",
+    ],
+    technicalChanges: [
+      "Added home-screen edit mode for feature cards.",
+      "Added visible and hidden home feature sections.",
+      "Added local layout persistence with safe fallback.",
+      "Added home feature hide / restore handling.",
+      "Added pointer-based drag handle sorting.",
+      "Improved mobile drag handling for home edit mode.",
+      "Added keyboard-accessible reorder support.",
+      "Kept world channel visible while allowing reorder.",
+      "Protected at least one random mode from being hidden.",
+    ],
+  },
   {
     version: "0.6.6",
     title: "世界频道稳定性优化",
@@ -2017,6 +2044,10 @@ const state = {
   features: {
     social: SOCIAL_FEATURES_ENABLED,
   },
+  homeLayout: {
+    order: [],
+    hidden: [],
+  },
   language: "zh-CN",
   languageManuallySelected: false,
   currency: "MYR",
@@ -2099,7 +2130,10 @@ const elements = {
   modeList: document.querySelector("#modeList"),
   modeMenuToggle: document.querySelector("#modeMenuToggle"),
   modeMenuLabel: document.querySelector("#modeMenuLabel"),
+  modeMenuHint: document.querySelector("#modeMenuHint"),
+  homeLayoutEditButton: document.querySelector("#homeLayoutEditButton"),
   sidebar: document.querySelector(".sidebar"),
+  sidebarWorld: document.querySelector(".sidebar-world"),
   worldChannelButton: document.querySelector("#worldChannelButton"),
   worldCloseButton: document.querySelector("#worldCloseButton"),
   todayLabel: document.querySelector("#todayLabel"),
@@ -2160,6 +2194,8 @@ let isMoreMenuOpen = false;
 let isFeedbackPanelOpen = false;
 let isSettingsPanelOpen = false;
 let isReleaseNotesPanelOpen = false;
+let isHomeLayoutEditing = false;
+let homeLayoutDragState = null;
 const clientErrorThrottle = new Map();
 
 function isValidAnonymousUserId(userId) {
@@ -2218,6 +2254,7 @@ function loadState() {
     state.languageManuallySelected = saved.languageManuallySelected === true;
     state.language = state.languageManuallySelected ? normalizeLanguage(saved.language) : "zh-CN";
     state.currency = CURRENCY_RATES[saved.currency] ? saved.currency : state.currency;
+    state.homeLayout = normalizeHomeLayout(saved.homeLayout);
     state.food = { ...state.food, ...saved.food };
     state.travel = { ...state.travel, ...saved.travel };
     state.number = { ...state.number, ...saved.number };
@@ -2259,6 +2296,7 @@ function saveState() {
     language: state.language,
     languageManuallySelected: state.languageManuallySelected,
     currency: state.currency,
+    homeLayout: normalizeHomeLayout(state.homeLayout),
     food: state.food,
     drink: state.drink,
     travel: state.travel,
@@ -2307,10 +2345,141 @@ function getLotteryDisclaimer() {
   return t("lottery.disclaimer", LOTTERY_DISCLAIMER);
 }
 
-function getDisplayModeEntries() {
-  const orderedKeys = [...MODE_DISPLAY_ORDER, ...Object.keys(MODES).filter((key) => !MODE_DISPLAY_ORDER.includes(key))];
+function getDefaultHomeFeatureIds() {
+  const orderedModeKeys = [...MODE_DISPLAY_ORDER, ...Object.keys(MODES).filter((key) => !MODE_DISPLAY_ORDER.includes(key))];
 
-  return orderedKeys.map((key) => [key, MODES[key]]).filter(([, mode]) => mode);
+  return [...orderedModeKeys.map((mode) => `${HOME_FEATURE_MODE_PREFIX}${mode}`), HOME_WORLD_FEATURE_ID];
+}
+
+function createDefaultHomeLayout() {
+  return {
+    order: getDefaultHomeFeatureIds(),
+    hidden: [],
+  };
+}
+
+function normalizeHomeLayout(layout) {
+  const defaultIds = getDefaultHomeFeatureIds();
+  const knownIds = new Set(defaultIds);
+  const source = layout && typeof layout === "object" ? layout : {};
+  const order = [];
+
+  if (Array.isArray(source.order)) {
+    source.order.forEach((id) => {
+      if (knownIds.has(id) && !order.includes(id)) {
+        order.push(id);
+      }
+    });
+  }
+
+  defaultIds.forEach((id) => {
+    if (!order.includes(id)) {
+      order.push(id);
+    }
+  });
+
+  const hiddenSet = new Set(Array.isArray(source.hidden)
+    ? [...new Set(source.hidden.filter((id) => knownIds.has(id) && id !== HOME_WORLD_FEATURE_ID))]
+    : []);
+  const modeIds = defaultIds.filter(isHomeModeFeatureId);
+
+  if (modeIds.length && modeIds.every((id) => hiddenSet.has(id))) {
+    hiddenSet.delete(modeIds[0]);
+  }
+
+  return { order, hidden: [...hiddenSet] };
+}
+
+function getHomeLayout() {
+  const current = state.homeLayout;
+  const normalized = normalizeHomeLayout(state.homeLayout);
+  state.homeLayout = normalized;
+
+  if (JSON.stringify(current) !== JSON.stringify(normalized)) {
+    saveState();
+  }
+
+  return normalized;
+}
+
+function getModeKeyFromHomeFeature(featureId) {
+  return String(featureId || "").startsWith(HOME_FEATURE_MODE_PREFIX)
+    ? String(featureId).slice(HOME_FEATURE_MODE_PREFIX.length)
+    : "";
+}
+
+function isHomeModeFeatureId(featureId) {
+  return Boolean(MODES[getModeKeyFromHomeFeature(featureId)]);
+}
+
+function getHomeFeatureMeta(featureId) {
+  if (featureId === HOME_WORLD_FEATURE_ID) {
+    return {
+      id: HOME_WORLD_FEATURE_ID,
+      type: "world",
+      icon: "🌍",
+      title: t("world.title", "世界频道"),
+      description: t("world.subtitle", "打开独立聊天窗口"),
+    };
+  }
+
+  const modeKey = getModeKeyFromHomeFeature(featureId);
+  const mode = MODES[modeKey];
+
+  if (!mode) {
+    return null;
+  }
+
+  return {
+    id: featureId,
+    type: "mode",
+    modeKey,
+    icon: mode.icon,
+    title: getModeText(modeKey, "title"),
+    description: getModeText(modeKey, "short"),
+  };
+}
+
+function getHomeFeatures() {
+  const layout = getHomeLayout();
+
+  return layout.order.map(getHomeFeatureMeta).filter(Boolean);
+}
+
+function getVisibleHomeFeatureIds() {
+  const layout = getHomeLayout();
+  const hidden = new Set(layout.hidden);
+
+  return layout.order.filter((id) => !hidden.has(id));
+}
+
+function getVisibleModeKeys() {
+  return getVisibleHomeFeatureIds()
+    .map(getModeKeyFromHomeFeature)
+    .filter((modeKey) => MODES[modeKey]);
+}
+
+function getHiddenHomeFeatureCount() {
+  return getHomeLayout().hidden.filter((id) => id !== HOME_WORLD_FEATURE_ID).length;
+}
+
+function isHomeFeatureHidden(featureId) {
+  return getHomeLayout().hidden.includes(featureId);
+}
+
+function ensureVisibleHomeMode() {
+  const visibleModeKeys = getVisibleModeKeys();
+
+  if (visibleModeKeys.length && !visibleModeKeys.includes(state.mode)) {
+    state.mode = visibleModeKeys[0];
+    state.currentResult = null;
+  }
+}
+
+function getDisplayModeEntries() {
+  const visibleModeKeys = getVisibleModeKeys();
+
+  return visibleModeKeys.map((key) => [key, MODES[key]]).filter(([, mode]) => mode);
 }
 
 function randomInt(max) {
@@ -2419,33 +2588,177 @@ function applyStaticTranslations() {
   elements.settingsPanel.setAttribute("aria-label", t("menu.settings", "设置"));
 }
 
+function renderHomeFeatureCard(feature, options = {}) {
+  const { isHidden = false, visibleIndex = -1, visibleCount = 0, visibleModeCount = 0 } = options;
+  const isWorldFeature = feature.type === "world";
+  const isModeFeature = feature.type === "mode";
+  const isActive = (isModeFeature && feature.modeKey === state.mode) || (isWorldFeature && state.worldOpen);
+  const isRequiredMode = !isHidden && isModeFeature && visibleModeCount <= 1;
+  const buttonAttributes = isHidden || isHomeLayoutEditing
+    ? "disabled aria-disabled=\"true\""
+    : isModeFeature
+      ? `data-mode="${escapeHtml(feature.modeKey)}" aria-pressed="${isActive}"`
+      : `data-home-world="true" aria-pressed="${state.worldOpen}"`;
+  const activeClass = isActive ? " is-active" : "";
+  const hiddenClass = isHidden ? " is-hidden" : "";
+  const editClass = isHomeLayoutEditing ? " is-editing" : "";
+  const lockedClass = isHomeLayoutEditing && !isHidden && (isWorldFeature || isRequiredMode) ? " is-locked" : "";
+  const orderControls = isHomeLayoutEditing && !isHidden
+    ? `
+      <button
+        class="home-feature-drag-handle"
+        type="button"
+        data-home-layout-drag-handle="${escapeHtml(feature.id)}"
+        aria-label="\u62d6\u52a8${escapeHtml(feature.title)}\u8c03\u6574\u987a\u5e8f"
+        aria-keyshortcuts="ArrowUp ArrowDown Enter Space"
+        ${visibleCount <= 1 ? "disabled" : ""}
+      >\u2630</button>
+    `
+    : "";
+  const canHideFeature = !isHidden && feature.id !== HOME_WORLD_FEATURE_ID;
+  const editLabel = (isHidden ? "\u6062\u590d" : "\u9690\u85cf") + feature.title;
+  const editControl = isHomeLayoutEditing
+    ? isWorldFeature && !isHidden
+      ? `<span class="home-feature-locked-hint" aria-label="\u4e16\u754c\u9891\u9053\u53ef\u79fb\u52a8\uff0c\u4e0d\u53ef\u9690\u85cf">\u5fc5\u663e\u793a</span>`
+      : isRequiredMode
+        ? `<span class="home-feature-locked-hint" aria-label="\u81f3\u5c11\u4fdd\u7559\u4e00\u4e2a\u968f\u673a\u529f\u80fd">\u4fdd\u7559</span>`
+      : `
+      <button
+        class="home-feature-toggle-button${isHidden ? " is-restore" : " is-hide"}"
+        type="button"
+        data-home-layout-action="${isHidden ? "show" : "hide"}"
+        data-home-layout-feature="${escapeHtml(feature.id)}"
+        aria-label="${escapeHtml(editLabel)}"
+        ${!isHidden && !canHideFeature ? "disabled" : ""}
+      >${isHidden ? "+" : "-"}</button>
+    `
+    : "";
+
+  return `
+    <div class="home-feature-card${hiddenClass}${editClass}${lockedClass}" data-home-feature-card="${escapeHtml(feature.id)}">
+      ${editControl}
+      <button class="mode-button${activeClass}${isWorldFeature ? " world-entry-button" : ""}" type="button" ${buttonAttributes}>
+        <span class="mode-icon">${feature.icon}</span>
+        <span class="mode-copy">
+          <strong>${escapeHtml(feature.title)}</strong>
+          <small>${escapeHtml(feature.description)}</small>
+        </span>
+      </button>
+      ${orderControls}
+    </div>
+  `;
+}
+
+function renderHomeFeatureSection(title, features, options = {}) {
+  const { isHidden = false, emptyText = "", visibleModeCount = 0 } = options;
+
+  if (!features.length) {
+    return emptyText
+      ? `
+        <div class="home-layout-section${isHidden ? " is-hidden-section" : ""}">
+          <div class="home-layout-section-title"><span>${escapeHtml(title)}</span></div>
+          <p class="home-layout-empty-note">${escapeHtml(emptyText)}</p>
+        </div>
+      `
+      : "";
+  }
+
+  return `
+    <div class="home-layout-section${isHidden ? " is-hidden-section" : ""}">
+      <div class="home-layout-section-title"><span>${escapeHtml(title)}</span></div>
+      <div class="home-layout-section-list">
+        ${features.map((feature, index) => renderHomeFeatureCard(feature, {
+          isHidden,
+          visibleIndex: index,
+          visibleCount: features.length,
+          visibleModeCount,
+        })).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function renderModes() {
-  elements.modeList.innerHTML = getDisplayModeEntries()
-    .map(([key, mode]) => {
-      const activeClass = key === state.mode ? " is-active" : "";
-      return `
-        <button class="mode-button${activeClass}" type="button" data-mode="${key}" aria-pressed="${key === state.mode}">
-          <span class="mode-icon">${mode.icon}</span>
-          <span class="mode-copy">
-            <strong>${getModeText(key, "title")}</strong>
-            <small>${getModeText(key, "short")}</small>
-          </span>
-        </button>
+  ensureVisibleHomeMode();
+
+  const features = getHomeFeatures();
+  const hiddenIds = new Set(getHomeLayout().hidden);
+  const visibleFeatures = features.filter((feature) => !hiddenIds.has(feature.id));
+  const hiddenFeatures = features.filter((feature) => hiddenIds.has(feature.id));
+  const hiddenCount = hiddenFeatures.length;
+  const visibleModeCount = visibleFeatures.filter((feature) => feature.type === "mode").length;
+
+  elements.sidebar.classList.toggle("is-home-editing", isHomeLayoutEditing);
+
+  if (elements.homeLayoutEditButton) {
+    elements.homeLayoutEditButton.textContent = isHomeLayoutEditing ? "\u5b8c\u6210" : "\u7f16\u8f91\u9996\u9875";
+    elements.homeLayoutEditButton.setAttribute("aria-pressed", String(isHomeLayoutEditing));
+  }
+
+  if (isHomeLayoutEditing) {
+    elements.modeList.innerHTML = `
+      ${renderHomeFeatureSection("\u663e\u793a\u4e2d\u7684\u529f\u80fd", visibleFeatures, {
+        emptyText: "\u81f3\u5c11\u4fdd\u7559\u4e00\u4e2a\u9996\u9875\u5165\u53e3\uff0c\u65b9\u4fbf\u968f\u65f6\u627e\u56de\u529f\u80fd\u3002",
+        visibleModeCount,
+      })}
+      ${renderHomeFeatureSection("\u2014\u2014 \u5df2\u9690\u85cf \u2014\u2014", hiddenFeatures, {
+        isHidden: true,
+        emptyText: "\u6682\u65f6\u6ca1\u6709\u9690\u85cf\u7684\u529f\u80fd\u3002",
+      })}
+      <div class="home-layout-editor-footer">
+        <button class="secondary-button" type="button" data-home-layout-reset>\u6062\u590d\u9ed8\u8ba4\u9996\u9875\u5e03\u5c40</button>
+        <small>\u9690\u85cf\u53ea\u662f\u672c\u673a\u663e\u793a\u504f\u597d\uff0c\u4e0d\u4f1a\u5220\u9664\u4efb\u4f55\u8bb0\u5f55\u6216\u4e16\u754c\u9891\u9053\u5185\u5bb9\u3002</small>
+      </div>
+    `;
+  } else {
+    elements.modeList.innerHTML = visibleFeatures.length
+      ? visibleFeatures.map((feature) => renderHomeFeatureCard(feature)).join("")
+      : `
+        <div class="home-layout-empty">
+          <strong>\u9996\u9875\u529f\u80fd\u5165\u53e3\u90fd\u9690\u85cf\u4e86</strong>
+          <small>\u529f\u80fd\u8fd8\u5728\uff0c\u53ef\u4ee5\u7528\u4e0a\u65b9\u7684\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002</small>
+        </div>
       `;
-    })
-    .join("");
+
+    if (hiddenCount > 0) {
+      elements.modeList.insertAdjacentHTML("beforeend", `
+        <div class="home-layout-hint">
+          <span>\u6709\u9690\u85cf\u529f\u80fd\uff0c\u53ef\u7528\u4e0a\u65b9\u7684\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002</span>
+        </div>
+      `);
+    }
+  }
 
   elements.modeList.querySelectorAll("[data-mode]").forEach((button) => {
     button.addEventListener("click", () => switchMode(button.dataset.mode));
   });
+  elements.modeList.querySelectorAll("[data-home-world]").forEach((button) => {
+    button.addEventListener("click", toggleWorldChat);
+  });
+  elements.modeList.querySelectorAll("[data-home-layout-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      setHomeFeatureVisible(button.dataset.homeLayoutFeature, button.dataset.homeLayoutAction === "show");
+    });
+  });
+  bindHomeLayoutDragHandles();
+  elements.modeList.querySelectorAll("[data-home-layout-reset]").forEach((button) => {
+    button.addEventListener("click", resetHomeLayout);
+  });
 
   elements.modeMenuLabel.textContent = getModeTitle(state.mode);
-  elements.worldChannelButton.classList.toggle("is-active", state.worldOpen);
-  elements.worldChannelButton.setAttribute("aria-pressed", String(state.worldOpen));
-  elements.worldChannelButton.onclick = toggleWorldChat;
+  elements.modeMenuHint.textContent = isHomeLayoutEditing
+    ? "\u7f16\u8f91\u6a21\u5f0f\u4e2d\uff1a\u70b9\u51cf\u53f7\u9690\u85cf\uff0c\u70b9\u52a0\u53f7\u6062\u590d\uff0c\u62d6\u52a8\u53f3\u4fa7\u4e09\u6761\u6a2a\u7ebf\u8c03\u6574\u987a\u5e8f\u3002"
+    : hiddenCount > 0
+      ? "\u6709\u9690\u85cf\u529f\u80fd\uff0c\u53ef\u70b9\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002"
+      : "\u7b2c\u4e00\u6b21\u7528\uff1f\u5148\u4ece\u5403\u4ec0\u4e48\u3001\u4e70\u4ec0\u4e48\u6216\u81ea\u5b9a\u4e49\u968f\u673a\u5f00\u59cb\uff0c\u5176\u4ed6\u666e\u901a\u6a21\u5f0f\u4e5f\u5728\u8fd9\u91cc\u3002";
+  elements.sidebarWorld.hidden = true;
 }
 
 function switchMode(mode) {
+  if (isHomeLayoutEditing) {
+    return;
+  }
+
   if (!MODES[mode]) {
     return;
   }
@@ -2949,6 +3262,26 @@ function parseWorldTopics(value) {
   return [...new Set(topics)].slice(0, 12).length ? [...new Set(topics)].slice(0, 12) : [...DEFAULT_ACCOUNT_SETTINGS.preferences.worldTopics];
 }
 
+function renderHomeLayoutSettingsSection() {
+  const hiddenCount = getHiddenHomeFeatureCount();
+
+  return `
+    <section class="settings-section home-layout-settings-section" id="homeLayoutSettingsSection">
+      <div class="settings-section-heading">
+        <strong>\u81ea\u5b9a\u4e49\u9996\u9875</strong>
+        <small>\u4e3b\u8981\u7f16\u8f91\u53ef\u4ee5\u5728\u9996\u9875\u70b9\u201c\u7f16\u8f91\u9996\u9875\u201d\u5b8c\u6210\u3002</small>
+      </div>
+      <div class="home-layout-settings-summary">
+        <p>\u5f53\u524d\u6709 ${hiddenCount} \u4e2a\u9690\u85cf\u529f\u80fd\u3002\u9690\u85cf\u53ea\u662f\u672c\u673a\u663e\u793a\u504f\u597d\uff0c\u4e0d\u4f1a\u5220\u9664\u4e16\u754c\u9891\u9053\u6d88\u606f\u3001\u5386\u53f2\u8bb0\u5f55\u6216\u4e91\u7aef\u8d44\u6599\u3002</p>
+        <div class="settings-action-grid settings-utility-actions">
+          <button class="secondary-button" id="settingsHomeEditButton" type="button">\u53bb\u9996\u9875\u7f16\u8f91</button>
+          <button class="secondary-button" id="homeLayoutResetButton" type="button">\u6062\u590d\u9ed8\u8ba4\u9996\u9875\u5e03\u5c40</button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function renderSettingsPanel() {
   if (elements.settingsPanel.hidden) {
     return;
@@ -2980,6 +3313,7 @@ function renderSettingsPanel() {
           <button class="secondary-button profile-logout-button" id="settingsLogoutButton" type="button" ${disabled}>登出账号</button>
         </div>
       </section>
+      ${renderHomeLayoutSettingsSection()}
       <section class="settings-section">
         <div class="settings-section-heading">
           <strong>隐私</strong>
@@ -3115,7 +3449,326 @@ function renderSettingsPanel() {
   document.querySelector("#releaseNotesCloseButton")?.addEventListener("click", closeReleaseNotesFromSettings);
   document.querySelector("#settingsFeedbackButton").addEventListener("click", openFeedbackPanel);
   document.querySelector("#settingsClearLocalButton").addEventListener("click", clearHistory);
+  bindHomeLayoutSettingsControls();
   document.querySelector("#settingsForm").addEventListener("submit", saveSettingsCenter);
+}
+
+function bindHomeLayoutSettingsControls() {
+  document.querySelector("#settingsHomeEditButton")?.addEventListener("click", openHomeLayoutEditorFromSettings);
+  document.querySelector("#homeLayoutResetButton")?.addEventListener("click", resetHomeLayout);
+}
+
+function refreshHomeLayoutUi() {
+  elements.modeTitle.textContent = getModeText(state.mode, "title");
+  elements.modeDescription.textContent = getModeText(state.mode, "description");
+  elements.controlHint.textContent = getModeText(state.mode, "hint");
+  elements.resultLabel.textContent = getModeText(state.mode, "label");
+  renderModes();
+  renderModeStage();
+  renderControls();
+  renderPreview();
+}
+
+function setHomeLayoutEditing(isEditing) {
+  isHomeLayoutEditing = Boolean(isEditing);
+  elements.sidebar.classList.toggle("is-menu-open", isHomeLayoutEditing);
+  elements.modeMenuToggle.setAttribute("aria-expanded", String(isHomeLayoutEditing));
+  refreshHomeLayoutUi();
+}
+
+function openHomeLayoutEditorFromSettings() {
+  closeSettingsPanel();
+  setHomeLayoutEditing(true);
+  window.setTimeout(() => elements.modeList?.scrollIntoView({ block: "nearest" }), 0);
+}
+
+function bindHomeLayoutDragHandles() {
+  elements.modeList.querySelectorAll("[data-home-layout-drag-handle]").forEach((handle) => {
+    handle.addEventListener("pointerdown", startHomeLayoutDrag);
+    handle.addEventListener("keydown", handleHomeLayoutDragKeydown);
+    handle.addEventListener("contextmenu", preventHomeLayoutTextSelection);
+    handle.addEventListener("selectstart", preventHomeLayoutTextSelection);
+    handle.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+  });
+}
+
+function preventHomeLayoutTextSelection(event) {
+  if (!isHomeLayoutEditing && !homeLayoutDragState) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+function focusHomeLayoutDragHandle(featureId) {
+  window.requestAnimationFrame(() => {
+    const handle = [...elements.modeList.querySelectorAll("[data-home-layout-drag-handle]")]
+      .find((item) => item.dataset.homeLayoutDragHandle === featureId);
+    handle?.focus();
+  });
+}
+
+function moveVisibleHomeFeatureByKeyboard(featureId, direction) {
+  const layout = getHomeLayout();
+  const hidden = new Set(layout.hidden);
+  const visibleOrder = layout.order.filter((id) => !hidden.has(id));
+  const currentIndex = visibleOrder.indexOf(featureId);
+  const targetIndex = currentIndex + direction;
+
+  if (currentIndex < 0 || targetIndex < 0 || targetIndex >= visibleOrder.length) {
+    showToast("\u5df2\u7ecf\u5230\u8fb9\u754c\u4e86\u3002");
+    focusHomeLayoutDragHandle(featureId);
+    return;
+  }
+
+  const [feature] = visibleOrder.splice(currentIndex, 1);
+  visibleOrder.splice(targetIndex, 0, feature);
+  setVisibleHomeFeatureOrder(visibleOrder, { shouldFocusFeatureId: featureId });
+}
+
+function handleHomeLayoutDragKeydown(event) {
+  if (!isHomeLayoutEditing || event.currentTarget.disabled) {
+    return;
+  }
+
+  const featureId = event.currentTarget.dataset.homeLayoutDragHandle;
+
+  if (!featureId) {
+    return;
+  }
+
+  if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+    event.preventDefault();
+    event.stopPropagation();
+    moveVisibleHomeFeatureByKeyboard(featureId, -1);
+    return;
+  }
+
+  if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+    event.preventDefault();
+    event.stopPropagation();
+    moveVisibleHomeFeatureByKeyboard(featureId, 1);
+    return;
+  }
+
+  if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+    event.preventDefault();
+    event.stopPropagation();
+    showToast("\u5df2\u805a\u7126\u6392\u5e8f\uff0c\u53ef\u4ee5\u7528\u4e0a\u4e0b\u65b9\u5411\u952e\u79fb\u52a8\u3002");
+  }
+}
+
+function startHomeLayoutDrag(event) {
+  if (!isHomeLayoutEditing || event.currentTarget.disabled || (event.button !== undefined && event.button !== 0)) {
+    return;
+  }
+
+  const handle = event.currentTarget;
+  const card = handle.closest("[data-home-feature-card]");
+  const list = card?.closest(".home-layout-section-list");
+
+  if (!card || !list || card.closest(".is-hidden-section")) {
+    return;
+  }
+
+  homeLayoutDragState = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    handle,
+    card,
+    list,
+    didMove: false,
+  };
+
+  handle.setPointerCapture?.(event.pointerId);
+  document.addEventListener("pointermove", handleHomeLayoutDragMove, { passive: false });
+  document.addEventListener("pointerup", finishHomeLayoutDrag);
+  document.addEventListener("pointercancel", cancelHomeLayoutDrag);
+  document.addEventListener("selectstart", preventHomeLayoutTextSelection);
+  document.addEventListener("contextmenu", preventHomeLayoutTextSelection);
+  document.body.classList.add("is-home-layout-dragging");
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+function getNearestHomeLayoutCard(list, currentCard, clientX, clientY) {
+  const candidates = [...list.querySelectorAll("[data-home-feature-card]")]
+    .filter((card) => card !== currentCard && !card.classList.contains("is-hidden"));
+  let nearest = null;
+
+  candidates.forEach((card) => {
+    const rect = card.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const distance = ((clientX - centerX) ** 2) + ((clientY - centerY) ** 2);
+
+    if (!nearest || distance < nearest.distance) {
+      nearest = {
+        card,
+        distance,
+        before: clientY < centerY || (Math.abs(clientY - centerY) < 10 && clientX < centerX),
+      };
+    }
+  });
+
+  return nearest;
+}
+
+function handleHomeLayoutDragMove(event) {
+  const dragState = homeLayoutDragState;
+
+  if (!dragState || dragState.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const distance = Math.hypot(event.clientX - dragState.startX, event.clientY - dragState.startY);
+
+  if (!dragState.didMove && distance < 6) {
+    return;
+  }
+
+  dragState.didMove = true;
+  dragState.card.classList.add("is-dragging");
+  dragState.list.classList.add("is-dragging");
+
+  const nearest = getNearestHomeLayoutCard(dragState.list, dragState.card, event.clientX, event.clientY);
+
+  if (nearest?.card) {
+    dragState.list.insertBefore(dragState.card, nearest.before ? nearest.card : nearest.card.nextSibling);
+  }
+
+  event.preventDefault();
+}
+
+function cleanupHomeLayoutDrag() {
+  const dragState = homeLayoutDragState;
+
+  if (!dragState) {
+    return null;
+  }
+
+  dragState.card.classList.remove("is-dragging");
+  dragState.list.classList.remove("is-dragging");
+  if (dragState.handle.hasPointerCapture?.(dragState.pointerId)) {
+    dragState.handle.releasePointerCapture(dragState.pointerId);
+  }
+  document.removeEventListener("pointermove", handleHomeLayoutDragMove);
+  document.removeEventListener("pointerup", finishHomeLayoutDrag);
+  document.removeEventListener("pointercancel", cancelHomeLayoutDrag);
+  document.removeEventListener("selectstart", preventHomeLayoutTextSelection);
+  document.removeEventListener("contextmenu", preventHomeLayoutTextSelection);
+  document.body.classList.remove("is-home-layout-dragging");
+  homeLayoutDragState = null;
+
+  return dragState;
+}
+
+function finishHomeLayoutDrag(event) {
+  if (!homeLayoutDragState || homeLayoutDragState.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const dragState = cleanupHomeLayoutDrag();
+
+  if (!dragState) {
+    return;
+  }
+
+  if (dragState.didMove) {
+    const visibleOrder = [...dragState.list.querySelectorAll("[data-home-feature-card]")]
+      .map((card) => card.dataset.homeFeatureCard)
+      .filter(Boolean);
+    setVisibleHomeFeatureOrder(visibleOrder);
+    event.preventDefault();
+  }
+}
+
+function cancelHomeLayoutDrag(event) {
+  if (!homeLayoutDragState || homeLayoutDragState.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const dragState = cleanupHomeLayoutDrag();
+
+  if (dragState) {
+    refreshHomeLayoutUi();
+  }
+}
+
+function setVisibleHomeFeatureOrder(visibleOrder, options = {}) {
+  const layout = getHomeLayout();
+  const hidden = new Set(layout.hidden);
+  const currentVisible = layout.order.filter((id) => !hidden.has(id));
+  const nextVisible = visibleOrder.filter((id) => currentVisible.includes(id));
+
+  currentVisible.forEach((id) => {
+    if (!nextVisible.includes(id)) {
+      nextVisible.push(id);
+    }
+  });
+
+  const hiddenOrder = layout.order.filter((id) => hidden.has(id));
+  state.homeLayout = normalizeHomeLayout({
+    ...layout,
+    order: [...nextVisible, ...hiddenOrder],
+  });
+  saveState();
+  refreshHomeLayoutUi();
+  if (options.shouldFocusFeatureId) {
+    focusHomeLayoutDragHandle(options.shouldFocusFeatureId);
+  }
+  showToast("\u9996\u9875\u987a\u5e8f\u5df2\u66f4\u65b0\u3002");
+}
+
+function setHomeFeatureVisible(featureId, isVisible) {
+  if (featureId === HOME_WORLD_FEATURE_ID && !isVisible) {
+    showToast("\u4e16\u754c\u9891\u9053\u662f\u5fc5\u663e\u5165\u53e3\uff0c\u53ef\u4ee5\u79fb\u52a8\u4f46\u4e0d\u80fd\u9690\u85cf\u3002");
+    return;
+  }
+
+  const layout = getHomeLayout();
+  const hidden = new Set(layout.hidden);
+  const visibleModeCount = layout.order.filter((id) => !hidden.has(id) && MODES[getModeKeyFromHomeFeature(id)]).length;
+
+  if (isVisible) {
+    hidden.delete(featureId);
+    const order = layout.order.filter((id) => id !== featureId);
+    order.push(featureId);
+    state.homeLayout = normalizeHomeLayout({
+      ...layout,
+      order,
+      hidden: [...hidden],
+    });
+  } else {
+    if (MODES[getModeKeyFromHomeFeature(featureId)] && visibleModeCount <= 1) {
+      showToast("\u81f3\u5c11\u4fdd\u7559\u4e00\u4e2a\u968f\u673a\u6a21\u5f0f\uff0c\u65b9\u4fbf\u627e\u56de\u529f\u80fd\u3002");
+      return;
+    }
+
+    hidden.add(featureId);
+    state.homeLayout = normalizeHomeLayout({
+      ...layout,
+      hidden: [...hidden],
+    });
+  }
+
+  ensureVisibleHomeMode();
+  saveState();
+  refreshHomeLayoutUi();
+  showToast(isVisible ? "\u5df2\u6062\u590d\u5230\u9996\u9875\u3002" : "\u5df2\u79fb\u5230\u9690\u85cf\u533a\uff0c\u53ef\u4ee5\u968f\u65f6\u6062\u590d\u3002");
+}
+
+function resetHomeLayout() {
+  state.homeLayout = createDefaultHomeLayout();
+  ensureVisibleHomeMode();
+  saveState();
+  refreshHomeLayoutUi();
+  showToast("\u9996\u9875\u5e03\u5c40\u5df2\u6062\u590d\u9ed8\u8ba4\u3002");
 }
 
 function getSettingsFormPayload() {
@@ -5172,6 +5825,10 @@ function getWorldMessageText(message) {
 }
 
 function toggleWorldChat() {
+  if (isHomeLayoutEditing) {
+    return;
+  }
+
   state.worldOpen = !state.worldOpen;
   if (state.worldOpen) {
     pickWorldPlaceholder();
@@ -8454,7 +9111,15 @@ function clearHistory() {
 }
 
 function surpriseMode() {
-  const modes = Object.keys(MODES).filter((mode) => mode !== state.mode);
+  const visibleModes = getVisibleModeKeys();
+  const modePool = visibleModes.length ? visibleModes : Object.keys(MODES);
+  const modes = modePool.filter((mode) => mode !== state.mode);
+
+  if (!modes.length) {
+    showToast("当前没有其他可切换的首页模式，可以到设置里重新显示。");
+    return;
+  }
+
   switchMode(choose(modes));
 }
 
@@ -8511,12 +9176,19 @@ elements.appRefreshButton.addEventListener("click", refreshApp);
 elements.notificationButton.addEventListener("click", toggleNotificationPanel);
 elements.profileAvatarButton.addEventListener("click", toggleProfilePanel);
 elements.moreMenuButton.addEventListener("click", toggleMoreMenu);
+elements.homeLayoutEditButton?.addEventListener("click", () => setHomeLayoutEditing(!isHomeLayoutEditing));
 elements.randomButton.addEventListener("click", drawResult);
 elements.copyResultButton.addEventListener("click", copyCurrentResult);
 elements.shareResultButton.addEventListener("click", shareCurrentResult);
 elements.favoriteButton.addEventListener("click", favoriteCurrent);
 elements.surpriseModeButton.addEventListener("click", surpriseMode);
 elements.modeMenuToggle.addEventListener("click", () => {
+  if (isHomeLayoutEditing) {
+    elements.sidebar.classList.add("is-menu-open");
+    elements.modeMenuToggle.setAttribute("aria-expanded", "true");
+    return;
+  }
+
   const expanded = !elements.sidebar.classList.contains("is-menu-open");
   elements.sidebar.classList.toggle("is-menu-open", expanded);
   elements.modeMenuToggle.setAttribute("aria-expanded", String(expanded));
