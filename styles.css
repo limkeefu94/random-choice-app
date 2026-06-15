@@ -2405,7 +2405,8 @@ body.is-home-layout-dragging * {
 
 .notification-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 8px;
   max-height: calc(100dvh - 110px);
   overflow: hidden;
 }
@@ -2511,11 +2512,34 @@ body.is-home-layout-dragging * {
   padding-right: 2px;
 }
 
+.notification-toolbar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.notification-toolbar .secondary-button {
+  min-height: 38px;
+  padding: 7px 10px;
+  font-size: 0.78rem;
+}
+
+.notification-clear-button {
+  border-color: rgba(235, 95, 36, 0.18);
+  color: #8d3c20;
+  background: rgba(255, 239, 229, 0.76);
+}
+
 .notification-item {
   padding: 10px 11px;
   border: 1px solid rgba(80, 45, 24, 0.09);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.72);
+}
+
+.notification-item.is-unread {
+  border-color: rgba(255, 122, 61, 0.24);
+  background: rgba(255, 248, 239, 0.92);
 }
 
 .notification-item-title {
@@ -2565,6 +2589,66 @@ body.is-home-layout-dragging * {
 
 .notification-details li::marker {
   color: var(--accent);
+}
+
+.notification-empty {
+  display: grid;
+  gap: 4px;
+  padding: 18px 12px;
+  border: 1px dashed rgba(80, 45, 24, 0.14);
+  border-radius: 18px;
+  color: #6f4d36;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.notification-empty strong {
+  color: #4d3025;
+  font-size: 0.94rem;
+}
+
+.notification-empty small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.notification-category-list {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 0 1px;
+  scrollbar-width: thin;
+}
+
+.notification-category-pill {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 2px;
+  min-width: 92px;
+  padding: 7px 9px;
+  border: 1px solid rgba(80, 45, 24, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.notification-category-pill strong,
+.notification-category-pill small {
+  display: block;
+}
+
+.notification-category-pill strong {
+  color: #4d3025;
+  font-size: 0.76rem;
+}
+
+.notification-category-pill small {
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.notification-category-pill.is-ready {
+  border-color: rgba(96, 199, 160, 0.22);
+  background: rgba(232, 250, 243, 0.72);
 }
 
 .profile-form {
@@ -2648,6 +2732,69 @@ body.is-home-layout-dragging * {
 
 .settings-action-grid > button {
   width: 100%;
+}
+
+.settings-placeholder-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settings-placeholder-card {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  min-height: 86px;
+  padding: 10px 11px;
+  border: 1px solid rgba(80, 45, 24, 0.08);
+  border-radius: 16px;
+  color: #4d3025;
+  cursor: pointer;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.58);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.settings-placeholder-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 122, 61, 0.24);
+  background: #fff;
+}
+
+.settings-placeholder-card span,
+.settings-placeholder-card strong,
+.settings-placeholder-card small {
+  display: block;
+  min-width: 0;
+}
+
+.settings-placeholder-card span {
+  justify-self: start;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #7a4b25;
+  font-size: 0.64rem;
+  font-weight: 900;
+  background: rgba(255, 212, 116, 0.44);
+}
+
+.settings-placeholder-card.is-ready span {
+  color: #285b4a;
+  background: rgba(96, 199, 160, 0.2);
+}
+
+.settings-placeholder-card strong {
+  font-size: 0.88rem;
+  line-height: 1.28;
+}
+
+.settings-placeholder-card small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.34;
 }
 
 .settings-toggle {
@@ -3338,6 +3485,10 @@ body.is-home-layout-dragging * {
   .settings-action-grid,
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+
+  .settings-placeholder-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .settings-utility-actions {
@@ -4230,6 +4381,10 @@ body.is-home-layout-dragging * {
     max-width: 56px;
     padding: 0 4px;
     font-size: 0.76rem;
+  }
+
+  .settings-placeholder-grid {
+    grid-template-columns: 1fr;
   }
 
   .more-menu-button {

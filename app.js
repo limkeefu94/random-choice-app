@@ -84,13 +84,13 @@ const LANGUAGE_LABELS = {
   ms: "Bahasa Melayu",
 };
 const CURRENCY_RATES = {
-  MYR: { label: "MYR", perMYR: 1, decimals: 0 },
-  SGD: { label: "SGD", perMYR: 1 / 3.1044, decimals: 2 },
-  USD: { label: "USD", perMYR: 1 / 3.968, decimals: 2 },
-  CNY: { label: "CNY", perMYR: 1 / 0.5863, decimals: 0 },
-  JPY: { label: "JPY", perMYR: 100 / 2.491, decimals: 0 },
-  THB: { label: "THB", perMYR: 100 / 12.1774, decimals: 0 },
-  TWD: { label: "TWD", perMYR: 100 / 12.6333, decimals: 0 },
+  MYR: { label: "MYR", displayLabel: "马币 MYR", perMYR: 1, decimals: 0 },
+  SGD: { label: "SGD", displayLabel: "新币 SGD", perMYR: 1 / 3.1044, decimals: 2 },
+  USD: { label: "USD", displayLabel: "美元 USD", perMYR: 1 / 3.968, decimals: 2 },
+  CNY: { label: "CNY", displayLabel: "人民币 CNY", perMYR: 1 / 0.5863, decimals: 0 },
+  JPY: { label: "JPY", displayLabel: "日元 JPY", perMYR: 100 / 2.491, decimals: 0 },
+  THB: { label: "THB", displayLabel: "泰铢 THB", perMYR: 100 / 12.1774, decimals: 0 },
+  TWD: { label: "TWD", displayLabel: "台币 TWD", perMYR: 100 / 12.6333, decimals: 0 },
 };
 
 function dish(title, tags, budget) {
@@ -1777,10 +1777,30 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.6.7";
+const APP_VERSION = "0.6.8";
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const RELEASE_NOTES = [
+  {
+    version: "0.6.8",
+    title: "设置与通知中心优化",
+    date: "2026-06-16",
+    summary: "这次整理了设置中心和通知中心，修正货币显示重复问题，并为好友、私聊和群聊等后续功能预留更清楚的入口。",
+    userChanges: [
+      "修正货币名称重复显示。",
+      "设置页分组更清楚。",
+      "隐私和内容偏好更容易理解。",
+      "通知中心加入更清楚的分类和空状态。",
+      "好友相关入口改成清楚的预留状态。",
+    ],
+    technicalChanges: [
+      "Cleaned up settings grouping and labels.",
+      "Normalized currency display labels.",
+      "Added clearer notification center sections.",
+      "Added future-ready friend and chat placeholders.",
+      "Preserved existing auth, world channel, likes, image upload, and home layout flows.",
+    ],
+  },
   {
     version: "0.6.7",
     title: "首页自定义布局",
@@ -2015,24 +2035,30 @@ const DEFAULT_WORLD_MESSAGES = [
     time: "刚刚",
   },
 ];
+const NOTIFICATION_CATEGORIES = [
+  { id: "system", label: "系统公告", status: "可用" },
+  { id: "release", label: "版本更新", status: "可用" },
+  { id: "world-like", label: "世界频道爱心", status: "有数据时显示" },
+  { id: "friend-request", label: "好友申请", status: "即将开放" },
+  { id: "friend-accepted", label: "好友通过", status: "即将开放" },
+  { id: "comment-reply", label: "评论回复", status: "未来" },
+  { id: "direct-message", label: "私聊消息", status: "即将开放" },
+  { id: "group-message", label: "群聊消息", status: "即将开放" },
+];
 const APP_NOTIFICATIONS = [
   {
-    id: "notice-purpose-updated-v050",
-    type: "系统提醒",
-    title: "通知会留给重要消息",
-    text: "以后这里主要放点赞、私信、好友申请和必要提醒。",
+    id: "system-settings-notifications-v068",
+    type: "系统公告",
+    category: "system",
+    title: "设置中心整理好了",
+    text: "隐私、好友预留、内容偏好和应用操作现在放得更清楚。",
   },
   {
-    id: "daily-inspiration-placeholder",
-    type: "预留",
-    title: "今日灵感提醒准备中",
-    text: "之后可以在这里看到简短提醒，不会塞满更新日志。",
-  },
-  {
-    id: "social-message-placeholder",
-    type: "预留",
-    title: "互动提醒会放这里",
-    text: "有人点赞、发私信或申请好友时，再用红点提醒你。",
+    id: "release-v068",
+    type: "版本更新",
+    category: "release",
+    title: "v0.6.8 设置与通知中心优化",
+    text: "修正货币重复显示，并整理通知分类、空状态和未来好友入口。",
   },
 ];
 const STORAGE_KEY = "choiceWheelState";
@@ -2100,6 +2126,7 @@ const state = {
   favorites: [],
   uploads: [],
   notificationReadIds: [],
+  notificationClearedIds: [],
   cloudSync: {
     loading: false,
     available: false,
@@ -2277,6 +2304,7 @@ function loadState() {
     state.favorites = Array.isArray(saved.favorites) ? saved.favorites.slice(0, 8) : [];
     state.uploads = Array.isArray(saved.uploads) ? saved.uploads.slice(0, 30) : [];
     state.notificationReadIds = Array.isArray(saved.notificationReadIds) ? saved.notificationReadIds : [];
+    state.notificationClearedIds = Array.isArray(saved.notificationClearedIds) ? saved.notificationClearedIds : [];
   } catch {
     showToast("读取本地记录失败，已使用默认设置。");
   }
@@ -2311,6 +2339,7 @@ function saveState() {
     favorites: state.favorites,
     uploads: state.uploads,
     notificationReadIds: state.notificationReadIds,
+    notificationClearedIds: state.notificationClearedIds,
   };
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -2331,6 +2360,32 @@ function t(key, fallback = "") {
   const translated = currentDictionary[key] ?? fallbackDictionary[key] ?? fallback;
 
   return translated === undefined || translated === null ? String(fallback || key) : String(translated);
+}
+
+function getCurrencyDisplayLabel(code) {
+  const currency = CURRENCY_RATES[code];
+  return currency?.displayLabel || currency?.label || code;
+}
+
+function renderCurrencyOptions(selectedCurrency = state.currency, options = {}) {
+  const { compact = false } = options;
+  return Object.keys(CURRENCY_RATES)
+    .map((code) => `<option value="${code}" ${selectedCurrency === code ? "selected" : ""}>${escapeHtml(compact ? code : getCurrencyDisplayLabel(code))}</option>`)
+    .join("");
+}
+
+function getVisibleNotifications() {
+  const clearedIds = new Set(Array.isArray(state.notificationClearedIds) ? state.notificationClearedIds : []);
+  return APP_NOTIFICATIONS.filter((item) => !clearedIds.has(item.id));
+}
+
+function getUnreadNotifications() {
+  const readIds = new Set(Array.isArray(state.notificationReadIds) ? state.notificationReadIds : []);
+  return getVisibleNotifications().filter((item) => !readIds.has(item.id));
+}
+
+function showComingSoonToast(message = "功能即将开放") {
+  showToast(message);
 }
 
 function getModeText(modeKey, field) {
@@ -2773,6 +2828,7 @@ function switchMode(mode) {
 }
 
 function render() {
+  elements.currencySelect.innerHTML = renderCurrencyOptions(state.currency, { compact: true });
   elements.currencySelect.value = state.currency;
   applyStaticTranslations();
   formatDateLabel();
@@ -2823,7 +2879,7 @@ function renderTopUserTools() {
   elements.settingsPanel.hidden = !isSettingsPanelOpen;
   elements.feedbackPanel.hidden = !isFeedbackPanelOpen;
 
-  const unreadCount = APP_NOTIFICATIONS.filter((item) => !state.notificationReadIds.includes(item.id)).length;
+  const unreadCount = getUnreadNotifications().length;
   elements.notificationBadge.hidden = unreadCount === 0;
   elements.notificationBadge.textContent = String(unreadCount);
 
@@ -2839,28 +2895,53 @@ function renderNotificationPanel() {
     return;
   }
 
-  elements.notificationPanel.innerHTML = `
-    <div class="floating-panel-header">
-        <div>
-          <strong>${escapeHtml(t("top.notification", "通知"))}</strong>
-          <small>点赞、私信、好友申请和重要提醒</small>
-        </div>
-      <button class="ghost-button compact-ghost" id="notificationCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
-    </div>
-    <div class="notification-list">
-      ${APP_NOTIFICATIONS.map((item) => `
-        <article class="notification-item">
+  const notifications = getVisibleNotifications();
+  const unreadCount = getUnreadNotifications().length;
+  const notificationMarkup = notifications.length
+    ? notifications.map((item) => `
+        <article class="notification-item${state.notificationReadIds.includes(item.id) ? "" : " is-unread"}">
           <div class="notification-item-title">
             <strong>${escapeHtml(item.title)}</strong>
             <span>${escapeHtml(item.type || "提醒")}</span>
           </div>
           <p>${escapeHtml(item.text)}</p>
         </article>
+      `).join("")
+    : `
+        <div class="notification-empty">
+          <strong>暂时没有通知</strong>
+          <small>系统公告、版本更新和互动提醒会出现在这里。</small>
+        </div>
+      `;
+
+  elements.notificationPanel.innerHTML = `
+    <div class="floating-panel-header">
+        <div>
+          <strong>${escapeHtml(t("top.notification", "通知"))}</strong>
+          <small>${unreadCount ? `${unreadCount} 条未读` : "暂时没有未读通知"}</small>
+        </div>
+      <button class="ghost-button compact-ghost" id="notificationCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
+    </div>
+    <div class="notification-toolbar" aria-label="通知操作">
+      <button class="secondary-button compact-secondary" id="notificationMarkReadButton" type="button" ${notifications.length ? "" : "disabled"}>全部已读</button>
+      <button class="secondary-button compact-secondary notification-clear-button" id="notificationClearButton" type="button" ${notifications.length ? "" : "disabled"}>清空本机通知</button>
+    </div>
+    <div class="notification-list">
+      ${notificationMarkup}
+    </div>
+    <div class="notification-category-list" aria-label="通知分类">
+      ${NOTIFICATION_CATEGORIES.map((item) => `
+        <span class="notification-category-pill${item.status === "可用" ? " is-ready" : " is-future"}">
+          <strong>${escapeHtml(item.label)}</strong>
+          <small>${escapeHtml(item.status)}</small>
+        </span>
       `).join("")}
     </div>
   `;
 
   document.querySelector("#notificationCloseButton").addEventListener("click", closeNotificationPanel);
+  document.querySelector("#notificationMarkReadButton")?.addEventListener("click", markAllNotificationsRead);
+  document.querySelector("#notificationClearButton")?.addEventListener("click", clearLocalNotifications);
 }
 
 function renderProfilePanel() {
@@ -3282,6 +3363,52 @@ function renderHomeLayoutSettingsSection() {
   `;
 }
 
+function renderFriendSettingsSection() {
+  const friendItems = [
+    { title: "搜索好友", desc: "之后可以用用户名找到朋友。", toast: "好友功能即将开放" },
+    { title: "好友申请", desc: "之后会集中查看收到和发出的申请。", toast: "好友功能即将开放" },
+    { title: "我的好友列表", desc: "之后会显示已通过的好友。", toast: "好友功能即将开放" },
+  ];
+
+  return `
+    <section class="settings-section">
+      <div class="settings-section-heading">
+        <strong>好友</strong>
+        <small>先预留入口，不开放搜索、私聊或群聊，避免误操作。</small>
+      </div>
+      <div class="settings-placeholder-grid">
+        ${friendItems.map((item) => `
+          <button class="settings-placeholder-card" type="button" data-coming-soon="${escapeHtml(item.toast)}">
+            <span>即将开放</span>
+            <strong>${escapeHtml(item.title)}</strong>
+            <small>${escapeHtml(item.desc)}</small>
+          </button>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderNotificationSettingsSection() {
+  return `
+    <section class="settings-section">
+      <div class="settings-section-heading">
+        <strong>通知</strong>
+        <small>铃铛里会显示系统公告、版本更新和后续互动提醒。</small>
+      </div>
+      <div class="settings-placeholder-grid">
+        ${NOTIFICATION_CATEGORIES.map((item) => `
+          <button class="settings-placeholder-card${item.status === "可用" ? " is-ready" : ""}" type="button" data-coming-soon="${escapeHtml(item.status === "可用" ? "请从右上角铃铛查看通知" : `${item.label}即将开放`)}">
+            <span>${escapeHtml(item.status)}</span>
+            <strong>${escapeHtml(item.label)}</strong>
+            <small>${escapeHtml(item.status === "可用" ? "已放入通知中心" : "预留分类，功能未开放")}</small>
+          </button>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderSettingsPanel() {
   if (elements.settingsPanel.hidden) {
     return;
@@ -3297,7 +3424,7 @@ function renderSettingsPanel() {
       <div class="floating-panel-header">
         <div>
           <strong>设置中心</strong>
-          <small>账号、隐私、偏好和应用信息集中整理</small>
+          <small>账号、隐私、好友、通知、偏好和应用信息集中整理</small>
         </div>
         <button class="ghost-button compact-ghost" id="settingsCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
       </div>
@@ -3313,11 +3440,10 @@ function renderSettingsPanel() {
           <button class="secondary-button profile-logout-button" id="settingsLogoutButton" type="button" ${disabled}>登出账号</button>
         </div>
       </section>
-      ${renderHomeLayoutSettingsSection()}
       <section class="settings-section">
         <div class="settings-section-heading">
           <strong>隐私</strong>
-          <small>好友和世界频道相关设置先保存数据结构，功能入口暂不开放。</small>
+          <small>为之后好友和私聊功能预留；保存后不会立刻开放私聊或好友功能。</small>
         </div>
         <label class="settings-toggle">
           <span><strong>允许别人搜索到我</strong><small>为之后好友搜索预留</small></span>
@@ -3338,8 +3464,11 @@ function renderSettingsPanel() {
             <option value="friendsOnly" ${settings.privacy.allowDirectMessages === "friendsOnly" ? "selected" : ""}>仅好友</option>
             <option value="none" ${settings.privacy.allowDirectMessages === "none" ? "selected" : ""}>不允许</option>
           </select>
+          <small class="field-hint">私聊功能未开放，这里只是先保存你的偏好。</small>
         </div>
       </section>
+      ${renderFriendSettingsSection()}
+      ${renderNotificationSettingsSection()}
       <section class="settings-section">
         <div class="settings-section-heading">
           <strong>内容偏好</strong>
@@ -3355,7 +3484,7 @@ function renderSettingsPanel() {
           <div class="field">
             <label for="settingsCurrency">默认货币</label>
             <select id="settingsCurrency" ${disabled}>
-              ${Object.entries(CURRENCY_RATES).map(([code, currency]) => `<option value="${code}" ${settings.preferences.currency === code ? "selected" : ""}>${code} · ${escapeHtml(currency.label)}</option>`).join("")}
+              ${renderCurrencyOptions(settings.preferences.currency)}
             </select>
           </div>
           <div class="field">
@@ -3385,6 +3514,7 @@ function renderSettingsPanel() {
           <button class="secondary-button settings-clear-button" id="settingsClearLocalButton" type="button">清除记录</button>
         </div>
       </section>
+      ${renderHomeLayoutSettingsSection()}
       ${renderReleaseNotesSection()}
       <section class="settings-section">
         <div class="settings-section-heading connected-apps-heading">
@@ -3449,8 +3579,15 @@ function renderSettingsPanel() {
   document.querySelector("#releaseNotesCloseButton")?.addEventListener("click", closeReleaseNotesFromSettings);
   document.querySelector("#settingsFeedbackButton").addEventListener("click", openFeedbackPanel);
   document.querySelector("#settingsClearLocalButton").addEventListener("click", clearHistory);
+  bindSettingsPlaceholderControls();
   bindHomeLayoutSettingsControls();
   document.querySelector("#settingsForm").addEventListener("submit", saveSettingsCenter);
+}
+
+function bindSettingsPlaceholderControls() {
+  document.querySelectorAll("[data-coming-soon]").forEach((button) => {
+    button.addEventListener("click", () => showComingSoonToast(button.dataset.comingSoon || "功能即将开放"));
+  });
 }
 
 function bindHomeLayoutSettingsControls() {
@@ -3825,7 +3962,7 @@ async function saveSettingsCenter(event) {
       type: "auth-settings-update-failed",
       source: AUTH_ENDPOINT,
     });
-    showToast(error.message || "设置暂时保存不了。");
+    showToast("设置暂时保存失败，请稍后再试");
   } finally {
     const currentSubmitButton = document.querySelector("#settingsSubmitButton");
 
@@ -5909,17 +6046,29 @@ function toggleNotificationPanel() {
   isFeedbackPanelOpen = false;
   isSettingsPanelOpen = false;
 
-  if (isNotificationPanelOpen) {
-    state.notificationReadIds = APP_NOTIFICATIONS.map((item) => item.id);
-    saveState();
-  }
-
   renderTopUserTools();
 }
 
 function closeNotificationPanel() {
   isNotificationPanelOpen = false;
   renderTopUserTools();
+}
+
+function markAllNotificationsRead() {
+  const visibleIds = getVisibleNotifications().map((item) => item.id);
+  state.notificationReadIds = [...new Set([...state.notificationReadIds, ...visibleIds])];
+  saveState();
+  renderTopUserTools();
+  showToast("通知已全部标为已读");
+}
+
+function clearLocalNotifications() {
+  const visibleIds = getVisibleNotifications().map((item) => item.id);
+  state.notificationClearedIds = [...new Set([...state.notificationClearedIds, ...visibleIds])];
+  state.notificationReadIds = [...new Set([...state.notificationReadIds, ...visibleIds])];
+  saveState();
+  renderTopUserTools();
+  showToast("本机通知已清空");
 }
 
 function toggleMoreMenu() {
@@ -9138,7 +9287,7 @@ function changeCurrency(currency) {
     renderResult(state.currentResult);
   }
 
-  showToast(`预算已切换为 ${currency}`);
+  showToast(`货币设置已更新：${getCurrencyDisplayLabel(currency)}`);
 }
 
 function changeLanguage(language) {
