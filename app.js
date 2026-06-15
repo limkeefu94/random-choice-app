@@ -1800,6 +1800,8 @@ const RELEASE_NOTES = [
       "Added local layout persistence with safe fallback.",
       "Added home feature hide / restore handling.",
       "Added pointer-based drag handle sorting.",
+      "Improved mobile drag handling for home edit mode.",
+      "Added keyboard-accessible reorder support.",
       "Kept world channel visible while allowing reorder.",
       "Protected at least one random mode from being hidden.",
     ],
@@ -2608,6 +2610,7 @@ function renderHomeFeatureCard(feature, options = {}) {
         type="button"
         data-home-layout-drag-handle="${escapeHtml(feature.id)}"
         aria-label="\u62d6\u52a8${escapeHtml(feature.title)}\u8c03\u6574\u987a\u5e8f"
+        aria-keyshortcuts="ArrowUp ArrowDown Enter Space"
         ${visibleCount <= 1 ? "disabled" : ""}
       >\u2630</button>
     `
@@ -3482,11 +3485,81 @@ function openHomeLayoutEditorFromSettings() {
 function bindHomeLayoutDragHandles() {
   elements.modeList.querySelectorAll("[data-home-layout-drag-handle]").forEach((handle) => {
     handle.addEventListener("pointerdown", startHomeLayoutDrag);
+    handle.addEventListener("keydown", handleHomeLayoutDragKeydown);
+    handle.addEventListener("contextmenu", preventHomeLayoutTextSelection);
+    handle.addEventListener("selectstart", preventHomeLayoutTextSelection);
     handle.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
     });
   });
+}
+
+function preventHomeLayoutTextSelection(event) {
+  if (!isHomeLayoutEditing && !homeLayoutDragState) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+function focusHomeLayoutDragHandle(featureId) {
+  window.requestAnimationFrame(() => {
+    const handle = [...elements.modeList.querySelectorAll("[data-home-layout-drag-handle]")]
+      .find((item) => item.dataset.homeLayoutDragHandle === featureId);
+    handle?.focus();
+  });
+}
+
+function moveVisibleHomeFeatureByKeyboard(featureId, direction) {
+  const layout = getHomeLayout();
+  const hidden = new Set(layout.hidden);
+  const visibleOrder = layout.order.filter((id) => !hidden.has(id));
+  const currentIndex = visibleOrder.indexOf(featureId);
+  const targetIndex = currentIndex + direction;
+
+  if (currentIndex < 0 || targetIndex < 0 || targetIndex >= visibleOrder.length) {
+    showToast("\u5df2\u7ecf\u5230\u8fb9\u754c\u4e86\u3002");
+    focusHomeLayoutDragHandle(featureId);
+    return;
+  }
+
+  const [feature] = visibleOrder.splice(currentIndex, 1);
+  visibleOrder.splice(targetIndex, 0, feature);
+  setVisibleHomeFeatureOrder(visibleOrder, { shouldFocusFeatureId: featureId });
+}
+
+function handleHomeLayoutDragKeydown(event) {
+  if (!isHomeLayoutEditing || event.currentTarget.disabled) {
+    return;
+  }
+
+  const featureId = event.currentTarget.dataset.homeLayoutDragHandle;
+
+  if (!featureId) {
+    return;
+  }
+
+  if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+    event.preventDefault();
+    event.stopPropagation();
+    moveVisibleHomeFeatureByKeyboard(featureId, -1);
+    return;
+  }
+
+  if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+    event.preventDefault();
+    event.stopPropagation();
+    moveVisibleHomeFeatureByKeyboard(featureId, 1);
+    return;
+  }
+
+  if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+    event.preventDefault();
+    event.stopPropagation();
+    showToast("\u5df2\u805a\u7126\u6392\u5e8f\uff0c\u53ef\u4ee5\u7528\u4e0a\u4e0b\u65b9\u5411\u952e\u79fb\u52a8\u3002");
+  }
 }
 
 function startHomeLayoutDrag(event) {
@@ -3516,6 +3589,8 @@ function startHomeLayoutDrag(event) {
   document.addEventListener("pointermove", handleHomeLayoutDragMove, { passive: false });
   document.addEventListener("pointerup", finishHomeLayoutDrag);
   document.addEventListener("pointercancel", cancelHomeLayoutDrag);
+  document.addEventListener("selectstart", preventHomeLayoutTextSelection);
+  document.addEventListener("contextmenu", preventHomeLayoutTextSelection);
   document.body.classList.add("is-home-layout-dragging");
   event.preventDefault();
   event.stopPropagation();
@@ -3585,6 +3660,8 @@ function cleanupHomeLayoutDrag() {
   document.removeEventListener("pointermove", handleHomeLayoutDragMove);
   document.removeEventListener("pointerup", finishHomeLayoutDrag);
   document.removeEventListener("pointercancel", cancelHomeLayoutDrag);
+  document.removeEventListener("selectstart", preventHomeLayoutTextSelection);
+  document.removeEventListener("contextmenu", preventHomeLayoutTextSelection);
   document.body.classList.remove("is-home-layout-dragging");
   homeLayoutDragState = null;
 
@@ -3623,7 +3700,7 @@ function cancelHomeLayoutDrag(event) {
   }
 }
 
-function setVisibleHomeFeatureOrder(visibleOrder) {
+function setVisibleHomeFeatureOrder(visibleOrder, options = {}) {
   const layout = getHomeLayout();
   const hidden = new Set(layout.hidden);
   const currentVisible = layout.order.filter((id) => !hidden.has(id));
@@ -3642,6 +3719,9 @@ function setVisibleHomeFeatureOrder(visibleOrder) {
   });
   saveState();
   refreshHomeLayoutUi();
+  if (options.shouldFocusFeatureId) {
+    focusHomeLayoutDragHandle(options.shouldFocusFeatureId);
+  }
   showToast("\u9996\u9875\u987a\u5e8f\u5df2\u66f4\u65b0\u3002");
 }
 
