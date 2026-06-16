@@ -1808,6 +1808,7 @@ const RELEASE_NOTES = [
       "礼物交换结果现在会优先显示在上方结果卡。",
       "完整结果列表默认收起，查看更清爽。",
       "修复洗牌过程中修改名单可能出现旧结果的问题。",
+      "世界频道从随机模式列表分离，手机端会独立显示入口。",
     ],
     technicalChanges: [
       "Added local gift exchange mode state.",
@@ -1818,6 +1819,7 @@ const RELEASE_NOTES = [
       "Added latest-run validation before writing generated pairs.",
       "Moved primary reveal/result rendering into the main result panel.",
       "Added collapsed full-result section behavior.",
+      "Separated world channel entry from random mode cards.",
       "Preserved existing auth, world channel, notifications, home layout, image, and like flows.",
     ],
   },
@@ -2693,7 +2695,7 @@ function getHomeFeatureMeta(featureId) {
       type: "world",
       icon: "🌍",
       title: t("world.title", "世界频道"),
-      description: t("world.subtitle", "打开独立聊天窗口"),
+      description: t("world.subtitle", "公开频道 · 私聊和群聊之后会放这里"),
     };
   }
 
@@ -2718,6 +2720,10 @@ function getHomeFeatures() {
   const layout = getHomeLayout();
 
   return layout.order.map(getHomeFeatureMeta).filter(Boolean);
+}
+
+function getHomeModeFeatures() {
+  return getHomeFeatures().filter((feature) => feature.type === "mode");
 }
 
 function getVisibleHomeFeatureIds() {
@@ -2855,7 +2861,7 @@ function applyStaticTranslations() {
   elements.randomButtonLabel.textContent = t("actions.random", "随机决定");
   elements.favoriteButton.textContent = t("actions.favorite", "收藏结果");
   elements.worldChannelTitle.textContent = t("world.title", "世界频道");
-  elements.worldChannelSubtitle.textContent = t("world.subtitle", "打开独立聊天窗口");
+  elements.worldChannelSubtitle.textContent = t("world.subtitle", "公开频道 · 私聊和群聊之后会放这里");
   elements.notificationPanel.setAttribute("aria-label", t("top.notification", "通知"));
   elements.profilePanel.setAttribute("aria-label", t("top.profile", "个人资料"));
   elements.moreMenuPanel.setAttribute("aria-label", t("menu.more", "更多菜单"));
@@ -2955,7 +2961,7 @@ function renderHomeFeatureSection(title, features, options = {}) {
 function renderModes() {
   ensureVisibleHomeMode();
 
-  const features = getHomeFeatures();
+  const features = getHomeModeFeatures();
   const hiddenIds = new Set(getHomeLayout().hidden);
   const visibleFeatures = features.filter((feature) => !hiddenIds.has(feature.id));
   const hiddenFeatures = features.filter((feature) => hiddenIds.has(feature.id));
@@ -2971,7 +2977,7 @@ function renderModes() {
 
   if (isHomeLayoutEditing) {
     elements.modeList.innerHTML = `
-      ${renderHomeFeatureSection("\u663e\u793a\u4e2d\u7684\u529f\u80fd", visibleFeatures, {
+      ${renderHomeFeatureSection("\u663e\u793a\u4e2d\u7684\u968f\u673a\u6a21\u5f0f", visibleFeatures, {
         emptyText: "\u81f3\u5c11\u4fdd\u7559\u4e00\u4e2a\u9996\u9875\u5165\u53e3\uff0c\u65b9\u4fbf\u968f\u65f6\u627e\u56de\u529f\u80fd\u3002",
         visibleModeCount,
       })}
@@ -3025,7 +3031,8 @@ function renderModes() {
     : hiddenCount > 0
       ? "\u6709\u9690\u85cf\u529f\u80fd\uff0c\u53ef\u70b9\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002"
       : "\u7b2c\u4e00\u6b21\u7528\uff1f\u5148\u4ece\u5403\u4ec0\u4e48\u3001\u4e70\u4ec0\u4e48\u6216\u81ea\u5b9a\u4e49\u968f\u673a\u5f00\u59cb\uff0c\u5176\u4ed6\u666e\u901a\u6a21\u5f0f\u4e5f\u5728\u8fd9\u91cc\u3002";
-  elements.sidebarWorld.hidden = true;
+  elements.sidebarWorld.hidden = false;
+  elements.worldChannelButton.setAttribute("aria-pressed", String(state.worldOpen));
 }
 
 function switchMode(mode) {
@@ -10163,6 +10170,7 @@ elements.copyResultButton.addEventListener("click", copyCurrentResult);
 elements.shareResultButton.addEventListener("click", shareCurrentResult);
 elements.favoriteButton.addEventListener("click", favoriteCurrent);
 elements.surpriseModeButton.addEventListener("click", surpriseMode);
+elements.worldChannelButton.addEventListener("click", toggleWorldChat);
 elements.modeMenuToggle.addEventListener("click", () => {
   if (isHomeLayoutEditing) {
     elements.sidebar.classList.add("is-menu-open");

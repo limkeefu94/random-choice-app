@@ -49,7 +49,7 @@
     "mode.custom.hint": "Enter your own candidates before randomizing",
     "mode.custom.label": "Custom Result",
     "world.title": "World Channel",
-    "world.subtitle": "Open standalone chat",
+    "world.subtitle": "Public channel · private and group chats will live here later",
     "lottery.disclaimer": "Numbers are generated randomly for entertainment only. Not betting advice."
   };
 })();

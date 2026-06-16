@@ -49,7 +49,7 @@
     "mode.custom.hint": "Masukkan calon sendiri sebelum rawak",
     "mode.custom.label": "Keputusan Sendiri",
     "world.title": "Saluran Dunia",
-    "world.subtitle": "Buka chat berasingan",
+    "world.subtitle": "Saluran awam · chat peribadi dan kumpulan akan datang",
     "lottery.disclaimer": "Nombor dijana secara rawak untuk hiburan sahaja. Bukan nasihat pertaruhan."
   };
 })();

@@ -49,7 +49,7 @@
     "mode.custom.hint": "输入自己的候选项后再随机",
     "mode.custom.label": "自定义结果",
     "world.title": "世界频道",
-    "world.subtitle": "打开独立聊天窗口",
+    "world.subtitle": "公开频道 · 私聊和群聊之后会放这里",
     "lottery.disclaimer": "号码由随机算法生成，仅供娱乐，不构成投注建议。"
   };
 })();
