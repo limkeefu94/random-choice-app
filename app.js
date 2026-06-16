@@ -86,6 +86,7 @@ const GIFT_REVEAL_MODES = {
   single: "一个一个揭晓",
   all: "全部一起生成",
 };
+const GIFT_PARTICIPANT_LIMIT = 80;
 const DEFAULT_PREVIEW_LIMIT = 24;
 const SHOPPING_PREVIEW_LIMIT = 30;
 const LOCKABLE_MODES = new Set(["food", "drink", "travel", "shopping", "custom"]);
@@ -1808,6 +1809,8 @@ const RELEASE_NOTES = [
       "礼物交换结果现在会优先显示在上方结果卡。",
       "完整结果列表默认收起，查看更清爽。",
       "修复洗牌过程中修改名单可能出现旧结果的问题。",
+      "刷新或切换模式后，已生成的礼物交换结果会继续显示。",
+      "礼物交换目前最多支持 80 位参与者，避免结果保存不完整。",
       "世界频道从随机模式列表分离，手机端会独立显示入口。",
     ],
     technicalChanges: [
@@ -1819,6 +1822,9 @@ const RELEASE_NOTES = [
       "Added latest-run validation before writing generated pairs.",
       "Moved primary reveal/result rendering into the main result panel.",
       "Added collapsed full-result section behavior.",
+      "Restored saved gift exchange results into the active result panel.",
+      "Guarded gift exchange persistence against partial pair restoration.",
+      "Enforced the participant limit before generating gift exchange pairs.",
       "Separated world channel entry from random mode cards.",
       "Preserved existing auth, world channel, notifications, home layout, image, and like flows.",
     ],
@@ -2451,15 +2457,16 @@ function createDefaultGiftExchangeState() {
 
 function normalizeGiftExchangeState(gift) {
   const source = gift && typeof gift === "object" ? gift : {};
-  const pairs = Array.isArray(source.pairs)
+  const hasTooManySavedPairs = Array.isArray(source.pairs) && source.pairs.length > GIFT_PARTICIPANT_LIMIT;
+  const normalizedPairs = Array.isArray(source.pairs)
     ? source.pairs
       .map((pair) => ({
         giver: String(pair?.giver || "").trim().slice(0, 40),
         receiver: String(pair?.receiver || "").trim().slice(0, 40),
       }))
       .filter((pair) => pair.giver && pair.receiver && pair.giver !== pair.receiver)
-      .slice(0, 80)
     : [];
+  const pairs = hasTooManySavedPairs || normalizedPairs.length > GIFT_PARTICIPANT_LIMIT ? [] : normalizedPairs;
   const revealedIndexes = Array.isArray(source.revealedIndexes)
     ? [...new Set(source.revealedIndexes.map((index) => Number(index)).filter((index) => Number.isInteger(index) && index >= 0 && index < pairs.length))]
     : [];
@@ -4252,8 +4259,19 @@ function renderFeedbackPanel() {
 }
 
 function renderModeStage() {
-  if (state.mode === "gift" && (!state.currentResult || state.currentResult.mode !== "gift") && state.gift.pairs.length) {
-    state.currentResult = buildGiftCurrentResult();
+  if (state.mode === "gift") {
+    state.gift = normalizeGiftExchangeState(state.gift);
+
+    if (state.gift.pairs.length) {
+      state.currentResult = buildGiftCurrentResult();
+
+      if (state.currentResult) {
+        renderResult(state.currentResult);
+        return;
+      }
+    } else if (state.currentResult?.mode === "gift") {
+      state.currentResult = null;
+    }
   }
 
   if (!state.currentResult || state.currentResult.mode !== state.mode) {
@@ -5136,8 +5154,12 @@ function renderGiftResultSection() {
 
 function renderGiftControls() {
   state.gift = normalizeGiftExchangeState(state.gift);
-  const { uniqueParticipants, duplicateNames } = getGiftParticipantValidation();
+  const { participants, uniqueParticipants, duplicateNames } = getGiftParticipantValidation();
+  const isOverParticipantLimit = participants.length > GIFT_PARTICIPANT_LIMIT;
   const duplicateHint = duplicateNames.length ? '<small class="field-hint is-danger">名字重复了，请改一下。</small>' : "";
+  const limitHint = isOverParticipantLimit
+    ? `<small class="field-hint is-danger">礼物交换目前最多支持 ${GIFT_PARTICIPANT_LIMIT} 位参与者。请先减少名单后再生成配对。</small>`
+    : "";
 
   elements.randomButtonLabel.textContent = state.gift.pairs.length ? "重新洗牌" : "开始配对";
   elements.modeControls.innerHTML = `
@@ -5147,14 +5169,15 @@ function renderGiftControls() {
           <strong>礼物交换随机</strong>
           <small>输入参与者名字，系统会随机安排每个人要送礼物给谁。</small>
         </div>
-        <span>${uniqueParticipants.length} 人</span>
+        <span>${uniqueParticipants.length} / ${GIFT_PARTICIPANT_LIMIT} 人</span>
       </div>
       <div class="gift-input-grid">
         <div class="field gift-name-list-field">
           <label for="giftParticipantsText">名字列表</label>
           <textarea id="giftParticipantsText" rows="6" placeholder="阿明&#10;小美&#10;John&#10;Amy">${escapeHtml(state.gift.participantsText)}</textarea>
-          <small class="field-hint">至少 3 人；可一行一个名字，也可用逗号分开。</small>
+          <small class="field-hint">至少 3 人；最多 ${GIFT_PARTICIPANT_LIMIT} 位参与者；可一行一个名字，也可用逗号分开。</small>
           ${duplicateHint}
+          ${limitHint}
         </div>
         <div class="gift-side-controls">
           <div class="field">
@@ -5168,7 +5191,7 @@ function renderGiftControls() {
             </select>
           </div>
           <div class="custom-actions gift-setup-actions">
-            <button class="secondary-button" id="giftAddNameButton" type="button">添加名字</button>
+            <button class="secondary-button" id="giftAddNameButton" type="button" ${uniqueParticipants.length >= GIFT_PARTICIPANT_LIMIT ? "disabled" : ""}>添加名字</button>
             <button class="secondary-button" id="giftClearNamesButton" type="button">清空名单</button>
             <button class="secondary-button settings-clear-button" id="giftClearAllButton" type="button">清除本次礼物交换数据</button>
           </div>
@@ -5231,6 +5254,11 @@ function addGiftParticipantFromInput() {
 
   if (exists) {
     showToast("名字重复了，请改一下。");
+    return;
+  }
+
+  if (participants.length >= GIFT_PARTICIPANT_LIMIT) {
+    showToast(`已达到 ${GIFT_PARTICIPANT_LIMIT} 人上限。`);
     return;
   }
 
@@ -5409,6 +5437,11 @@ function startGiftExchange() {
 
   if (participants.length < 3) {
     showToast("至少需要 3 个人才能交换礼物。");
+    return;
+  }
+
+  if (participants.length > GIFT_PARTICIPANT_LIMIT) {
+    showToast(`礼物交换目前最多支持 ${GIFT_PARTICIPANT_LIMIT} 位参与者。请先减少名单后再生成配对。`);
     return;
   }
 
@@ -5640,7 +5673,7 @@ function renderPreview() {
 }
 
 function renderGiftPreview() {
-  const { uniqueParticipants, duplicateNames } = getGiftParticipantValidation();
+  const { participants, uniqueParticipants, duplicateNames } = getGiftParticipantValidation();
 
   elements.previewCount.textContent = `${uniqueParticipants.length} 位参与者`;
 
@@ -5655,9 +5688,10 @@ function renderGiftPreview() {
     .join("");
   const overflowCount = Math.max(uniqueParticipants.length - DEFAULT_PREVIEW_LIMIT, 0);
   const duplicateHint = duplicateNames.length ? `<span class="chip is-muted">名字重复了，请改一下</span>` : "";
+  const limitHint = participants.length > GIFT_PARTICIPANT_LIMIT ? `<span class="chip is-muted">最多支持 ${GIFT_PARTICIPANT_LIMIT} 位参与者</span>` : "";
   const overflowHint = overflowCount ? `<span class="chip preview-overflow-chip">还有 ${overflowCount} 位未显示</span>` : "";
 
-  elements.optionPreview.innerHTML = `${participantChips}${overflowHint}${duplicateHint}`;
+  elements.optionPreview.innerHTML = `${participantChips}${overflowHint}${duplicateHint}${limitHint}`;
 }
 
 function renderWorldChannel() {
