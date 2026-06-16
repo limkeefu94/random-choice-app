@@ -1805,12 +1805,19 @@ const RELEASE_NOTES = [
       "支持一个一个揭晓结果。",
       "支持全部一起生成并逐条揭晓。",
       "可以复制完整交换礼物结果。",
+      "礼物交换结果现在会优先显示在上方结果卡。",
+      "完整结果列表默认收起，查看更清爽。",
+      "修复洗牌过程中修改名单可能出现旧结果的问题。",
     ],
     technicalChanges: [
       "Added local gift exchange mode state.",
       "Added safe no-self pairing generation with fallback.",
       "Added reveal-by-one and reveal-all result flows.",
       "Added lightweight reveal animation.",
+      "Guarded gift shuffle timer against stale state.",
+      "Added latest-run validation before writing generated pairs.",
+      "Moved primary reveal/result rendering into the main result panel.",
+      "Added collapsed full-result section behavior.",
       "Preserved existing auth, world channel, notifications, home layout, image, and like flows.",
     ],
   },
@@ -2257,6 +2264,9 @@ let isSettingsPanelOpen = false;
 let isReleaseNotesPanelOpen = false;
 let isHomeLayoutEditing = false;
 let homeLayoutDragState = null;
+let giftShuffleTimer = null;
+let giftShuffleRunId = 0;
+let isGiftShuffleRunning = false;
 const clientErrorThrottle = new Map();
 
 function isValidAnonymousUserId(userId) {
@@ -2432,6 +2442,7 @@ function createDefaultGiftExchangeState() {
     revealedIndexes: [],
     currentIndex: 0,
     currentRevealed: false,
+    fullListExpanded: false,
     generatedAt: "",
   };
 }
@@ -2461,6 +2472,7 @@ function normalizeGiftExchangeState(gift) {
     revealedIndexes,
     currentIndex,
     currentRevealed: Boolean(source.currentRevealed),
+    fullListExpanded: Boolean(source.fullListExpanded),
     generatedAt: String(source.generatedAt || ""),
   };
 }
@@ -2526,6 +2538,46 @@ function getGiftPairsText(pairs = state.gift.pairs) {
   return pairs.map((pair) => `${pair.giver} → ${pair.receiver}`).join("\n");
 }
 
+function getGiftParticipantSignature(participants = getGiftParticipantValidation().participants) {
+  return JSON.stringify(participants.map((name) => name.toLocaleLowerCase()));
+}
+
+function isGiftFullyRevealed(gift = state.gift) {
+  return gift.pairs.length > 0 && gift.revealedIndexes.length >= gift.pairs.length;
+}
+
+function cleanupGiftShuffleUi() {
+  isGiftShuffleRunning = false;
+  elements.modeControls.classList.remove("is-gift-shuffling");
+  elements.resultStage.classList.remove("is-spinning");
+
+  if (state.mode === "gift") {
+    elements.randomButton.disabled = false;
+    elements.randomButtonLabel.textContent = state.gift.pairs.length ? "重新洗牌" : "开始配对";
+  }
+}
+
+function cancelGiftShuffle(options = {}) {
+  const { silent = false } = options;
+  const hadPendingShuffle = isGiftShuffleRunning || giftShuffleTimer !== null;
+
+  if (giftShuffleTimer !== null) {
+    window.clearTimeout(giftShuffleTimer);
+    giftShuffleTimer = null;
+  }
+
+  if (hadPendingShuffle) {
+    giftShuffleRunId += 1;
+    cleanupGiftShuffleUi();
+
+    if (!silent && state.mode === "gift") {
+      showToast("已取消本次洗牌");
+    }
+  }
+
+  return hadPendingShuffle;
+}
+
 function buildGiftCurrentResult() {
   const pairCount = state.gift.pairs.length;
 
@@ -2547,6 +2599,7 @@ function resetGiftExchangeResult() {
   state.gift.revealedIndexes = [];
   state.gift.currentIndex = 0;
   state.gift.currentRevealed = false;
+  state.gift.fullListExpanded = false;
   state.gift.generatedAt = "";
 
   if (state.currentResult?.mode === "gift") {
@@ -2982,6 +3035,10 @@ function switchMode(mode) {
 
   if (!MODES[mode]) {
     return;
+  }
+
+  if (state.mode === "gift" && mode !== "gift") {
+    cancelGiftShuffle({ silent: true });
   }
 
   state.mode = mode;
@@ -4193,9 +4250,11 @@ function renderModeStage() {
   }
 
   if (!state.currentResult || state.currentResult.mode !== state.mode) {
+    elements.resultStage.classList.remove("is-gift-result");
     elements.resultValue.textContent = "按下按钮，让今天轻一点";
     elements.resultMeta.textContent = "你可以先选模式，也可以直接随机。";
     elements.numberDigits.classList.remove("is-lottery");
+    elements.numberDigits.classList.remove("is-gift-result");
     elements.numberDigits.hidden = true;
     elements.numberDigits.innerHTML = "";
     updateResultActionButtons(null);
@@ -4938,12 +4997,12 @@ function renderGiftSingleReveal() {
 
   if (isFinished) {
     return `
-      <article class="gift-reveal-card is-complete">
+      <article class="gift-reveal-card is-complete gift-main-card">
         <span class="gift-party-icon" aria-hidden="true">🎉</span>
         <strong>全部抽完啦</strong>
         <small>${pairs.length} 位参与者都已经安排好了。</small>
         <div class="gift-result-actions">
-          <button class="secondary-button" type="button" data-gift-view-all>查看全部结果</button>
+          <button class="secondary-button" type="button" data-gift-view-full-list>查看完整结果</button>
           <button class="secondary-button" type="button" data-gift-copy>复制结果</button>
           <button class="primary-button compact-primary" type="button" data-gift-reshuffle>重新洗牌</button>
         </div>
@@ -4954,8 +5013,8 @@ function renderGiftSingleReveal() {
   const isRevealed = gift.currentRevealed || revealedSet.has(gift.currentIndex);
 
   return `
-    <article class="gift-reveal-card">
-      <small>当前送礼人 · ${gift.currentIndex + 1} / ${pairs.length}</small>
+    <article class="gift-reveal-card gift-main-card">
+      <small>正在揭晓 · ${gift.currentIndex + 1} / ${pairs.length}</small>
       <strong>${escapeHtml(currentPair.giver)}</strong>
       <div class="gift-reveal-result${isRevealed ? " is-revealed" : ""}">
         ${isRevealed
@@ -4976,18 +5035,19 @@ function renderGiftSingleReveal() {
 function renderGiftAllReveal() {
   const gift = normalizeGiftExchangeState(state.gift);
   const revealedSet = new Set(gift.revealedIndexes);
+  const fullyRevealed = isGiftFullyRevealed(gift);
 
   if (!gift.pairs.length) {
     return "";
   }
 
   return `
-    <div class="gift-all-list" aria-label="全部礼物交换结果">
+    <div class="gift-main-list" aria-label="礼物交换结果">
       ${gift.pairs.map((pair, index) => {
         const isRevealed = revealedSet.has(index);
 
         return `
-          <article class="gift-all-item${isRevealed ? " is-revealed" : ""}">
+          <article class="gift-all-item gift-main-row${isRevealed ? " is-revealed" : ""}" data-gift-row-index="${index}">
             <strong>${escapeHtml(pair.giver)}</strong>
             <span aria-hidden="true">→</span>
             <b>${isRevealed ? escapeHtml(pair.receiver) : "？？？"}</b>
@@ -4999,11 +5059,30 @@ function renderGiftAllReveal() {
       }).join("")}
     </div>
     <div class="gift-result-actions">
-      <button class="secondary-button" type="button" data-gift-reveal-all>全部揭晓</button>
+      <button class="secondary-button" type="button" data-gift-reveal-all ${fullyRevealed ? "disabled" : ""}>全部揭晓</button>
+      ${fullyRevealed ? '<button class="secondary-button" type="button" data-gift-view-full-list>查看完整结果</button>' : ""}
       <button class="secondary-button" type="button" data-gift-copy>复制结果</button>
       <button class="primary-button compact-primary" type="button" data-gift-reshuffle>重新洗牌</button>
     </div>
   `;
+}
+
+function renderGiftPrimaryResult() {
+  if (!state.gift.pairs.length) {
+    return "";
+  }
+
+  return state.gift.revealMode === "all" ? renderGiftAllReveal() : renderGiftSingleReveal();
+}
+
+function renderGiftFullResultRows() {
+  return state.gift.pairs.map((pair) => `
+    <article class="gift-full-result-row">
+      <strong>${escapeHtml(pair.giver)}</strong>
+      <span aria-hidden="true">→</span>
+      <b>${escapeHtml(pair.receiver)}</b>
+    </article>
+  `).join("");
 }
 
 function renderGiftResultSection() {
@@ -5018,16 +5097,32 @@ function renderGiftResultSection() {
     `;
   }
 
+  if (!isGiftFullyRevealed()) {
+    return "";
+  }
+
+  const isExpanded = state.gift.fullListExpanded;
+
   return `
     <section class="gift-result-panel" id="giftExchangeResult" aria-live="polite">
       <div class="gift-result-heading">
         <div>
-          <strong>${escapeHtml(GIFT_REVEAL_MODES[state.gift.revealMode] || GIFT_REVEAL_MODES.single)}</strong>
-          <small>${state.gift.pairs.length} 位参与者 · 只保存在本机</small>
+          <strong>完整结果列表 · ${state.gift.pairs.length} 条</strong>
+          <small>${isExpanded ? "展开后可以检查和复制完整配对。" : "默认收起，上方先看揭晓结果。"}</small>
         </div>
-        <button class="ghost-button compact-ghost" type="button" data-gift-clear-result>清除本次</button>
+        <button class="ghost-button compact-ghost" type="button" data-gift-toggle-full-list>
+          ${isExpanded ? "收起完整结果" : "查看完整结果"}
+        </button>
       </div>
-      ${state.gift.revealMode === "all" ? renderGiftAllReveal() : renderGiftSingleReveal()}
+      ${isExpanded ? `
+        <div class="gift-full-result-list">
+          ${renderGiftFullResultRows()}
+        </div>
+        <div class="gift-result-actions">
+          <button class="secondary-button" type="button" data-gift-copy>复制结果</button>
+          <button class="secondary-button settings-clear-button" type="button" data-gift-clear-result>清除本次礼物交换数据</button>
+        </div>
+      ` : ""}
     </section>
   `;
 }
@@ -5083,6 +5178,7 @@ function renderGiftControls() {
 
 function bindGiftControls() {
   document.querySelector("#giftParticipantsText")?.addEventListener("input", (event) => {
+    cancelGiftShuffle({ silent: true });
     state.gift.participantsText = event.target.value;
     resetGiftExchangeResult();
     saveState();
@@ -5096,6 +5192,7 @@ function bindGiftControls() {
   });
 
   document.querySelector("#giftRevealMode")?.addEventListener("change", (event) => {
+    cancelGiftShuffle({ silent: true });
     state.gift.revealMode = GIFT_REVEAL_MODES[event.target.value] ? event.target.value : "single";
     resetGiftExchangeResult();
     saveState();
@@ -5113,6 +5210,7 @@ function bindGiftControls() {
 }
 
 function addGiftParticipantFromInput() {
+  cancelGiftShuffle({ silent: true });
   const input = document.querySelector("#giftNameInput");
   const name = input?.value.trim() || "";
 
@@ -5138,6 +5236,7 @@ function addGiftParticipantFromInput() {
 }
 
 function removeGiftParticipant(name) {
+  cancelGiftShuffle({ silent: true });
   const targetName = String(name || "").trim();
 
   if (!targetName) {
@@ -5153,6 +5252,7 @@ function removeGiftParticipant(name) {
 }
 
 function clearGiftParticipants() {
+  cancelGiftShuffle({ silent: true });
   state.gift.participantsText = "";
   resetGiftExchangeResult();
   saveState();
@@ -5162,6 +5262,7 @@ function clearGiftParticipants() {
 }
 
 function clearGiftExchangeData() {
+  cancelGiftShuffle({ silent: true });
   state.gift = createDefaultGiftExchangeState();
   state.currentResult = null;
   saveState();
@@ -5172,19 +5273,16 @@ function clearGiftExchangeData() {
 }
 
 function refreshGiftResultPanel() {
-  const panel = document.querySelector("#giftExchangeResult");
-
-  if (!panel) {
-    renderControls();
-    return;
-  }
-
-  const wrapper = document.createElement("div");
-  wrapper.innerHTML = renderGiftResultSection().trim();
-  panel.replaceWith(wrapper.firstElementChild);
-  document.querySelector("#giftExchangeResult")?.addEventListener("click", handleGiftResultClick);
   state.currentResult = buildGiftCurrentResult();
-  renderModeStage();
+
+  renderControls();
+  renderPreview();
+
+  if (state.currentResult) {
+    renderResult(state.currentResult);
+  } else {
+    renderModeStage();
+  }
 }
 
 function revealGiftIndex(index) {
@@ -5199,6 +5297,14 @@ function handleGiftResultClick(event) {
   const target = event.target.closest("button");
 
   if (!target) {
+    const row = event.target.closest("[data-gift-row-index]");
+
+    if (row && state.gift.revealMode === "all") {
+      revealGiftIndex(Number(row.dataset.giftRowIndex));
+      saveState();
+      refreshGiftResultPanel();
+    }
+
     return;
   }
 
@@ -5217,6 +5323,7 @@ function handleGiftResultClick(event) {
     } else {
       state.gift.currentIndex = state.gift.pairs.length;
       state.gift.currentRevealed = true;
+      state.gift.fullListExpanded = false;
     }
 
     saveState();
@@ -5236,19 +5343,26 @@ function handleGiftResultClick(event) {
   if (target.matches("[data-gift-reveal-all]")) {
     state.gift.revealedIndexes = state.gift.pairs.map((_, index) => index);
     state.gift.currentRevealed = true;
+    state.gift.fullListExpanded = false;
     saveState();
     refreshGiftResultPanel();
     return;
   }
 
-  if (target.matches("[data-gift-view-all]")) {
-    state.gift.revealMode = "all";
+  if (target.matches("[data-gift-view-full-list]")) {
     state.gift.revealedIndexes = state.gift.pairs.map((_, index) => index);
     state.gift.currentIndex = state.gift.pairs.length;
     state.gift.currentRevealed = true;
+    state.gift.fullListExpanded = true;
     saveState();
-    renderControls();
-    renderPreview();
+    refreshGiftResultPanel();
+    return;
+  }
+
+  if (target.matches("[data-gift-toggle-full-list]")) {
+    state.gift.fullListExpanded = !state.gift.fullListExpanded;
+    saveState();
+    refreshGiftResultPanel();
     return;
   }
 
@@ -5274,6 +5388,8 @@ function handleGiftResultClick(event) {
 function startGiftExchange() {
   const { participants, duplicateNames } = getGiftParticipantValidation();
 
+  cancelGiftShuffle({ silent: true });
+
   if (!state.gift.participantsText.trim()) {
     showToast("名字不能为空。");
     return;
@@ -5291,24 +5407,51 @@ function startGiftExchange() {
 
   const duration = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 120 : 900;
   const hadExistingPairs = state.gift.pairs.length > 0;
+  const revealModeSnapshot = state.gift.revealMode;
+  const participantsSignature = getGiftParticipantSignature(participants);
+  const runId = giftShuffleRunId + 1;
+
+  giftShuffleRunId = runId;
+  isGiftShuffleRunning = true;
   elements.modeControls.classList.add("is-gift-shuffling");
   elements.resultStage.classList.add("is-spinning");
   elements.randomButton.disabled = true;
+  elements.randomButtonLabel.textContent = "洗牌中，请稍等";
 
-  window.setTimeout(() => {
+  giftShuffleTimer = window.setTimeout(() => {
+    giftShuffleTimer = null;
+
+    const currentValidation = getGiftParticipantValidation();
+    const isStale =
+      runId !== giftShuffleRunId ||
+      state.mode !== "gift" ||
+      state.gift.revealMode !== revealModeSnapshot ||
+      getGiftParticipantSignature(currentValidation.participants) !== participantsSignature;
+
+    if (isStale) {
+      if (runId === giftShuffleRunId) {
+        cleanupGiftShuffleUi();
+
+        if (state.mode === "gift") {
+          showToast("名单已更新，请重新生成配对");
+        }
+      }
+
+      return;
+    }
+
     state.gift.pairs = generateGiftExchangePairs(participants);
     state.gift.revealedIndexes = [];
     state.gift.currentIndex = 0;
     state.gift.currentRevealed = false;
+    state.gift.fullListExpanded = false;
     state.gift.generatedAt = new Date().toISOString();
     state.currentResult = buildGiftCurrentResult();
     saveState();
     renderResult(state.currentResult);
     renderControls();
     renderPreview();
-    elements.modeControls.classList.remove("is-gift-shuffling");
-    elements.resultStage.classList.remove("is-spinning");
-    elements.randomButton.disabled = false;
+    cleanupGiftShuffleUi();
     showToast(hadExistingPairs ? "已重新洗牌。" : "礼物交换结果已生成。");
   }, duration);
 }
@@ -6441,6 +6584,7 @@ function applyAuthSession(payload) {
 function clearAuthSession(options = {}) {
   const { clearLocalRecords = false } = options;
 
+  cancelGiftShuffle({ silent: true });
   pendingWorldLikeIds.clear();
   closeAvatarCropModal({ resetInput: true, silent: true, restorePrevious: false });
   closeWorldImageViewer();
@@ -9719,14 +9863,31 @@ function drawResult() {
 }
 
 function renderResult(result) {
+  elements.resultStage.classList.toggle("is-gift-result", result.mode === "gift");
   elements.resultLabel.textContent = getModeText(result.mode, "label");
   elements.resultValue.textContent = result.mode === "number" ? result.title : result.title;
   elements.resultMeta.innerHTML = renderResultMeta(result);
   updateResultActionButtons(result);
 
+  if (result.mode === "gift") {
+    const gift = normalizeGiftExchangeState(state.gift);
+    const isFinished = gift.pairs.length > 0 && gift.currentIndex >= gift.pairs.length;
+    const resultTitle = gift.revealMode === "all" ? "礼物交换结果" : isFinished ? "全部抽完啦 🎉" : "正在揭晓";
+
+    elements.resultLabel.textContent = "礼物交换结果";
+    elements.resultValue.textContent = resultTitle;
+    elements.resultMeta.innerHTML = renderResultMeta(result);
+    elements.numberDigits.hidden = false;
+    elements.numberDigits.classList.remove("is-lottery");
+    elements.numberDigits.classList.add("is-gift-result");
+    elements.numberDigits.innerHTML = renderGiftPrimaryResult();
+    return;
+  }
+
   if (result.lotteryLines) {
     elements.numberDigits.hidden = false;
     elements.numberDigits.classList.add("is-lottery");
+    elements.numberDigits.classList.remove("is-gift-result");
     elements.numberDigits.innerHTML = renderLotteryLines(result.lotteryLines);
     return;
   }
@@ -9734,12 +9895,14 @@ function renderResult(result) {
   if (result.digits) {
     elements.numberDigits.hidden = false;
     elements.numberDigits.classList.remove("is-lottery");
+    elements.numberDigits.classList.remove("is-gift-result");
     elements.numberDigits.innerHTML = result.digits.map((digit) => `<span class="digit-box">${digit}</span>`).join("");
     return;
   }
 
   elements.numberDigits.hidden = true;
   elements.numberDigits.classList.remove("is-lottery");
+  elements.numberDigits.classList.remove("is-gift-result");
   elements.numberDigits.innerHTML = "";
 }
 
@@ -9995,6 +10158,7 @@ elements.profileAvatarButton.addEventListener("click", toggleProfilePanel);
 elements.moreMenuButton.addEventListener("click", toggleMoreMenu);
 elements.homeLayoutEditButton?.addEventListener("click", () => setHomeLayoutEditing(!isHomeLayoutEditing));
 elements.randomButton.addEventListener("click", drawResult);
+elements.numberDigits.addEventListener("click", handleGiftResultClick);
 elements.copyResultButton.addEventListener("click", copyCurrentResult);
 elements.shareResultButton.addEventListener("click", shareCurrentResult);
 elements.favoriteButton.addEventListener("click", favoriteCurrent);

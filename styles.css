@@ -1354,6 +1354,65 @@ body.is-home-layout-dragging * {
   animation: giftShufflePulse 180ms ease-in-out infinite alternate;
 }
 
+.result-stage.is-gift-result .result-content {
+  width: min(760px, calc(100% - 28px));
+  padding: clamp(18px, 4vw, 28px);
+}
+
+.result-stage.is-gift-result .result-value {
+  min-height: 0;
+  font-size: clamp(1.55rem, 4vw, 3rem);
+  letter-spacing: -0.04em;
+}
+
+.number-digits.is-gift-result {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 100%;
+  max-width: 100%;
+  gap: 12px;
+}
+
+.gift-main-card {
+  padding: clamp(14px, 4vw, 18px);
+}
+
+.gift-main-list,
+.gift-full-result-list {
+  display: grid;
+  gap: 8px;
+}
+
+.gift-main-row {
+  cursor: pointer;
+}
+
+.gift-main-row:has(button:disabled) {
+  cursor: default;
+}
+
+.gift-full-result-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(80, 45, 24, 0.08);
+  border-radius: 16px;
+  color: #6f4d36;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.gift-full-result-row strong,
+.gift-full-result-row b {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.gift-full-result-row b {
+  color: #8d3c20;
+}
+
 @keyframes giftShufflePulse {
   from {
     transform: translateY(0);
@@ -3765,6 +3824,14 @@ body.is-home-layout-dragging * {
 
   .gift-all-item b,
   .gift-all-item button {
+    grid-column: 1 / -1;
+  }
+
+  .gift-full-result-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .gift-full-result-row b {
     grid-column: 1 / -1;
   }
 
