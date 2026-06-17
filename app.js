@@ -76,6 +76,12 @@ const WORLD_IMAGE_CROP_MODES = {
   landscape: { label: "横图", aspectRatio: 4 / 3 },
   portrait: { label: "竖图", aspectRatio: 3 / 4 },
 };
+const WORLD_DEFAULT_IMAGE_CAPTION_VALUES = [
+  "分享了一张图片",
+  "上传了一张图片",
+  "Shared a photo",
+  "Berkongsi satu gambar",
+];
 const TRAVEL_MOODS = ["全部", "短途", "放松", "自然", "城市", "美食", "文化", "冒险", "购物", "海岛", "亲子"];
 const TRAVEL_ACTIVITIES = ["全部", "潜水", "浮潜", "海岛跳岛", "爬山", "徒步", "滑雪", "冲浪", "露营", "温泉", "沙漠", "极光", "野生动物", "赏鲸", "骑行", "皮划艇", "漂流", "文化探索", "美食巡礼", "城市漫游", "购物", "亲子乐园", "摄影", "自驾风景"];
 const TRAVEL_LEVELS = ["全部", "穷游", "低消费", "舒适", "轻奢", "奢华"];
@@ -1823,6 +1829,9 @@ const RELEASE_NOTES = [
       "Added locale coverage for inspiration and travel/filter labels.",
       "Localized mode-specific filter labels and selected fixed option labels.",
       "Extended locale key coverage checks for mode-specific UI copy.",
+      "Normalized default image-only world message captions across zh-CN, en, and ms.",
+      "Added helper to detect localized and legacy default image captions.",
+      "Preserved user-written image captions.",
       "Preserved existing auth, GCS, world channel API, image, like, home edit, and gift pairing flows.",
     ],
   },
@@ -6974,22 +6983,33 @@ function getMessageAvatarUrl(message) {
   return String(message.avatarUrl || "").trim();
 }
 
+function isDefaultWorldImageCaption(text) {
+  const normalizedText = String(text || "").trim();
+
+  if (!normalizedText) {
+    return true;
+  }
+
+  return WORLD_DEFAULT_IMAGE_CAPTION_VALUES.some((caption) => normalizedText === caption);
+}
+
 function getWorldMessageText(message) {
-  const text = String(message.text || "");
+  const text = String(message.text || "").trim();
   const sharedPhotoText = worldText("sharedPhoto", "分享了一张图片");
 
   if (message.attachment?.type !== "image") {
     return text;
   }
 
+  if (isDefaultWorldImageCaption(text)) {
+    return sharedPhotoText;
+  }
+
   const attachmentName = String(message.attachment.name || "");
 
   if (attachmentName && text.includes(attachmentName)) {
-    return text.split(attachmentName).join("").replace(/[：:\-\s]+$/g, "").trim() || sharedPhotoText;
-  }
-
-  if (text.startsWith("上传了一张图片") || text.startsWith(sharedPhotoText)) {
-    return sharedPhotoText;
+    const captionText = text.split(attachmentName).join("").replace(/[：:\-\s]+$/g, "").trim();
+    return isDefaultWorldImageCaption(captionText) ? sharedPhotoText : captionText;
   }
 
   return text;
