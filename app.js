@@ -1805,6 +1805,8 @@ const RELEASE_NOTES = [
       "补齐中文、英文和马来文的常用按钮与状态文案。",
       "设置中心、通知中心和世界频道入口的主要文案更完整。",
       "礼物交换、好友预留、聊天预留和未来奖池轮盘预留文案更统一。",
+      "补齐首页、结果按钮、世界频道登录面板和候选区的多语言文案。",
+      "世界频道图片消息改成更自然的“分享了一张图片”。",
       "语言切换时，主要 UI 更不容易混入其他语言。",
       "后续新增功能可以复用 common、settings、notification、world、gift 等翻译 key。",
     ],
@@ -1813,6 +1815,9 @@ const RELEASE_NOTES = [
       "Added reusable common, error, empty, confirm, settings, notification, world, friend, chat, prize, and onboarding keys.",
       "Added locale key coverage checks to npm run check.",
       "Connected settings, notification, world entry, and home layout copy to locale helpers.",
+      "Added missing locale keys for home/sidebar/result/world/filter UI.",
+      "Replaced hardcoded Chinese labels in main UI panels.",
+      "Localized default world image-message text.",
       "Preserved existing auth, GCS, world channel API, image, like, home edit, and gift pairing flows.",
     ],
   },
@@ -2233,11 +2238,14 @@ const elements = {
   feedbackPanel: document.querySelector("#feedbackPanel"),
   modeList: document.querySelector("#modeList"),
   modeMenuToggle: document.querySelector("#modeMenuToggle"),
+  modeMenuToggleText: document.querySelector("#modeMenuToggleText"),
   modeMenuLabel: document.querySelector("#modeMenuLabel"),
   modeMenuHint: document.querySelector("#modeMenuHint"),
   homeLayoutEditButton: document.querySelector("#homeLayoutEditButton"),
+  homeFeaturesTitle: document.querySelector("#homeFeaturesTitle"),
   sidebar: document.querySelector(".sidebar"),
   sidebarWorld: document.querySelector(".sidebar-world"),
+  socialEntryTitle: document.querySelector("#socialEntryTitle"),
   worldChannelButton: document.querySelector("#worldChannelButton"),
   worldCloseButton: document.querySelector("#worldCloseButton"),
   todayLabel: document.querySelector("#todayLabel"),
@@ -2246,8 +2254,10 @@ const elements = {
   actionRow: document.querySelector(".action-row"),
   modeTitle: document.querySelector("#modeTitle"),
   modeDescription: document.querySelector("#modeDescription"),
+  filterTitle: document.querySelector("#filterTitle"),
   controlHint: document.querySelector("#controlHint"),
   modeControls: document.querySelector("#modeControls"),
+  candidateTitle: document.querySelector("#candidateTitle"),
   previewPanel: document.querySelector(".preview-panel"),
   optionPreview: document.querySelector("#optionPreview"),
   previewCount: document.querySelector("#previewCount"),
@@ -2269,9 +2279,13 @@ const elements = {
   worldChannelTitle: document.querySelector("#worldChannelButton strong"),
   worldChannelSubtitle: document.querySelector("#worldChannelButton small"),
   dailyInspiration: document.querySelector("#dailyInspiration"),
+  inspirationTitle: document.querySelector("#inspirationTitle"),
+  inspirationSubtitle: document.querySelector("#inspirationSubtitle"),
   historyList: document.querySelector("#historyList"),
+  recentTitle: document.querySelector("#recentTitle"),
   historyCount: document.querySelector("#historyCount"),
   favoritesList: document.querySelector("#favoritesList"),
+  favoritesTitle: document.querySelector("#favoritesTitle"),
   favoriteCount: document.querySelector("#favoriteCount"),
   toast: document.querySelector("#toast"),
 };
@@ -2462,6 +2476,22 @@ function settingsText(key, fallback = "", replacements = {}) {
   return formatLocaleText(t(`settings.${key}`, fallback), replacements);
 }
 
+function homeText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`home.${key}`, fallback), replacements);
+}
+
+function resultText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`result.${key}`, fallback), replacements);
+}
+
+function filterText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`filter.${key}`, fallback), replacements);
+}
+
+function candidateText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`candidate.${key}`, fallback), replacements);
+}
+
 function notificationText(key, fallback = "", replacements = {}) {
   return formatLocaleText(t(`notification.${key}`, fallback), replacements);
 }
@@ -2647,7 +2677,7 @@ function syncRandomButtonState() {
   const giftButtonLabel = state.gift.pairs.length ? giftText("button.shuffleAgain", "重新洗牌") : giftText("button.startPairing", "开始配对");
 
   elements.randomButton.disabled = false;
-  elements.randomButtonLabel.textContent = state.mode === "gift" ? giftButtonLabel : t("actions.random", "随机决定");
+  elements.randomButtonLabel.textContent = state.mode === "gift" ? giftButtonLabel : resultText("randomPick", "随机一下");
 }
 
 function cleanupGiftShuffleUi() {
@@ -2968,8 +2998,22 @@ function applyStaticTranslations() {
   elements.profileAvatarButton.setAttribute("aria-label", t("top.profile", "个人资料"));
   elements.moreMenuButton.setAttribute("aria-label", t("top.more", "更多"));
   elements.moreMenuButtonLabel.textContent = t("top.more", "更多");
-  elements.randomButtonLabel.textContent = t("actions.random", "随机决定");
-  elements.favoriteButton.textContent = t("actions.favorite", "收藏结果");
+  elements.randomButtonLabel.textContent = resultText("randomPick", "随机一下");
+  elements.favoriteButton.textContent = resultText("saveResult", "收藏结果");
+  elements.copyResultButton.textContent = resultText("copyResult", "复制结果");
+  elements.shareResultButton.textContent = resultText("share", "分享");
+  elements.surpriseModeButton.textContent = homeText("modeHelp", "帮我换个模式");
+  elements.homeFeaturesTitle.textContent = homeText("featuresTitle", "首页功能");
+  elements.modeMenuToggleText.textContent = homeText("chooseMode", "选择模式");
+  elements.socialEntryTitle.textContent = homeText("socialEntry", "社交入口");
+  elements.sidebar.setAttribute("aria-label", homeText("chooseMode", "选择模式"));
+  elements.modeList.setAttribute("aria-label", homeText("randomModeList", "随机模式列表"));
+  elements.filterTitle.textContent = filterText("title", "筛选条件");
+  elements.candidateTitle.textContent = candidateText("title", "当前候选");
+  elements.inspirationTitle.textContent = homeText("inspirationTitle", "今日灵感");
+  elements.inspirationSubtitle.textContent = homeText("inspirationSubtitle", "每天换一点点");
+  elements.recentTitle.textContent = homeText("recentTitle", "最近决定");
+  elements.favoritesTitle.textContent = homeText("favoritesTitle", "收藏");
   elements.worldChannelTitle.textContent = t("world.title", "世界频道");
   elements.worldChannelSubtitle.textContent = t("world.subtitle", "公开频道 · 私聊和群聊之后会放这里");
   elements.notificationPanel.setAttribute("aria-label", t("top.notification", "通知"));
@@ -3081,7 +3125,7 @@ function renderModes() {
   elements.sidebar.classList.toggle("is-home-editing", isHomeLayoutEditing);
 
   if (elements.homeLayoutEditButton) {
-    elements.homeLayoutEditButton.textContent = isHomeLayoutEditing ? commonText("done", "完成") : t("action.editHome", "编辑首页");
+    elements.homeLayoutEditButton.textContent = isHomeLayoutEditing ? commonText("done", "完成") : homeText("editHome", "编辑首页");
     elements.homeLayoutEditButton.setAttribute("aria-pressed", String(isHomeLayoutEditing));
   }
 
@@ -3139,7 +3183,7 @@ function renderModes() {
   elements.modeMenuHint.textContent = isHomeLayoutEditing
     ? settingsText("editModeHint", "编辑模式中：点减号隐藏，点加号恢复，拖动右侧三条横线调整顺序。")
     : hiddenCount > 0
-      ? settingsText("hiddenHomeHint", "有隐藏功能，可点编辑首页找回。")
+      ? homeText("hiddenTip", "有隐藏功能，可点编辑首页找回。")
       : settingsText("modeMenuHint", "第一次用？先从吃什么、买什么或自定义随机开始，其他普通模式也在这里。");
   elements.sidebarWorld.hidden = false;
   elements.worldChannelButton.setAttribute("aria-pressed", String(state.worldOpen));
@@ -3488,15 +3532,15 @@ function openProfileEditorFromHome() {
 
 function renderMyProfileFeed(messages) {
   if (isMyWorldMessagesLoading && !messages.length) {
-    return `<div class="my-profile-empty"><strong>正在读取你的动态…</strong><small>稍等一下，世界频道内容马上回来。</small></div>`;
+    return `<div class="my-profile-empty"><strong>${escapeHtml(worldText("profileLoadingTitle", "正在读取你的动态…"))}</strong><small>${escapeHtml(worldText("profileLoadingHint", "稍等一下，世界频道内容马上回来。"))}</small></div>`;
   }
 
   if (!messages.length) {
     return `
       <div class="my-profile-empty">
-        <strong>你还没有发布内容</strong>
-        <small>去世界频道分享一个随机结果吧。</small>
-        <button class="secondary-button" id="myProfileOpenWorldButton" type="button">打开世界频道</button>
+        <strong>${escapeHtml(worldText("profileEmptyTitle", "你还没有发布内容"))}</strong>
+        <small>${escapeHtml(worldText("profileEmptyHint", "去世界频道分享一个随机结果吧。"))}</small>
+        <button class="secondary-button" id="myProfileOpenWorldButton" type="button">${escapeHtml(worldText("openWorld", "打开世界频道"))}</button>
       </div>
     `;
   }
@@ -3511,7 +3555,7 @@ function renderMyProfileFeed(messages) {
 function renderMyProfileMessage(message) {
   const isEditing = editingWorldMessageId === message.id;
   const text = getWorldMessageText(message);
-  const displayText = text || (message.attachment?.type === "image" ? "图片动态" : "（没有文字）");
+  const displayText = text || (message.attachment?.type === "image" ? worldText("imagePost", "图片动态") : worldText("noText", "（没有文字）"));
   const likeMarkup = Number(message.likeCount) > 0 ? `<small>${message.likedByCurrentUser ? "❤️" : "♡"} ${Number(message.likeCount)}</small>` : "";
 
   return `
@@ -4379,8 +4423,8 @@ function renderModeStage() {
 
   if (!state.currentResult || state.currentResult.mode !== state.mode) {
     elements.resultStage.classList.remove("is-gift-result");
-    elements.resultValue.textContent = "按下按钮，让今天轻一点";
-    elements.resultMeta.textContent = "你可以先选模式，也可以直接随机。";
+    elements.resultValue.textContent = resultText("pressButtonPrompt", "按下按钮，让今天轻一点");
+    elements.resultMeta.textContent = resultText("pressButtonHint", "你可以先选模式，也可以直接随机。");
     elements.numberDigits.classList.remove("is-lottery");
     elements.numberDigits.classList.remove("is-gift-result");
     elements.numberDigits.hidden = true;
@@ -4439,26 +4483,26 @@ function renderFoodControls() {
 
   elements.modeControls.innerHTML = `
     <div class="field">
-      <label for="countrySelect">国家</label>
+      <label for="countrySelect">${escapeHtml(filterText("country", "国家"))}</label>
       <select id="countrySelect">
         ${countries.map((country) => `<option value="${country}" ${country === currentCountry ? "selected" : ""}>${country}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="regionSelect">地区</label>
+      <label for="regionSelect">${escapeHtml(filterText("region", "地区"))}</label>
       <select id="regionSelect">
         ${regions.map((region) => `<option value="${region}" ${region === currentRegion ? "selected" : ""}>${region}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="foodCategory">食物种类</label>
+      <label for="foodCategory">${escapeHtml(filterText("foodCategory", "食物种类"))}</label>
       <select id="foodCategory">
         ${FOOD_CATEGORIES.map((category) => `<option value="${category}" ${category === currentCategory ? "selected" : ""}>${category}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="foodNote">锁定用法</label>
-      <input id="foodNote" value="Mamak / 快餐 / 外卖已放入食物种类" readonly />
+      <label for="foodNote">${escapeHtml(filterText("lockedUsage", "锁定用法"))}</label>
+      <input id="foodNote" value="${escapeHtml(filterText("foodLockNote", "Mamak / 快餐 / 外卖已放入食物种类"))}" readonly />
     </div>
   `;
 
@@ -4548,50 +4592,50 @@ function renderWorldControls() {
     elements.worldAuthPanel.innerHTML = `
       <form class="world-panel auth-panel" id="authForm">
         <div class="world-panel-header">
-          <strong>${isRegisterMode ? "注册新账号" : "登入世界频道"}</strong>
-          <small>${escapeHtml(worldText("loginToPost", "登录后可发送"))}</small>
+          <strong>${escapeHtml(isRegisterMode ? worldText("registerTitle", "注册新账号") : worldText("signInTitle", "登入世界频道"))}</strong>
+          <small>${escapeHtml(worldText("signInToPost", "登录后可以发文字和图片；图片会先预览，点发送才发出。"))}</small>
         </div>
-        <div class="auth-mode-tabs" role="tablist" aria-label="登入注册切换">
-          <button class="auth-mode-tab${!isRegisterMode ? " is-active" : ""}" type="button" data-auth-mode="login" aria-pressed="${!isRegisterMode}">登入</button>
-          <button class="auth-mode-tab${isRegisterMode ? " is-active" : ""}" type="button" data-auth-mode="register" aria-pressed="${isRegisterMode}">注册</button>
-        </div>
-        <div class="field">
-          <label for="authUsername">用户名</label>
-          <input id="authUsername" autocomplete="username" maxlength="20" placeholder="2-20 字，例如 xiaoming" />
-          <small class="field-hint">可用中文、英文、数字、_ 和 -。</small>
+        <div class="auth-mode-tabs" role="tablist" aria-label="${escapeHtml(worldText("authTabs", "登录注册切换"))}">
+          <button class="auth-mode-tab${!isRegisterMode ? " is-active" : ""}" type="button" data-auth-mode="login" aria-pressed="${!isRegisterMode}">${escapeHtml(worldText("login", "登录"))}</button>
+          <button class="auth-mode-tab${isRegisterMode ? " is-active" : ""}" type="button" data-auth-mode="register" aria-pressed="${isRegisterMode}">${escapeHtml(worldText("register", "注册"))}</button>
         </div>
         <div class="field">
-          <label for="authPassword">密码</label>
-          <input id="authPassword" type="password" autocomplete="${isRegisterMode ? "new-password" : "current-password"}" maxlength="80" placeholder="至少 6 个字符" />
-          <small class="field-hint">账号会保存在云端；请不要使用银行卡、邮箱等重要密码。</small>
+          <label for="authUsername">${escapeHtml(worldText("username", "用户名"))}</label>
+          <input id="authUsername" autocomplete="username" maxlength="20" placeholder="${escapeHtml(worldText("usernamePlaceholder", "2-20 字，例如 xiaoming"))}" />
+          <small class="field-hint">${escapeHtml(worldText("usernameHint", "可用中文、英文、数字、_ 和 -。"))}</small>
+        </div>
+        <div class="field">
+          <label for="authPassword">${escapeHtml(worldText("password", "密码"))}</label>
+          <input id="authPassword" type="password" autocomplete="${isRegisterMode ? "new-password" : "current-password"}" maxlength="80" placeholder="${escapeHtml(worldText("passwordPlaceholder", "至少 6 个字符"))}" />
+          <small class="field-hint">${escapeHtml(worldText("accountSavedCloud", "账号会保存在云端；请不要使用银行卡、邮箱等重要密码。"))}</small>
         </div>
         ${isRegisterMode ? `
           <div class="field">
-            <label for="authConfirmPassword">确认密码</label>
-            <input id="authConfirmPassword" type="password" autocomplete="new-password" maxlength="40" placeholder="再输入一次密码" />
+            <label for="authConfirmPassword">${escapeHtml(worldText("confirmPassword", "确认密码"))}</label>
+            <input id="authConfirmPassword" type="password" autocomplete="new-password" maxlength="40" placeholder="${escapeHtml(worldText("confirmPasswordPlaceholder", "再输入一次密码"))}" />
           </div>
         ` : ""}
         <div class="custom-actions">
-          <button class="primary-button compact-primary" id="authSubmitButton" type="submit">${isRegisterMode ? "创建账号" : "登入"}</button>
-          <button class="secondary-button" id="authSwitchButton" type="button">${isRegisterMode ? "已有账号？去登入" : "没有账号？去注册"}</button>
+          <button class="primary-button compact-primary" id="authSubmitButton" type="submit">${escapeHtml(isRegisterMode ? worldText("createAccount", "创建账号") : worldText("login", "登录"))}</button>
+          <button class="secondary-button" id="authSwitchButton" type="button">${escapeHtml(isRegisterMode ? worldText("goLogin", "已有账号？去登录") : worldText("goRegister", "没有账号？去注册"))}</button>
         </div>
         <ul class="auth-hint-list">
-          <li>登入后可以发文字和图片；图片会先预览，点发送才发出。</li>
-          <li>账号、头像、名字和世界频道会同步到云端。</li>
+          <li>${escapeHtml(worldText("signInToPost", "登录后可以发文字和图片；图片会先预览，点发送才发出。"))}</li>
+          <li>${escapeHtml(worldText("accountWorldCloud", "账号、头像、名字和世界频道会同步到云端。"))}</li>
         </ul>
       </form>
       <div class="world-panel gcs-panel is-ready">
         <div class="world-panel-header">
-          <strong>图片和记录</strong>
-          <small>已准备好</small>
+          <strong>${escapeHtml(worldText("imageAndRecords", "图片和记录"))}</strong>
+          <small>${escapeHtml(worldText("ready", "已准备好"))}</small>
         </div>
         <div class="cloud-status-list">
-          <span class="status-pill">✅ 图片可以发送</span>
-          <span class="status-pill">✅ 世界频道已接到云端</span>
+          <span class="status-pill">✅ ${escapeHtml(worldText("imageReady", "图片可以发送"))}</span>
+          <span class="status-pill">✅ ${escapeHtml(worldText("worldConnectedCloud", "世界频道已接到云端"))}</span>
           <span class="status-pill" data-cloud-sync-status>${escapeHtml(getCloudSyncLabel())}</span>
-          <span class="status-pill">🔒 重要钥匙不会显示给别人</span>
+          <span class="status-pill">🔒 ${escapeHtml(worldText("secretNotShown", "重要钥匙不会显示给别人"))}</span>
         </div>
-        <p>这个版本先测试图片、记录和通知；好友和私聊会放在之后做。</p>
+        <p>${escapeHtml(worldText("cloudTestNote", "这个版本先测试图片、记录和通知；好友和私聊会放在之后做。"))}</p>
       </div>
     `;
 
@@ -5765,14 +5809,18 @@ function renderPreview() {
   const totalLocked = getLockedTitles().length;
 
   if (LOCKABLE_MODES.has(state.mode)) {
-    const lockedText = lockedOptions.length ? ` · 本轮锁定 ${lockedOptions.length} 个` : totalLocked ? ` · 已锁定 ${totalLocked} 个` : "";
-    elements.previewCount.textContent = `${options.length} 个选择${lockedText}`;
+    const lockedText = lockedOptions.length
+      ? ` · ${candidateText("lockedThisRound", "本轮锁定 {count} 个", { count: lockedOptions.length })}`
+      : totalLocked
+        ? ` · ${candidateText("lockedTotal", "已锁定 {count} 个", { count: totalLocked })}`
+        : "";
+    elements.previewCount.textContent = `${candidateText("count", "{count} 个选择", { count: options.length })}${lockedText}`;
   } else {
-    elements.previewCount.textContent = `${options.length} 个选择`;
+    elements.previewCount.textContent = candidateText("count", "{count} 个选择", { count: options.length });
   }
 
   if (!options.length) {
-    elements.optionPreview.innerHTML = `<span class="chip is-muted">当前筛选没有候选项，换个条件试试</span>`;
+    elements.optionPreview.innerHTML = `<span class="chip is-muted">${escapeHtml(candidateText("empty", "当前筛选没有候选项，换个条件试试"))}</span>`;
     return;
   }
 
@@ -5783,13 +5831,13 @@ function renderPreview() {
     .map((item) => renderOptionChip(item))
     .join("");
   const overflowHint = hiddenCount
-    ? `<span class="chip preview-overflow-chip">还有 ${hiddenCount} 个候选未显示</span>`
+    ? `<span class="chip preview-overflow-chip">${escapeHtml(candidateText("overflow", "还有 {count} 个候选未显示", { count: hiddenCount }))}</span>`
     : "";
   const lockHint = LOCKABLE_MODES.has(state.mode)
-    ? `<span class="chip lock-note">${lockedOptions.length ? "已启用锁定随机" : "点候选可锁定"}</span>`
+    ? `<span class="chip lock-note">${escapeHtml(lockedOptions.length ? candidateText("lockEnabled", "已启用锁定随机") : candidateText("clickToLock", "点候选可锁定"))}</span>`
     : "";
   const clearLockButton = LOCKABLE_MODES.has(state.mode) && totalLocked
-    ? `<button class="chip clear-locks-chip" type="button" data-clear-locks="true">清除锁定</button>`
+    ? `<button class="chip clear-locks-chip" type="button" data-clear-locks="true">${escapeHtml(candidateText("clearLocks", "清除锁定"))}</button>`
     : "";
 
   elements.optionPreview.innerHTML = `${optionMarkup}${overflowHint}${lockHint}${clearLockButton}`;
@@ -6821,18 +6869,18 @@ function getCurrentUser() {
 
 function getCloudSyncLabel() {
   if (state.cloudSync.loading) {
-    return "正在同步记录";
+    return worldText("sync.loading", "正在同步记录");
   }
 
   if (state.cloudSync.available) {
-    return "记录已同步";
+    return worldText("sync.synced", "记录已同步");
   }
 
   if (state.cloudSync.lastError) {
-    return "暂时同步不了，先存在这台设备";
+    return worldText("syncPausedLocalOnly", "暂时同步不了，先存在这台设备");
   }
 
-  return "记录会先存在这台设备";
+  return worldText("sync.localOnly", "记录会先存在这台设备");
 }
 
 function getShortUserId() {
@@ -6846,10 +6894,10 @@ function getShortUserId() {
 function getCloudIdentityText() {
   if (getCurrentUser()) {
     if (state.worldSync.available) {
-      return "账号已登入，世界频道已连接";
+      return worldText("identity.connected", "账号已登入，世界频道已连接");
     }
 
-    return "账号已登入，世界频道正在连接";
+    return worldText("identity.connecting", "账号已登入，世界频道正在连接");
   }
 
   return getCloudSyncLabel();
@@ -6889,6 +6937,7 @@ function getMessageAvatarUrl(message) {
 
 function getWorldMessageText(message) {
   const text = String(message.text || "");
+  const sharedPhotoText = worldText("sharedPhoto", "分享了一张图片");
 
   if (message.attachment?.type !== "image") {
     return text;
@@ -6897,11 +6946,11 @@ function getWorldMessageText(message) {
   const attachmentName = String(message.attachment.name || "");
 
   if (attachmentName && text.includes(attachmentName)) {
-    return text.split(attachmentName).join("").replace(/[：:\-\s]+$/g, "").trim() || "上传了一张图片";
+    return text.split(attachmentName).join("").replace(/[：:\-\s]+$/g, "").trim() || sharedPhotoText;
   }
 
-  if (text.startsWith("上传了一张图片")) {
-    return "上传了一张图片";
+  if (text.startsWith("上传了一张图片") || text.startsWith(sharedPhotoText)) {
+    return sharedPhotoText;
   }
 
   return text;
@@ -8651,10 +8700,10 @@ async function sendWorldMessage() {
         throw new Error("图片还没准备好，请重新选择一次。");
       }
 
-      setUploadStatus("正在上传图片并发送到世界频道…");
+      setUploadStatus(worldText("uploadingImage", "正在上传图片并发送到世界频道…"));
       attachment = await uploadImageThroughServer(processedImage.file);
       rememberUpload(attachment, processedImage.file);
-      messageText = messageText || "上传了一张图片";
+      messageText = messageText || worldText("sharedPhoto", "分享了一张图片");
       attachment = {
         type: "image",
         contentType: processedImage.file.type,
@@ -8672,8 +8721,8 @@ async function sendWorldMessage() {
 
     input.value = "";
     updateWorldCharacterHint();
-    setUploadStatus(imageToSend ? "图片已发送成功。" : "先预览再发送");
-    showToast(imageToSend ? "图片已发送到世界频道。" : "消息已发送到世界频道。");
+    setUploadStatus(imageToSend ? worldText("imageSent", "图片已发送成功。") : worldText("previewBeforeSend", "先预览再发送"));
+    showToast(imageToSend ? worldText("imageSentToWorld", "图片已发送到世界频道。") : worldText("messageSentToWorld", "消息已发送到世界频道。"));
   } catch (error) {
     console.warn("World image send failed.", error);
     reportClientError(error, {
@@ -9846,11 +9895,17 @@ function updateResultActionButtons(result) {
   const isNumberResult = result?.mode === "number";
 
   elements.copyResultButton.disabled = !hasResult;
-  elements.copyResultButton.textContent = result?.mode === "gift" ? giftText("button.copyResult", "复制结果") : isNumberResult ? "复制号码" : "复制结果";
+  elements.copyResultButton.textContent = result?.mode === "gift"
+    ? giftText("button.copyResult", "复制结果")
+    : isNumberResult
+      ? resultText("copyNumber", "复制号码")
+      : resultText("copyResult", "复制结果");
   elements.favoriteButton.disabled = !hasResult || result?.mode === "gift";
   elements.favoriteButton.title = result?.mode === "gift" ? giftText("favorite.disabledTitle", "礼物交换结果只保存在本机，可直接复制。") : "";
   elements.shareResultButton.hidden = typeof navigator.share !== "function";
   elements.shareResultButton.disabled = !hasResult || elements.shareResultButton.hidden;
+  elements.shareResultButton.textContent = resultText("share", "分享");
+  elements.favoriteButton.textContent = hasResult && isFavoriteResult(result) ? resultText("savedResult", "已收藏") : resultText("saveResult", "收藏结果");
 }
 
 function getResultShareTitle(result = state.currentResult) {
@@ -9952,7 +10007,7 @@ async function writeClipboardText(text) {
 
 async function copyCurrentResult() {
   if (!state.currentResult) {
-    showToast("先随机一次，再复制结果。");
+    showToast(resultText("copyFirst", "先随机一次，再复制结果。"));
     return;
   }
 
@@ -9963,15 +10018,15 @@ async function copyCurrentResult() {
 
   try {
     await writeClipboardText(getResultCopyText());
-    showToast(state.currentResult.mode === "number" ? "号码已复制。" : "结果已复制。");
+    showToast(state.currentResult.mode === "number" ? resultText("numberCopySuccess", "号码已复制。") : resultText("copySuccess", "结果已复制。"));
   } catch (error) {
-    showToast("复制失败，请手动长按结果复制。");
+    showToast(resultText("copyFailure", "复制失败，请手动长按结果复制。"));
   }
 }
 
 async function shareCurrentResult() {
   if (!state.currentResult) {
-    showToast("先随机一次，再分享结果。");
+    showToast(resultText("shareFirst", "先随机一次，再分享结果。"));
     return;
   }
 
@@ -9994,7 +10049,7 @@ async function shareCurrentResult() {
     });
   } catch (error) {
     if (error?.name !== "AbortError") {
-      showToast("分享失败，可以先复制结果。");
+      showToast(resultText("shareFailure", "分享失败，可以先复制结果。"));
     }
   }
 }
@@ -10008,7 +10063,7 @@ function drawResult() {
   const result = getResult();
 
   if (!result) {
-    showToast("当前筛选没有候选项，换个条件或输入候选后再随机。");
+    showToast(resultText("emptyOptions", "当前筛选没有候选项，换个条件或输入候选后再随机。"));
     return;
   }
 
@@ -10144,7 +10199,7 @@ function addHistory(result) {
 
 function favoriteCurrent() {
   if (!state.currentResult) {
-    showToast("先随机一次，再收藏结果。");
+    showToast(resultText("favoriteFirst", "先随机一次，再收藏结果。"));
     return;
   }
 
@@ -10153,12 +10208,10 @@ function favoriteCurrent() {
     return;
   }
 
-  const exists = state.favorites.some(
-    (item) => item.title === state.currentResult.title && item.mode === state.currentResult.mode,
-  );
+  const exists = isFavoriteResult(state.currentResult);
 
   if (exists) {
-    showToast("这个结果已经在收藏里啦。");
+    showToast(resultText("alreadyFavorite", "这个结果已经在收藏里啦。"));
     return;
   }
 
@@ -10173,22 +10226,31 @@ function favoriteCurrent() {
   saveState();
   renderFavorites();
   syncCloudItem("favorites", favoriteEntry);
-  showToast("已加入收藏。");
+  updateResultActionButtons(state.currentResult);
+  showToast(resultText("favoriteSuccess", "已加入收藏。"));
+}
+
+function isFavoriteResult(result = state.currentResult) {
+  if (!result) {
+    return false;
+  }
+
+  return state.favorites.some((item) => item.title === result.title && item.mode === result.mode);
 }
 
 function renderHistory() {
-  elements.historyCount.textContent = `${state.history.length} 条`;
-  elements.historyList.innerHTML = renderStackItems(state.history, "还没有决定记录。按下随机按钮试试。");
+  elements.historyCount.textContent = homeText("recentCount", "{count} 条", { count: state.history.length });
+  elements.historyList.innerHTML = renderStackItems(state.history, homeText("noRecent", "还没有决定记录。按下随机按钮试试。"));
 }
 
 function renderFavorites() {
-  elements.favoriteCount.textContent = `${state.favorites.length} 个`;
-  elements.favoritesList.innerHTML = renderStackItems(state.favorites, "收藏喜欢的结果，下次就不用重新纠结。");
+  elements.favoriteCount.textContent = homeText("favoriteCount", "{count} 个", { count: state.favorites.length });
+  elements.favoritesList.innerHTML = renderStackItems(state.favorites, homeText("noFavorites", "收藏喜欢的结果，下次就不用重新纠结。"));
 }
 
 function renderStackItems(items, emptyText) {
   if (!items.length) {
-    return `<p class="empty-state">${emptyText}</p>`;
+    return `<p class="empty-state">${escapeHtml(emptyText)}</p>`;
   }
 
   return items
@@ -10251,7 +10313,7 @@ function clearHistory() {
   renderHistory();
   renderFavorites();
   syncCloudClear(["history", "favorites"]);
-  showToast("记录和收藏已清空。");
+  showToast(resultText("recordsCleared", "记录和收藏已清空。"));
 }
 
 function surpriseMode() {

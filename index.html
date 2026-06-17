@@ -51,17 +51,17 @@
       <main class="app-shell">
         <aside class="sidebar" aria-label="选择模式">
           <div class="sidebar-title home-layout-toolbar">
-            <span>首页功能</span>
+            <span id="homeFeaturesTitle">首页功能</span>
             <button class="ghost-button compact-ghost" id="homeLayoutEditButton" type="button" aria-pressed="false">编辑首页</button>
           </div>
           <button class="mode-menu-toggle" id="modeMenuToggle" type="button" aria-expanded="false" aria-controls="modeList" aria-describedby="modeMenuHint">
-            <span>选择模式</span>
+            <span id="modeMenuToggleText">选择模式</span>
             <strong id="modeMenuLabel">今天吃什么？</strong>
           </button>
           <p class="mode-menu-hint" id="modeMenuHint">第一次用？先从吃什么、买什么或自定义随机开始，其他普通模式也在这里。</p>
           <nav class="mode-list" id="modeList" aria-label="随机模式列表"></nav>
           <div class="sidebar-world">
-            <span>社交入口</span>
+            <span id="socialEntryTitle">社交入口</span>
             <button class="mode-button world-entry-button" id="worldChannelButton" type="button" aria-pressed="false">
               <span class="mode-icon">🌍</span>
               <span class="mode-copy">
@@ -115,7 +115,7 @@
 
             <div class="controls-panel">
               <div class="section-heading">
-                <span>筛选条件</span>
+                <span id="filterTitle">筛选条件</span>
                 <small id="controlHint">国家和地区会改变美食候选池</small>
               </div>
               <div class="controls-grid" id="modeControls"></div>
@@ -123,7 +123,7 @@
 
             <div class="preview-panel">
               <div class="section-heading">
-                <span>当前候选</span>
+                <span id="candidateTitle">当前候选</span>
                 <small id="previewCount">0 个选择</small>
               </div>
               <div class="chip-cloud" id="optionPreview"></div>
@@ -134,15 +134,15 @@
         <aside class="insight-panel" aria-label="灵感和记录">
           <section class="insight-card">
             <div class="section-heading">
-              <span>今日灵感</span>
-              <small>每天换一点点</small>
+              <span id="inspirationTitle">今日灵感</span>
+              <small id="inspirationSubtitle">每天换一点点</small>
             </div>
             <div class="daily-card" id="dailyInspiration"></div>
           </section>
 
           <section class="insight-card">
             <div class="section-heading">
-              <span>最近决定</span>
+              <span id="recentTitle">最近决定</span>
               <small id="historyCount">0 条</small>
             </div>
             <div class="stack-list" id="historyList"></div>
@@ -150,7 +150,7 @@
 
           <section class="insight-card">
             <div class="section-heading">
-              <span>收藏</span>
+              <span id="favoritesTitle">收藏</span>
               <small id="favoriteCount">0 个</small>
             </div>
             <div class="stack-list" id="favoritesList"></div>
