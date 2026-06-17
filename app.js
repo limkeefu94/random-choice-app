@@ -1838,6 +1838,7 @@ const RELEASE_NOTES = [
       "Preserved raw option identifiers/titles in generated results.",
       "Deferred localized result title formatting to render/copy time.",
       "Made favorite/history matching stable across language changes.",
+      "Kept budget raw value formatting safe across currency switches.",
       "Preserved existing auth, GCS, world channel API, image, like, home edit, and gift pairing flows.",
     ],
   },
@@ -2541,6 +2542,8 @@ function getRawLabelKeyFromDisplay(value) {
   return text;
 }
 
+const LOCALIZABLE_RESULT_MODES = new Set(["food", "drink", "travel", "shopping"]);
+
 function getResultRawTitle(result) {
   const rawTitle = String(result?.rawTitle || result?.titleKey || "").trim();
 
@@ -2548,7 +2551,7 @@ function getResultRawTitle(result) {
     return rawTitle;
   }
 
-  if (["food", "drink", "travel", "shopping"].includes(result?.mode)) {
+  if (LOCALIZABLE_RESULT_MODES.has(result?.mode)) {
     return getRawLabelKeyFromDisplay(result?.title);
   }
 
@@ -2563,11 +2566,55 @@ function getResultDisplayTitle(result) {
     return title;
   }
 
-  if (!["food", "drink", "travel", "shopping"].includes(result?.mode)) {
+  if (!LOCALIZABLE_RESULT_MODES.has(result?.mode)) {
     return title || rawTitle;
   }
 
   return fixedLabelText(rawTitle, title || rawTitle);
+}
+
+function normalizeResultRawMeta(result) {
+  return result?.rawMeta && typeof result.rawMeta === "object" ? result.rawMeta : {};
+}
+
+function getResultStableMetaParts(result) {
+  const rawMeta = normalizeResultRawMeta(result);
+
+  if (!rawMeta.kind) {
+    return [];
+  }
+
+  if (rawMeta.kind === "food") {
+    return [rawMeta.country, ...(Array.isArray(rawMeta.sourceParts) ? rawMeta.sourceParts : [])];
+  }
+
+  if (rawMeta.kind === "drink") {
+    return [rawMeta.country, rawMeta.brand];
+  }
+
+  if (rawMeta.kind === "travel") {
+    return [rawMeta.country, rawMeta.transport, rawMeta.days];
+  }
+
+  if (rawMeta.kind === "shopping") {
+    return [rawMeta.category, rawMeta.subcategory, rawMeta.level, rawMeta.budget];
+  }
+
+  return [];
+}
+
+function compactStableKeyPart(value) {
+  return String(value || "").trim().replaceAll("|", "/");
+}
+
+function getResultLegacyStableKey(result) {
+  if (!result) {
+    return "";
+  }
+
+  const mode = result.mode || "";
+  const rawTitle = getResultRawTitle(result) || String(result.title || "").trim();
+  return [mode, rawTitle].map(compactStableKeyPart).join("|");
 }
 
 function getResultStableKey(result) {
@@ -2579,10 +2626,25 @@ function getResultStableKey(result) {
   const rawTitle = getResultRawTitle(result) || String(result.title || "").trim();
 
   if (mode === "number") {
-    return `${mode}:${result.lotteryGameId || rawTitle}`;
+    return [mode, result.lotteryGameId || rawTitle].map(compactStableKeyPart).join("|");
   }
 
-  return `${mode}:${rawTitle}`;
+  return [mode, rawTitle, ...getResultStableMetaParts(result)]
+    .map(compactStableKeyPart)
+    .filter(Boolean)
+    .join("|");
+}
+
+function hasResultStableIdentity(result) {
+  if (!result) {
+    return false;
+  }
+
+  if (result.mode === "number") {
+    return Boolean(result.lotteryGameId);
+  }
+
+  return Boolean(normalizeResultRawMeta(result).kind);
 }
 
 function formatBudgetLabel(budget, options = {}) {
@@ -6527,7 +6589,8 @@ function getDestinationActivities(item) {
 function getResult() {
   const options = getCurrentOptions();
   const pool = getRandomPool(options);
-  const poolNote = getPoolNote(options);
+  const lockedCount = getPoolLockedCount(options);
+  const poolNote = formatPoolNote(lockedCount);
 
   if (!pool.length) {
     return null;
@@ -6535,6 +6598,9 @@ function getResult() {
 
   if (state.mode === "food") {
     const dishResult = choose(pool);
+    const sourceParts = SPECIAL_FOOD_CATEGORIES.has(state.food.category)
+      ? [state.food.category]
+      : [state.food.region];
     const sourceLabel = getFoodSourceLabel();
 
     return {
@@ -6542,6 +6608,14 @@ function getResult() {
       title: dishResult.title,
       rawTitle: dishResult.title,
       meta: `${sourceLabel} · ${joinFixedLabels(dishResult.tags, " / ")} · ${formatRawBudgetLabel(dishResult.budget)}${poolNote}`,
+      rawMeta: {
+        kind: "food",
+        country: state.food.country,
+        sourceParts,
+        tags: Array.isArray(dishResult.tags) ? [...dishResult.tags] : [],
+        budget: dishResult.budget || "",
+        lockedCount,
+      },
     };
   }
 
@@ -6553,18 +6627,38 @@ function getResult() {
       title: drinkResult.title,
       rawTitle: drinkResult.title,
       meta: `${fixedLabelText(state.drink.country)} · ${drinkResult.brand} · ${joinFixedLabels(drinkResult.tags, " / ")} · ${formatRawBudgetLabel(drinkResult.budget)}${poolNote}`,
+      rawMeta: {
+        kind: "drink",
+        country: state.drink.country,
+        brand: drinkResult.brand || "",
+        tags: Array.isArray(drinkResult.tags) ? [...drinkResult.tags] : [],
+        budget: drinkResult.budget || "",
+        lockedCount,
+      },
     };
   }
 
   if (state.mode === "travel") {
     const travelResult = choose(pool);
     const budgetText = getBudgetText(travelResult, false);
+    const transport = state.travel.transport === "全部" ? travelResult.transports[0] : state.travel.transport;
+    const activities = getDestinationActivities(travelResult).slice(0, 3);
 
     return {
       mode: state.mode,
       title: travelResult.title,
       rawTitle: travelResult.title,
-      meta: `${fixedLabelText(travelResult.country)} · ${formatLocaleText(t("travel.days", "{count} 天"), { count: travelResult.days })} · ${joinFixedLabels(getDestinationActivities(travelResult).slice(0, 3), " / ")} · ${fixedLabelText(state.travel.transport === "全部" ? travelResult.transports[0] : state.travel.transport)} · ${formatRawBudgetLabel(budgetText, { perPerson: true })}${poolNote}。${fixedLabelText(travelResult.note, travelResult.note)}`,
+      meta: `${fixedLabelText(travelResult.country)} · ${formatLocaleText(t("travel.days", "{count} 天"), { count: travelResult.days })} · ${joinFixedLabels(activities, " / ")} · ${fixedLabelText(transport)} · ${formatRawBudgetLabel(budgetText, { perPerson: true })}${poolNote}。${fixedLabelText(travelResult.note, travelResult.note)}`,
+      rawMeta: {
+        kind: "travel",
+        country: travelResult.country || "",
+        days: travelResult.days || "",
+        activities,
+        transport: transport || "",
+        budget: budgetText || "",
+        note: travelResult.note || "",
+        lockedCount,
+      },
     };
   }
 
@@ -6589,6 +6683,14 @@ function getResult() {
       title: shoppingResult.title,
       rawTitle: shoppingResult.title,
       meta: buildShoppingResultMeta(shoppingResult, poolNote),
+      rawMeta: {
+        kind: "shopping",
+        category: shoppingResult.category || "",
+        subcategory: shoppingResult.subcategory || "",
+        level: shoppingResult.level || "",
+        budget: shoppingResult.budget || "",
+        lockedCount,
+      },
       shopping: buildShoppingResultDetails(shoppingResult),
     };
   }
@@ -6600,6 +6702,11 @@ function getResult() {
     title: customResult.title,
     rawTitle: customResult.title,
     meta: resultText("customOptionMeta", "来自你的 {count} 个自定义选项", { count: options.length }) + poolNote,
+    rawMeta: {
+      kind: "custom",
+      count: options.length,
+      lockedCount,
+    },
   };
 }
 
@@ -6621,6 +6728,69 @@ function buildShoppingResultMeta(item, poolNote = "") {
   ].filter(Boolean);
 
   return `${parts.join(" · ")}${poolNote}`;
+}
+
+function formatResultPrimaryMetaLine(result) {
+  const rawMeta = normalizeResultRawMeta(result);
+
+  if (!rawMeta.kind) {
+    return result?.meta ? formatBudget(result.meta) : "";
+  }
+
+  if (rawMeta.kind === "food") {
+    const parts = [
+      fixedLabelText(rawMeta.country),
+      ...(Array.isArray(rawMeta.sourceParts) ? rawMeta.sourceParts.map((part) => fixedLabelText(part)) : []),
+      joinFixedLabels(Array.isArray(rawMeta.tags) ? rawMeta.tags : [], " / "),
+      formatBudgetLabel(rawMeta.budget),
+    ].filter(Boolean);
+
+    return `${parts.join(" · ")}${formatPoolNote(rawMeta.lockedCount)}`;
+  }
+
+  if (rawMeta.kind === "drink") {
+    const parts = [
+      fixedLabelText(rawMeta.country),
+      fixedLabelText(rawMeta.brand, rawMeta.brand),
+      joinFixedLabels(Array.isArray(rawMeta.tags) ? rawMeta.tags : [], " / "),
+      formatBudgetLabel(rawMeta.budget),
+    ].filter(Boolean);
+
+    return `${parts.join(" · ")}${formatPoolNote(rawMeta.lockedCount)}`;
+  }
+
+  if (rawMeta.kind === "travel") {
+    const budget = rawMeta.budget === "需按机票和住宿另估"
+      ? t("travel.budgetNeedEstimate", rawMeta.budget)
+      : rawMeta.budget;
+    const parts = [
+      fixedLabelText(rawMeta.country),
+      rawMeta.days ? formatLocaleText(t("travel.days", "{count} 天"), { count: rawMeta.days }) : "",
+      joinFixedLabels(Array.isArray(rawMeta.activities) ? rawMeta.activities : [], " / "),
+      fixedLabelText(rawMeta.transport),
+      formatBudgetLabel(budget, { perPerson: true }),
+    ].filter(Boolean);
+    const note = fixedLabelText(rawMeta.note, rawMeta.note);
+
+    return `${parts.join(" · ")}${formatPoolNote(rawMeta.lockedCount)}${note ? `。${note}` : ""}`;
+  }
+
+  if (rawMeta.kind === "shopping") {
+    const parts = [
+      fixedLabelText(rawMeta.category),
+      fixedLabelText(rawMeta.subcategory),
+      fixedLabelText(rawMeta.level),
+      formatBudgetLabel(rawMeta.budget),
+    ].filter(Boolean);
+
+    return `${parts.join(" · ")}${formatPoolNote(rawMeta.lockedCount)}`;
+  }
+
+  if (rawMeta.kind === "custom") {
+    return `${resultText("customOptionMeta", "来自你的 {count} 个自定义选项", { count: rawMeta.count || 0 })}${formatPoolNote(rawMeta.lockedCount)}`;
+  }
+
+  return result?.meta ? formatBudget(result.meta) : "";
 }
 
 function buildShoppingResultDetails(item) {
@@ -6687,8 +6857,8 @@ function getBudgetText(item, shouldFormat = true) {
   }
 
   const firstLevel = TRAVEL_LEVELS.find((level) => level !== "全部" && item.budgets[level]);
-  budgetText = firstLevel ? item.budgets[firstLevel] : t("travel.budgetNeedEstimate", "需按机票和住宿另估");
-  return shouldFormat ? formatBudget(budgetText) : budgetText;
+  budgetText = firstLevel ? item.budgets[firstLevel] : "需按机票和住宿另估";
+  return shouldFormat ? formatBudget(t("travel.budgetNeedEstimate", budgetText)) : budgetText;
 }
 
 function getLockedTitles() {
@@ -6706,11 +6876,18 @@ function getRandomPool(options) {
   return activeLockedOptions.length ? activeLockedOptions : options;
 }
 
-function getPoolNote(options) {
-  const activeLockedOptions = getActiveLockedOptions(options);
-  return activeLockedOptions.length
-    ? ` · ${resultText("lockedPoolNote", "从 {count} 个锁定候选中抽出", { count: activeLockedOptions.length })}`
+function getPoolLockedCount(options) {
+  return getActiveLockedOptions(options).length;
+}
+
+function formatPoolNote(lockedCount) {
+  return lockedCount
+    ? ` · ${resultText("lockedPoolNote", "从 {count} 个锁定候选中抽出", { count: lockedCount })}`
     : "";
+}
+
+function getPoolNote(options) {
+  return formatPoolNote(getPoolLockedCount(options));
 }
 
 function isLocked(title) {
@@ -10058,15 +10235,26 @@ function getResultShareTitle(result = state.currentResult) {
   return result.mode === "number" ? getModeTitle("number") : getModeTitle(result.mode);
 }
 
-function getResultMetaLines(result) {
+function getResultMetaLines(result, options = {}) {
+  const { includeShoppingContext = false } = options;
   const lines = [];
+  const primaryMetaLine = formatResultPrimaryMetaLine(result);
 
-  if (result.meta) {
-    lines.push(formatBudget(result.meta));
+  if (primaryMetaLine) {
+    lines.push(primaryMetaLine);
   }
 
   if (result.mode === "shopping") {
     const details = getShoppingResultDetails(result);
+
+    if (includeShoppingContext) {
+      const contextLine = getShoppingContextLine(details);
+
+      if (contextLine) {
+        lines.push(contextLine);
+      }
+    }
+
     const reason = normalizeSentence(details.reason);
     const reminder = getShoppingReminderText(details.priority);
 
@@ -10268,24 +10456,7 @@ function renderResult(result) {
 }
 
 function renderResultMeta(result) {
-  const lines = [formatBudget(result.meta)];
-
-  if (result.mode === "shopping") {
-    const details = getShoppingResultDetails(result);
-    const reason = normalizeSentence(details.reason);
-    const reminder = getShoppingReminderText(details.priority);
-
-    if (reason) {
-      lines.push(reason);
-    }
-
-    if (reminder) {
-      lines.push(reminder);
-    }
-  }
-
-  return lines
-    .filter(Boolean)
+  return getResultMetaLines(result)
     .map((line) => `<span>${escapeHtml(line)}</span>`)
     .join("<br>");
 }
@@ -10377,8 +10548,23 @@ function isFavoriteResult(result = state.currentResult) {
     return false;
   }
 
-  const resultKey = getResultStableKey(result);
-  return state.favorites.some((item) => item.mode === result.mode && getResultStableKey(item) === resultKey);
+  const resultStableKey = getResultStableKey(result);
+  const resultLegacyKey = getResultLegacyStableKey(result);
+  const resultHasStableIdentity = hasResultStableIdentity(result);
+
+  return state.favorites.some((item) => {
+    if (item.mode !== result.mode) {
+      return false;
+    }
+
+    const itemStableKey = getResultStableKey(item);
+
+    if (resultHasStableIdentity && hasResultStableIdentity(item)) {
+      return itemStableKey === resultStableKey;
+    }
+
+    return itemStableKey === resultStableKey || getResultLegacyStableKey(item) === resultLegacyKey;
+  });
 }
 
 function renderHistory() {
@@ -10413,27 +10599,8 @@ function renderStackItemMeta(item, timeText) {
   const modeTitle = MODES[item.mode] ? getModeTitle(item.mode) : "旧记录";
   const lines = [
     `${modeTitle}${timeText}`,
-    formatBudget(item.meta),
+    ...getResultMetaLines(item, { includeShoppingContext: true }),
   ];
-
-  if (item.mode === "shopping") {
-    const details = getShoppingResultDetails(item);
-    const contextLine = getShoppingContextLine(details);
-    const reason = normalizeSentence(details.reason);
-    const reminder = getShoppingReminderText(details.priority);
-
-    if (contextLine) {
-      lines.push(contextLine);
-    }
-
-    if (reason) {
-      lines.push(reason);
-    }
-
-    if (reminder) {
-      lines.push(reminder);
-    }
-  }
 
   return lines.filter(Boolean).map((line) => escapeHtml(line)).join("<br>");
 }
