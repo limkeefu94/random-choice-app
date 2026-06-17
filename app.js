@@ -1811,6 +1811,7 @@ const RELEASE_NOTES = [
       "修复洗牌过程中修改名单可能出现旧结果的问题。",
       "刷新或切换模式后，已生成的礼物交换结果会继续显示。",
       "礼物交换目前最多支持 80 位参与者，避免结果保存不完整。",
+      "添加名字区域移到名字列表上方，手机端操作更顺手。",
       "世界频道从随机模式列表分离，手机端会独立显示入口。",
     ],
     technicalChanges: [
@@ -1825,6 +1826,8 @@ const RELEASE_NOTES = [
       "Restored saved gift exchange results into the active result panel.",
       "Guarded gift exchange persistence against partial pair restoration.",
       "Enforced the participant limit before generating gift exchange pairs.",
+      "Restored the current random button state after stale gift shuffle cleanup.",
+      "Reordered gift exchange input controls for mobile-first entry.",
       "Separated world channel entry from random mode cards.",
       "Preserved existing auth, world channel, notifications, home layout, image, and like flows.",
     ],
@@ -2555,15 +2558,18 @@ function isGiftFullyRevealed(gift = state.gift) {
   return gift.pairs.length > 0 && gift.revealedIndexes.length >= gift.pairs.length;
 }
 
+function syncRandomButtonState() {
+  const giftButtonLabel = state.gift.pairs.length ? "重新洗牌" : "开始配对";
+
+  elements.randomButton.disabled = false;
+  elements.randomButtonLabel.textContent = state.mode === "gift" ? giftButtonLabel : t("actions.random", "随机决定");
+}
+
 function cleanupGiftShuffleUi() {
   isGiftShuffleRunning = false;
   elements.modeControls.classList.remove("is-gift-shuffling");
   elements.resultStage.classList.remove("is-spinning");
-
-  if (state.mode === "gift") {
-    elements.randomButton.disabled = false;
-    elements.randomButtonLabel.textContent = state.gift.pairs.length ? "重新洗牌" : "开始配对";
-  }
+  syncRandomButtonState();
 }
 
 function cancelGiftShuffle(options = {}) {
@@ -2758,6 +2764,10 @@ function ensureVisibleHomeMode() {
   const visibleModeKeys = getVisibleModeKeys();
 
   if (visibleModeKeys.length && !visibleModeKeys.includes(state.mode)) {
+    if (state.mode === "gift") {
+      cancelGiftShuffle({ silent: true });
+    }
+
     state.mode = visibleModeKeys[0];
     state.currentResult = null;
   }
@@ -5172,13 +5182,6 @@ function renderGiftControls() {
         <span>${uniqueParticipants.length} / ${GIFT_PARTICIPANT_LIMIT} 人</span>
       </div>
       <div class="gift-input-grid">
-        <div class="field gift-name-list-field">
-          <label for="giftParticipantsText">名字列表</label>
-          <textarea id="giftParticipantsText" rows="6" placeholder="阿明&#10;小美&#10;John&#10;Amy">${escapeHtml(state.gift.participantsText)}</textarea>
-          <small class="field-hint">至少 3 人；最多 ${GIFT_PARTICIPANT_LIMIT} 位参与者；可一行一个名字，也可用逗号分开。</small>
-          ${duplicateHint}
-          ${limitHint}
-        </div>
         <div class="gift-side-controls">
           <div class="field">
             <label for="giftNameInput">添加名字</label>
@@ -5193,11 +5196,20 @@ function renderGiftControls() {
           <div class="custom-actions gift-setup-actions">
             <button class="secondary-button" id="giftAddNameButton" type="button" ${uniqueParticipants.length >= GIFT_PARTICIPANT_LIMIT ? "disabled" : ""}>添加名字</button>
             <button class="secondary-button" id="giftClearNamesButton" type="button">清空名单</button>
-            <button class="secondary-button settings-clear-button" id="giftClearAllButton" type="button">清除本次礼物交换数据</button>
           </div>
+        </div>
+        <div class="field gift-name-list-field">
+          <label for="giftParticipantsText">名字列表</label>
+          <textarea id="giftParticipantsText" rows="6" placeholder="阿明&#10;小美&#10;John&#10;Amy">${escapeHtml(state.gift.participantsText)}</textarea>
+          <small class="field-hint">至少 3 人；最多 ${GIFT_PARTICIPANT_LIMIT} 位参与者；可一行一个名字，也可用逗号分开。</small>
+          ${duplicateHint}
+          ${limitHint}
         </div>
       </div>
       ${renderGiftParticipantChips(uniqueParticipants, duplicateNames)}
+      <div class="custom-actions gift-secondary-actions">
+        <button class="secondary-button settings-clear-button" id="giftClearAllButton" type="button">清除本次礼物交换数据</button>
+      </div>
     </section>
     ${renderGiftResultSection()}
   `;
