@@ -1766,11 +1766,11 @@ const LOTTERY_COUNTRIES = ["全部", ...new Set(LOTTERY_DATA.map((item) => item.
 );
 
 const DAILY_TIPS = [
-  { title: "轻一点的决定", text: "如果抽到的结果让你皱眉，那其实你已经知道自己不想要什么了。" },
-  { title: "三秒规则", text: "按下随机后，第一反应通常很诚实。开心就去做，抗拒就重抽。" },
-  { title: "今天别太完美", text: "随机不是替你负责，而是帮你打破僵住的那一分钟。" },
-  { title: "先抽小事", text: "从午餐、咖啡、散步路线开始，给大脑省一点电。" },
-  { title: "锁定朋友提案", text: "把 5 个朋友各自想去的地点锁住，就能只在这 5 个里随机。" },
+  { key: "lighterDecision", title: "轻一点的决定", text: "如果抽到的结果让你皱眉，那其实你已经知道自己不想要什么了。" },
+  { key: "threeSecondRule", title: "三秒规则", text: "按下随机后，第一反应通常很诚实。开心就去做，抗拒就重抽。" },
+  { key: "imperfectDay", title: "今天别太完美", text: "随机不是替你负责，而是帮你打破僵住的那一分钟。" },
+  { key: "smallFirst", title: "先抽小事", text: "从午餐、咖啡、散步路线开始，给大脑省一点电。" },
+  { key: "friendLocks", title: "锁定朋友提案", text: "把 5 个朋友各自想去的地点锁住，就能只在这 5 个里随机。" },
 ];
 
 const DEFAULT_CUSTOM_TEXT = "看电影\n去散步\n整理书桌\n喝一杯咖啡\n给朋友发消息\n早点睡";
@@ -1806,6 +1806,8 @@ const RELEASE_NOTES = [
       "设置中心、通知中心和世界频道入口的主要文案更完整。",
       "礼物交换、好友预留、聊天预留和未来奖池轮盘预留文案更统一。",
       "补齐首页、结果按钮、世界频道登录面板和候选区的多语言文案。",
+      "补齐今日灵感、旅行筛选和候选卡片等更多多语言文案。",
+      "英文和马来文界面进一步减少中文残留。",
       "世界频道图片消息改成更自然的“分享了一张图片”。",
       "语言切换时，主要 UI 更不容易混入其他语言。",
       "后续新增功能可以复用 common、settings、notification、world、gift 等翻译 key。",
@@ -1818,6 +1820,9 @@ const RELEASE_NOTES = [
       "Added missing locale keys for home/sidebar/result/world/filter UI.",
       "Replaced hardcoded Chinese labels in main UI panels.",
       "Localized default world image-message text.",
+      "Added locale coverage for inspiration and travel/filter labels.",
+      "Localized mode-specific filter labels and selected fixed option labels.",
+      "Extended locale key coverage checks for mode-specific UI copy.",
       "Preserved existing auth, GCS, world channel API, image, like, home edit, and gift pairing flows.",
     ],
   },
@@ -2490,6 +2495,30 @@ function filterText(key, fallback = "", replacements = {}) {
 
 function candidateText(key, fallback = "", replacements = {}) {
   return formatLocaleText(t(`candidate.${key}`, fallback), replacements);
+}
+
+function fixedLabelText(value, fallback = value) {
+  const key = String(value || "").trim();
+  return key ? t(`label.${key}`, fallback || key) : "";
+}
+
+function formatBudgetLabel(budget, options = {}) {
+  const { perPerson = false, prefix = "budgetApprox" } = options;
+  const formattedBudget = formatBudget(budget);
+
+  if (!formattedBudget) {
+    return "";
+  }
+
+  if (perPerson) {
+    return resultText("budgetApproxPerPerson", "预算约 {budget}/人", { budget: formattedBudget });
+  }
+
+  return resultText(prefix, "预算约 {budget}", { budget: formattedBudget });
+}
+
+function joinFixedLabels(values, separator = " / ") {
+  return values.map((value) => fixedLabelText(value)).filter(Boolean).join(separator);
 }
 
 function notificationText(key, fallback = "", replacements = {}) {
@@ -4485,19 +4514,19 @@ function renderFoodControls() {
     <div class="field">
       <label for="countrySelect">${escapeHtml(filterText("country", "国家"))}</label>
       <select id="countrySelect">
-        ${countries.map((country) => `<option value="${country}" ${country === currentCountry ? "selected" : ""}>${country}</option>`).join("")}
+        ${countries.map((country) => `<option value="${country}" ${country === currentCountry ? "selected" : ""}>${escapeHtml(fixedLabelText(country))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
       <label for="regionSelect">${escapeHtml(filterText("region", "地区"))}</label>
       <select id="regionSelect">
-        ${regions.map((region) => `<option value="${region}" ${region === currentRegion ? "selected" : ""}>${region}</option>`).join("")}
+        ${regions.map((region) => `<option value="${region}" ${region === currentRegion ? "selected" : ""}>${escapeHtml(fixedLabelText(region))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
       <label for="foodCategory">${escapeHtml(filterText("foodCategory", "食物种类"))}</label>
       <select id="foodCategory">
-        ${FOOD_CATEGORIES.map((category) => `<option value="${category}" ${category === currentCategory ? "selected" : ""}>${category}</option>`).join("")}
+        ${FOOD_CATEGORIES.map((category) => `<option value="${category}" ${category === currentCategory ? "selected" : ""}>${escapeHtml(fixedLabelText(category))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
@@ -4540,26 +4569,26 @@ function renderDrinkControls() {
 
   elements.modeControls.innerHTML = `
     <div class="field">
-      <label for="drinkCountry">国家</label>
+      <label for="drinkCountry">${escapeHtml(filterText("country", "国家"))}</label>
       <select id="drinkCountry">
-        ${countries.map((country) => `<option value="${country}" ${country === currentCountry ? "selected" : ""}>${country}</option>`).join("")}
+        ${countries.map((country) => `<option value="${country}" ${country === currentCountry ? "selected" : ""}>${escapeHtml(fixedLabelText(country))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="drinkBrand">品牌 / 店铺</label>
+      <label for="drinkBrand">${escapeHtml(filterText("brand", "品牌 / 店铺"))}</label>
       <select id="drinkBrand">
         ${brands.map((brand) => `<option value="${brand}" ${brand === currentBrand ? "selected" : ""}>${brand}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="drinkCategory">饮料类型</label>
+      <label for="drinkCategory">${escapeHtml(filterText("drinkCategory", "饮料类型"))}</label>
       <select id="drinkCategory">
-        ${DRINK_CATEGORIES.map((category) => `<option value="${category}" ${category === currentCategory ? "selected" : ""}>${category}</option>`).join("")}
+        ${DRINK_CATEGORIES.map((category) => `<option value="${category}" ${category === currentCategory ? "selected" : ""}>${escapeHtml(fixedLabelText(category))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="drinkNote">菜单说明</label>
-      <input id="drinkNote" value="参考外卖平台常见店铺，点候选可锁定" readonly />
+      <label for="drinkNote">${escapeHtml(filterText("menuNote", "菜单说明"))}</label>
+      <input id="drinkNote" value="${escapeHtml(filterText("drinkMenuNote", "参考外卖平台常见店铺，点候选可锁定"))}" readonly />
     </div>
   `;
 
@@ -4782,41 +4811,41 @@ function renderTravelControls() {
 
   elements.modeControls.innerHTML = `
     <div class="field travel-country-field">
-      <label for="travelCountry">想去国家</label>
+      <label for="travelCountry">${escapeHtml(t("travelFilter.countryIntent", "想去国家"))}</label>
       <select id="travelCountry">
-        ${countryOptions.map((country) => `<option value="${country}" ${country === currentCountry ? "selected" : ""}>${country}</option>`).join("")}
+        ${countryOptions.map((country) => `<option value="${country}" ${country === currentCountry ? "selected" : ""}>${escapeHtml(fixedLabelText(country))}</option>`).join("")}
       </select>
-      <div class="travel-chip-row" aria-label="热门国家快捷按钮">
-        ${countryOptions.slice(0, 18).map((country) => `<button class="travel-filter-chip${country === currentCountry ? " is-active" : ""}" type="button" data-travel-country="${country}">${country}</button>`).join("")}
+      <div class="travel-chip-row" aria-label="${escapeHtml(t("travelFilter.popularCountries", "热门国家快捷按钮"))}">
+        ${countryOptions.slice(0, 18).map((country) => `<button class="travel-filter-chip${country === currentCountry ? " is-active" : ""}" type="button" data-travel-country="${country}">${escapeHtml(fixedLabelText(country))}</button>`).join("")}
       </div>
     </div>
     <div class="field">
-      <label for="travelMood">旅行心情</label>
+      <label for="travelMood">${escapeHtml(t("travelFilter.mood", "旅行心情"))}</label>
       <select id="travelMood">
-        ${TRAVEL_MOODS.map((mood) => `<option value="${mood}" ${mood === state.travel.mood ? "selected" : ""}>${mood}</option>`).join("")}
+        ${TRAVEL_MOODS.map((mood) => `<option value="${mood}" ${mood === state.travel.mood ? "selected" : ""}>${escapeHtml(fixedLabelText(mood))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="travelActivity">想要活动</label>
+      <label for="travelActivity">${escapeHtml(t("travelFilter.activity", "想要活动"))}</label>
       <select id="travelActivity">
-        ${TRAVEL_ACTIVITIES.map((activity) => `<option value="${activity}" ${activity === currentActivity ? "selected" : ""}>${activity}</option>`).join("")}
+        ${TRAVEL_ACTIVITIES.map((activity) => `<option value="${activity}" ${activity === currentActivity ? "selected" : ""}>${escapeHtml(fixedLabelText(activity))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="travelLevel">消费等级</label>
+      <label for="travelLevel">${escapeHtml(t("travelFilter.budget", "消费等级"))}</label>
       <select id="travelLevel">
-        ${TRAVEL_LEVELS.map((level) => `<option value="${level}" ${level === state.travel.level ? "selected" : ""}>${level}</option>`).join("")}
+        ${TRAVEL_LEVELS.map((level) => `<option value="${level}" ${level === state.travel.level ? "selected" : ""}>${escapeHtml(fixedLabelText(level))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="travelTransport">出行方式</label>
+      <label for="travelTransport">${escapeHtml(t("travelFilter.transport", "出行方式"))}</label>
       <select id="travelTransport">
-        ${TRAVEL_TRANSPORTS.map((transport) => `<option value="${transport}" ${transport === state.travel.transport ? "selected" : ""}>${transport}</option>`).join("")}
+        ${TRAVEL_TRANSPORTS.map((transport) => `<option value="${transport}" ${transport === state.travel.transport ? "selected" : ""}>${escapeHtml(fixedLabelText(transport))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="travelNote">朋友提案</label>
-      <input id="travelNote" value="全球精选地点 + 国家/活动筛选；点候选可锁定朋友提案" readonly />
+      <label for="travelNote">${escapeHtml(t("travelFilter.friendSuggestion", "朋友提案"))}</label>
+      <input id="travelNote" value="${escapeHtml(t("travelFilter.friendSuggestionNote", "全球精选地点 + 国家/活动筛选；点候选可锁定朋友提案"))}" readonly />
     </div>
   `;
 
@@ -5080,27 +5109,27 @@ function renderShoppingControls() {
 
   elements.modeControls.innerHTML = `
     <div class="field shopping-filter-field">
-      <label for="shoppingRootCategory">一级分类</label>
+      <label for="shoppingRootCategory">${escapeHtml(filterText("shoppingCategory", "购物类型"))}</label>
       <select id="shoppingRootCategory">
-        ${SHOPPING_CATEGORY_TREE.map((category) => `<option value="${escapeHtml(category.id)}" ${category.id === currentRoot.id ? "selected" : ""}>${escapeHtml(category.label)}</option>`).join("")}
+        ${SHOPPING_CATEGORY_TREE.map((category) => `<option value="${escapeHtml(category.id)}" ${category.id === currentRoot.id ? "selected" : ""}>${escapeHtml(fixedLabelText(category.label))}</option>`).join("")}
       </select>
     </div>
     <div class="field shopping-filter-field">
-      <label for="shoppingSubcategory">二级分类</label>
+      <label for="shoppingSubcategory">${escapeHtml(filterText("subcategory", "二级分类"))}</label>
       <select id="shoppingSubcategory" ${currentRoot.id === "all" ? "disabled" : ""}>
-        ${children.map((child) => `<option value="${escapeHtml(child.id)}" ${child.id === currentChild.id ? "selected" : ""}>${escapeHtml(child.label)}</option>`).join("")}
+        ${children.map((child) => `<option value="${escapeHtml(child.id)}" ${child.id === currentChild.id ? "selected" : ""}>${escapeHtml(fixedLabelText(child.label))}</option>`).join("")}
       </select>
     </div>
     <div class="field shopping-filter-field">
-      <label for="shoppingLevel">消费等级</label>
+      <label for="shoppingLevel">${escapeHtml(filterText("budget", "消费等级"))}</label>
       <select id="shoppingLevel">
-        ${SHOPPING_LEVELS.map((level) => `<option value="${level}" ${level === currentLevel ? "selected" : ""}>${level}</option>`).join("")}
+        ${SHOPPING_LEVELS.map((level) => `<option value="${level}" ${level === currentLevel ? "selected" : ""}>${escapeHtml(fixedLabelText(level))}</option>`).join("")}
       </select>
     </div>
     <div class="field shopping-filter-field">
-      <label for="shoppingMindset">购买心态</label>
+      <label for="shoppingMindset">${escapeHtml(filterText("scene", "使用场景"))}</label>
       <select id="shoppingMindset">
-        ${SHOPPING_MINDSETS.map((mindset) => `<option value="${mindset}" ${mindset === currentMindset ? "selected" : ""}>${mindset}</option>`).join("")}
+        ${SHOPPING_MINDSETS.map((mindset) => `<option value="${mindset}" ${mindset === currentMindset ? "selected" : ""}>${escapeHtml(fixedLabelText(mindset))}</option>`).join("")}
       </select>
     </div>
   `;
@@ -6227,9 +6256,10 @@ function applyWorldImageViewerTransform() {
 
 function renderOptionChip(item) {
   const details = getOptionDetails(item);
+  const displayTitle = getOptionDisplayTitle(item);
 
   if (!LOCKABLE_MODES.has(state.mode)) {
-    return `<span class="chip">${escapeHtml(item.title)}</span>`;
+    return `<span class="chip">${escapeHtml(displayTitle)}</span>`;
   }
 
   const locked = isLocked(item.title);
@@ -6240,10 +6270,18 @@ function renderOptionChip(item) {
   return `
     <button class="chip option-chip${shoppingClass}${lockedClass}" type="button" data-lock-title="${escapeHtml(item.title)}" aria-pressed="${locked}">
       <span class="chip-pin">${lockedIcon}</span>
-      <span class="chip-title">${escapeHtml(item.title)}</span>
+      <span class="chip-title">${escapeHtml(displayTitle)}</span>
       ${renderOptionChipDetail(item, details)}
     </button>
   `;
+}
+
+function getOptionDisplayTitle(item) {
+  if (state.mode === "custom") {
+    return item.title;
+  }
+
+  return fixedLabelText(item.title, item.title);
 }
 
 function renderOptionChipDetail(item, details) {
@@ -6255,8 +6293,8 @@ function renderOptionChipDetail(item, details) {
     return `<small class="chip-detail">${escapeHtml(details)}</small>`;
   }
 
-  const budgetText = formatBudget(item.budget);
-  const tagText = item.tags.length ? item.tags.slice(0, 3).join(" / ") : "暂无标签";
+  const budgetText = formatBudgetLabel(item.budget);
+  const tagText = item.tags.length ? joinFixedLabels(item.tags.slice(0, 3), " / ") : candidateText("noTags", "暂无标签");
 
   return `
     <small class="chip-detail shopping-chip-detail">
@@ -6268,21 +6306,21 @@ function renderOptionChipDetail(item, details) {
 
 function getOptionDetails(item) {
   if (state.mode === "food") {
-    return `${item.tags.slice(0, 2).join(" · ")} · ${formatBudget(item.budget)}`;
+    return `${joinFixedLabels(item.tags.slice(0, 2), " · ")} · ${formatBudgetLabel(item.budget)}`;
   }
 
   if (state.mode === "drink") {
-    return `${item.brand} · ${item.tags.slice(0, 2).join(" · ")} · ${formatBudget(item.budget)}`;
+    return `${item.brand} · ${joinFixedLabels(item.tags.slice(0, 2), " · ")} · ${formatBudgetLabel(item.budget)}`;
   }
 
   if (state.mode === "travel") {
-    const activities = getDestinationActivities(item).slice(0, 3).join(" · ");
-    return `${item.country} · ${activities} · ${getBudgetText(item)}`;
+    const activities = joinFixedLabels(getDestinationActivities(item).slice(0, 3), " · ");
+    return `${fixedLabelText(item.country)} · ${activities} · ${formatBudgetLabel(getBudgetText(item, false))}`;
   }
 
   if (state.mode === "shopping") {
-    const tagText = item.tags.length ? ` · ${item.tags.slice(0, 3).join(" / ")}` : " · 暂无标签";
-    return `${formatBudget(item.budget)}${tagText}`;
+    const tagText = item.tags.length ? ` · ${joinFixedLabels(item.tags.slice(0, 3), " / ")}` : ` · ${candidateText("noTags", "暂无标签")}`;
+    return `${formatBudgetLabel(item.budget)}${tagText}`;
   }
 
   if (state.mode === "custom") {
@@ -6414,8 +6452,8 @@ function getResult() {
 
     return {
       mode: state.mode,
-      title: dishResult.title,
-      meta: `${sourceLabel} · ${dishResult.tags.join(" / ")} · 预算约 ${dishResult.budget}${poolNote}`,
+      title: fixedLabelText(dishResult.title, dishResult.title),
+      meta: `${sourceLabel} · ${joinFixedLabels(dishResult.tags, " / ")} · ${formatBudgetLabel(dishResult.budget)}${poolNote}`,
     };
   }
 
@@ -6424,20 +6462,19 @@ function getResult() {
 
     return {
       mode: state.mode,
-      title: drinkResult.title,
-      meta: `${state.drink.country} · ${drinkResult.brand} · ${drinkResult.tags.join(" / ")} · 预算约 ${drinkResult.budget}${poolNote}`,
+      title: fixedLabelText(drinkResult.title, drinkResult.title),
+      meta: `${fixedLabelText(state.drink.country)} · ${drinkResult.brand} · ${joinFixedLabels(drinkResult.tags, " / ")} · ${formatBudgetLabel(drinkResult.budget)}${poolNote}`,
     };
   }
 
   if (state.mode === "travel") {
     const travelResult = choose(pool);
     const budgetText = getBudgetText(travelResult, false);
-    const activityText = getDestinationActivities(travelResult).slice(0, 3).join(" / ");
 
     return {
       mode: state.mode,
-      title: travelResult.title,
-      meta: `${travelResult.country} · ${travelResult.days} 天 · ${activityText} · ${state.travel.transport === "全部" ? travelResult.transports[0] : state.travel.transport} · 预算约 ${budgetText}/人${poolNote}。${travelResult.note}`,
+      title: fixedLabelText(travelResult.title, travelResult.title),
+      meta: `${fixedLabelText(travelResult.country)} · ${formatLocaleText(t("travel.days", "{count} 天"), { count: travelResult.days })} · ${joinFixedLabels(getDestinationActivities(travelResult).slice(0, 3), " / ")} · ${fixedLabelText(state.travel.transport === "全部" ? travelResult.transports[0] : state.travel.transport)} · ${formatBudgetLabel(budgetText, { perPerson: true })}${poolNote}。${fixedLabelText(travelResult.note, travelResult.note)}`,
     };
   }
 
@@ -6470,7 +6507,7 @@ function getResult() {
   return {
     mode: state.mode,
     title: customResult.title,
-    meta: `来自你的 ${options.length} 个自定义选项${poolNote}`,
+    meta: resultText("customOptionMeta", "来自你的 {count} 个自定义选项", { count: options.length }) + poolNote,
   };
 }
 
@@ -6485,10 +6522,10 @@ function normalizeSentence(text) {
 
 function buildShoppingResultMeta(item, poolNote = "") {
   const parts = [
-    item.category,
-    item.subcategory,
-    item.level,
-    `预算约 ${item.budget}`,
+    fixedLabelText(item.category),
+    fixedLabelText(item.subcategory),
+    fixedLabelText(item.level),
+    formatBudgetLabel(item.budget),
   ].filter(Boolean);
 
   return `${parts.join(" · ")}${poolNote}`;
@@ -6524,18 +6561,18 @@ function getShoppingResultDetails(item) {
 
 function getShoppingReminderText(priority) {
   const sentence = trimSentenceEnding(String(priority || "").replace(/^提醒[:：]\s*/u, ""));
-  return sentence ? `提醒：${sentence}。` : "";
+  return sentence ? resultText("reminderLine", "提醒：{text}。", { text: sentence }) : "";
 }
 
 function getShoppingContextLine(details) {
   const parts = [];
 
   if (details.mindset && details.mindset !== "全部") {
-    parts.push(`心态：${details.mindset}`);
+    parts.push(resultText("mindsetLine", "心态：{text}", { text: fixedLabelText(details.mindset) }));
   }
 
   if (details.tags.length) {
-    parts.push(`标签：${details.tags.slice(0, 4).join(" / ")}`);
+    parts.push(resultText("tagsLine", "标签：{text}", { text: joinFixedLabels(details.tags.slice(0, 4), " / ") }));
   }
 
   return parts.join(" · ");
@@ -6543,10 +6580,10 @@ function getShoppingContextLine(details) {
 
 function getFoodSourceLabel() {
   if (SPECIAL_FOOD_CATEGORIES.has(state.food.category)) {
-    return `${state.food.country} · ${state.food.category}`;
+    return `${fixedLabelText(state.food.country)} · ${fixedLabelText(state.food.category)}`;
   }
 
-  return `${state.food.country} · ${state.food.region}`;
+  return `${fixedLabelText(state.food.country)} · ${fixedLabelText(state.food.region)}`;
 }
 
 function getBudgetText(item, shouldFormat = true) {
@@ -6558,7 +6595,7 @@ function getBudgetText(item, shouldFormat = true) {
   }
 
   const firstLevel = TRAVEL_LEVELS.find((level) => level !== "全部" && item.budgets[level]);
-  budgetText = firstLevel ? item.budgets[firstLevel] : "需按机票和住宿另估";
+  budgetText = firstLevel ? item.budgets[firstLevel] : t("travel.budgetNeedEstimate", "需按机票和住宿另估");
   return shouldFormat ? formatBudget(budgetText) : budgetText;
 }
 
@@ -6579,7 +6616,9 @@ function getRandomPool(options) {
 
 function getPoolNote(options) {
   const activeLockedOptions = getActiveLockedOptions(options);
-  return activeLockedOptions.length ? ` · 从 ${activeLockedOptions.length} 个锁定候选中抽出` : "";
+  return activeLockedOptions.length
+    ? ` · ${resultText("lockedPoolNote", "从 {count} 个锁定候选中抽出", { count: activeLockedOptions.length })}`
+    : "";
 }
 
 function isLocked(title) {
@@ -10299,10 +10338,11 @@ function renderDailyInspiration() {
   const today = new Date();
   const seed = today.getFullYear() + today.getMonth() * 31 + today.getDate();
   const tip = DAILY_TIPS[seed % DAILY_TIPS.length];
+  const key = tip.key || "smallFirst";
 
   elements.dailyInspiration.innerHTML = `
-    <strong>${tip.title}</strong>
-    <p>${tip.text}</p>
+    <strong>${escapeHtml(t(`inspiration.${key}.title`, tip.title))}</strong>
+    <p>${escapeHtml(t(`inspiration.${key}.text`, tip.text))}</p>
   `;
 }
 
