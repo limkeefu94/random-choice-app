@@ -6106,6 +6106,44 @@ function scrollWorldChatToBottom() {
   }
 }
 
+function isWorldChatNearBottom(threshold = 96) {
+  if (!elements.worldChatList) {
+    return true;
+  }
+
+  const distanceFromBottom = elements.worldChatList.scrollHeight
+    - elements.worldChatList.scrollTop
+    - elements.worldChatList.clientHeight;
+
+  return distanceFromBottom <= threshold;
+}
+
+function captureWorldChatScrollState() {
+  if (!elements.worldChatList || elements.worldChatPanel.hidden) {
+    return null;
+  }
+
+  return {
+    scrollTop: elements.worldChatList.scrollTop,
+    scrollHeight: elements.worldChatList.scrollHeight,
+    wasNearBottom: isWorldChatNearBottom(),
+  };
+}
+
+function restoreWorldChatScrollState(scrollState, options = {}) {
+  if (!elements.worldChatList) {
+    return;
+  }
+
+  if (options.forceBottom || !scrollState || scrollState.wasNearBottom) {
+    scrollWorldChatToBottom();
+    return;
+  }
+
+  const heightDelta = elements.worldChatList.scrollHeight - scrollState.scrollHeight;
+  elements.worldChatList.scrollTop = Math.max(0, scrollState.scrollTop + Math.max(0, heightDelta));
+}
+
 function renderWorldAttachment(attachment, message = null) {
   if (!attachment || attachment.type !== "image" || !attachment.url) {
     return "";
@@ -7290,6 +7328,9 @@ function toggleWorldChat() {
   elements.modeMenuToggle.setAttribute("aria-expanded", "false");
   saveState();
   render();
+  if (state.worldOpen) {
+    window.requestAnimationFrame(() => restoreWorldChatScrollState(null, { forceBottom: true }));
+  }
   showToast(state.worldOpen ? "世界聊天窗口已打开。" : "世界聊天窗口已收起。");
 }
 
@@ -8631,6 +8672,8 @@ function setWorldSyncState(nextState) {
 }
 
 async function syncWorldMessages() {
+  const scrollState = captureWorldChatScrollState();
+
   setWorldSyncState({ loading: true, lastError: "" });
 
   try {
@@ -8650,7 +8693,7 @@ async function syncWorldMessages() {
     setWorldSyncState({ loading: false, available: true, lastError: "" });
     saveState();
     renderWorldChannel();
-    window.requestAnimationFrame(scrollWorldChatToBottom);
+    window.requestAnimationFrame(() => restoreWorldChatScrollState(scrollState));
   } catch (error) {
     setWorldSyncState({ loading: false, available: false, lastError: error.message });
     reportClientError(error, {

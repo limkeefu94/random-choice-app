@@ -2,10 +2,20 @@
 const { getFirestore } = require("../server/firestore-client");
 const { cleanText, getAccountFromRequest, getBearerToken } = require("../server/auth-utils");
 const { setCors } = require("../server/cors-utils");
+const { checkRateLimit, recordRateLimitAttempt } = require("../server/rate-limit");
 
 const CLIENT_ERROR_COLLECTION = "randomChoiceClientErrors";
 const CORS_OPTIONS = {
   methods: ["POST", "OPTIONS"],
+};
+const CLIENT_ERROR_RATE_LIMIT = {
+  name: "client-error",
+  max: 30,
+  devMax: 120,
+  windowMs: 5 * 60 * 1000,
+  devWindowMs: 5 * 60 * 1000,
+  maxEnv: "CLIENT_ERROR_RATE_LIMIT_MAX",
+  windowEnv: "CLIENT_ERROR_RATE_LIMIT_WINDOW_MS",
 };
 
 function parseBody(request) {
@@ -81,6 +91,14 @@ module.exports = async function handler(request, response) {
   }
 
   try {
+    const rateLimit = checkRateLimit(request, response, CLIENT_ERROR_RATE_LIMIT);
+
+    if (!rateLimit.allowed) {
+      response.status(429).json({ ok: false, error: "Too many error reports. Please try again later." });
+      return;
+    }
+
+    recordRateLimitAttempt(rateLimit);
     const account = await getOptionalAccount(request);
     const clientError = cleanClientError(parseBody(request), account);
     await getFirestore().collection(CLIENT_ERROR_COLLECTION).doc(clientError.id).set(clientError);
@@ -93,7 +111,6 @@ module.exports = async function handler(request, response) {
     response.status(500).json({
       ok: false,
       error: "Client error report temporarily unavailable",
-      detail: error.message,
     });
   }
 };

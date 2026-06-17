@@ -70,7 +70,6 @@ module.exports = async function handler(request, response) {
     response.status(needsLogin ? 401 : 500).json({
       ok: false,
       error: needsLogin ? "请重新登入" : "封锁暂时处理不了",
-      detail: error.message,
     });
   }
 };

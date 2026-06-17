@@ -2,11 +2,21 @@
 const { getFirestore } = require("../server/firestore-client");
 const { cleanText, getAccountFromRequest, getBearerToken } = require("../server/auth-utils");
 const { setCors } = require("../server/cors-utils");
+const { checkRateLimit, recordRateLimitAttempt } = require("../server/rate-limit");
 
 const FEEDBACK_COLLECTION = "randomChoiceFeedback";
 const FEEDBACK_TYPES = new Set(["Bug / 错误", "功能建议", "UI 不好用", "内容错误", "其他"]);
 const CORS_OPTIONS = {
   methods: ["POST", "OPTIONS"],
+};
+const FEEDBACK_RATE_LIMIT = {
+  name: "feedback",
+  max: 8,
+  devMax: 40,
+  windowMs: 15 * 60 * 1000,
+  devWindowMs: 15 * 60 * 1000,
+  maxEnv: "FEEDBACK_RATE_LIMIT_MAX",
+  windowEnv: "FEEDBACK_RATE_LIMIT_WINDOW_MS",
 };
 
 function parseBody(request) {
@@ -105,6 +115,14 @@ module.exports = async function handler(request, response) {
   }
 
   try {
+    const rateLimit = checkRateLimit(request, response, FEEDBACK_RATE_LIMIT);
+
+    if (!rateLimit.allowed) {
+      response.status(429).json({ ok: false, error: "反馈提交太频繁了，等一下再试" });
+      return;
+    }
+
+    recordRateLimitAttempt(rateLimit);
     const account = await getOptionalAccount(request);
     const feedback = cleanFeedback(parseBody(request), account);
     await getFirestore().collection(FEEDBACK_COLLECTION).doc(feedback.id).set(feedback);
@@ -125,7 +143,6 @@ module.exports = async function handler(request, response) {
     response.status(500).json({
       ok: false,
       error: "Feedback temporarily unavailable",
-      detail: error.message,
     });
   }
 };

@@ -133,6 +133,8 @@ randomChoiceClientErrors/{errorId}
 - 错误写入 Firestore `randomChoiceClientErrors` collection，用于后续排查 Bug。
 - 客户端和接口都会脱敏常见密码、token、GCP key、private key；同一错误 60 秒内最多上报一次。
 
+- `/api/feedback` and `/api/client-error` are server-side rate-limited to reduce anonymous write spam. Tune with `FEEDBACK_RATE_LIMIT_*` and `CLIENT_ERROR_RATE_LIMIT_*`.
+
 ## `/api/user-data` access control
 
 - Logged-in cloud sync requests must send `Authorization: Bearer <token>`.

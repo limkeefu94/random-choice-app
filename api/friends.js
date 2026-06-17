@@ -69,7 +69,6 @@ module.exports = async function handler(request, response) {
     response.status(needsLogin ? 401 : 500).json({
       ok: false,
       error: needsLogin ? "请重新登入" : "好友列表暂时读取不了",
-      detail: error.message,
     });
   }
 };

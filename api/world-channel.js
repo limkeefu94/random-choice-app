@@ -139,7 +139,7 @@ function isAllowedGcsAttachment(url, publicUrl, objectName) {
   const bucketName = process.env.GCS_BUCKET_NAME;
 
   if (!bucketName) {
-    return true;
+    return false;
   }
 
   return [url, publicUrl].filter(Boolean).some((value) => {
@@ -561,7 +561,6 @@ module.exports = async function handler(request, response) {
     response.status(statusCode).json({
       ok: false,
       error: error.statusCode ? error.message : needsLogin ? "请重新登入" : "世界频道暂时连不上",
-      detail: error.message,
     });
   }
 };

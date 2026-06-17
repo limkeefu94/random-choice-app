@@ -116,7 +116,7 @@ module.exports = async function handler(request, response) {
     const bucketName = process.env.GCS_BUCKET_NAME;
 
     if (!bucketName) {
-      response.status(500).json({ error: "Missing GCS_BUCKET_NAME" });
+      response.status(500).json({ ok: false, error: "Upload temporarily unavailable" });
       return;
     }
 
@@ -180,8 +180,8 @@ module.exports = async function handler(request, response) {
     }
 
     response.status(500).json({
+      ok: false,
       error: "Could not upload image",
-      detail: error.message,
     });
   }
 };

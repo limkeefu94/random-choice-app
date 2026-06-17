@@ -109,6 +109,56 @@ function cleanText(value, maxLength = 400) {
   return String(value || "").slice(0, maxLength);
 }
 
+function cleanStructuredValue(value, maxDepth = 3) {
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    return cleanText(value, 1200);
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    if (maxDepth <= 0) {
+      return [];
+    }
+
+    return value
+      .slice(0, 40)
+      .map((item) => cleanStructuredValue(item, maxDepth - 1))
+      .filter((item) => item !== undefined);
+  }
+
+  if (value && typeof value === "object") {
+    if (maxDepth <= 0) {
+      return {};
+    }
+
+    return Object.fromEntries(Object.entries(value)
+      .slice(0, 40)
+      .map(([key, item]) => [cleanText(key, 80), cleanStructuredValue(item, maxDepth - 1)])
+      .filter(([key, item]) => key && item !== undefined));
+  }
+
+  return undefined;
+}
+
+function assignStructuredField(target, field, value, maxDepth = 3) {
+  const cleanedValue = cleanStructuredValue(value, maxDepth);
+
+  if (cleanedValue !== undefined) {
+    target[field] = cleanedValue;
+  }
+}
+
 function cleanItem(collection, item) {
   const now = new Date().toISOString();
   const id = cleanText(item.id, 120) || `${Date.now()}-${crypto.randomUUID()}`;
@@ -135,6 +185,23 @@ function cleanItem(collection, item) {
     time: cleanText(item.time, 40),
     createdAt,
   };
+
+  if (item.rawTitle) {
+    cleanedItem.rawTitle = cleanText(item.rawTitle, 220);
+  }
+
+  if (item.titleKey) {
+    cleanedItem.titleKey = cleanText(item.titleKey, 220);
+  }
+
+  if (item.lotteryGameId) {
+    cleanedItem.lotteryGameId = cleanText(item.lotteryGameId, 120);
+  }
+
+  assignStructuredField(cleanedItem, "rawMeta", item.rawMeta);
+  assignStructuredField(cleanedItem, "shopping", item.shopping);
+  assignStructuredField(cleanedItem, "lotteryLines", item.lotteryLines);
+  assignStructuredField(cleanedItem, "giftPairs", item.giftPairs);
 
   if (Array.isArray(item.digits)) {
     cleanedItem.digits = item.digits.slice(0, 8).map((digit) => cleanText(digit, 8));
@@ -245,7 +312,6 @@ module.exports = async function handler(request, response) {
     response.status(500).json({
       ok: false,
       error: "Firestore sync failed",
-      detail: error.message,
     });
   }
 };

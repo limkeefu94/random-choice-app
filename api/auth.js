@@ -73,6 +73,46 @@ function sendRateLimitResponse(response) {
   });
 }
 
+function createPublicHttpError(statusCode, publicError) {
+  const error = new Error(publicError);
+  error.statusCode = statusCode;
+  error.publicError = publicError;
+  return error;
+}
+
+function isAllowedGcsAvatarUrl(avatarUrl) {
+  const bucketName = process.env.GCS_BUCKET_NAME;
+
+  if (!bucketName) {
+    return false;
+  }
+
+  try {
+    const parsedUrl = new URL(avatarUrl);
+    const decodedPath = decodeURIComponent(parsedUrl.pathname);
+
+    return parsedUrl.protocol === "https:"
+      && parsedUrl.hostname === "storage.googleapis.com"
+      && decodedPath.startsWith(`/${bucketName}/world/`);
+  } catch {
+    return false;
+  }
+}
+
+function cleanAvatarUrl(value) {
+  const avatarUrl = cleanText(value, 1200);
+
+  if (!avatarUrl) {
+    return "";
+  }
+
+  if (isAllowedGcsAvatarUrl(avatarUrl)) {
+    return avatarUrl;
+  }
+
+  throw createPublicHttpError(400, "头像链接不安全，请重新上传头像");
+}
+
 async function registerAccount(request, response) {
   const body = parseBody(request);
   const username = normalizeUsername(body.username);
@@ -216,10 +256,21 @@ async function updateProfile(request, response) {
   const body = parseBody(request);
   const displayName = cleanDisplayName(body.displayName, account.username);
   const hasAvatarUrl = Object.prototype.hasOwnProperty.call(body, "avatarUrl");
-  const avatarUrl = cleanText(hasAvatarUrl ? body.avatarUrl : account.avatarUrl, 1200);
+  let avatarUrl = "";
   const currentPassword = String(body.currentPassword || "");
   const newPassword = String(body.newPassword || "");
   const confirmPassword = String(body.confirmPassword || "");
+
+  try {
+    avatarUrl = cleanAvatarUrl(hasAvatarUrl ? body.avatarUrl : account.avatarUrl);
+  } catch (error) {
+    if (hasAvatarUrl) {
+      throw error;
+    }
+
+    avatarUrl = "";
+  }
+
   const update = {
     displayName,
     avatarUrl,
@@ -317,12 +368,11 @@ module.exports = async function handler(request, response) {
     const message = error.message === "Invalid token" || error.message === "Expired token" || error.message === "Account not found"
       ? "请重新登入"
       : error.message;
-    const status = message === "请重新登入" ? 401 : 500;
+    const status = error.statusCode || (message === "请重新登入" ? 401 : 500);
 
     response.status(status).json({
       ok: false,
-      error: "账号暂时处理不了",
-      detail: message,
+      error: error.publicError || (status === 401 ? "请重新登入" : "账号暂时处理不了"),
     });
   }
 };
