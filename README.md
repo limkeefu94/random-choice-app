@@ -12,6 +12,10 @@
 
 应用内不会加入真实投注平台链接、购买入口、投注技巧或中奖预测。
 
+## i18n 自动扫描
+
+新增或修改 UI 文案后，请先补齐 `locales/zh-CN.js`、`locales/en.js`、`locales/ms.js`，再运行 `npm run check:i18n` 或完整的 `npm run check`。扫描器会检查三语言 key 是否一致、locale value 是否出现 `????` / `undefined` / `null` / `[object Object]`、`app.js` / `index.html` 是否有高风险硬编码中文 UI，并对明显硬编码英文给出 warning。食物、饮料、旅行、购物等数据池、Release Notes、旧历史记录和用户输入内容允许保留原文；新增按钮、标题、label、placeholder、toast、confirm、空状态等 UI 文案不要直接写在 `app.js`。
+
 ## Vercel 部署
 
 1. 把这个仓库连接到 Vercel。

@@ -1798,10 +1798,30 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.7.0";
+const APP_VERSION = "0.7.1";
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const RELEASE_NOTES = [
+  {
+    version: "0.7.1",
+    title: "i18n 自动扫描器",
+    date: "2026-06-17",
+    summary: "这次加入翻译自动检查工具，帮助发现缺失翻译、硬编码 UI 文案和乱码内容，让后续新增功能更容易保持中文、英文和马来文一致。",
+    userChanges: [
+      "改进多语言稳定性。",
+      "后续新增功能时更不容易出现中英马混杂。",
+      "减少界面出现乱码或未翻译文字的机会。",
+    ],
+    technicalChanges: [
+      "Added scripts/audit-i18n.js.",
+      "Added npm run check:i18n.",
+      "Integrated i18n audit into npm run check.",
+      "Added locale key consistency checks.",
+      "Added hardcoded UI text detection.",
+      "Added suspicious locale value detection.",
+      "Documented i18n audit workflow.",
+    ],
+  },
   {
     version: "0.7.0",
     title: "翻译池基础整理",
