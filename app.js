@@ -1792,10 +1792,30 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.6.9";
+const APP_VERSION = "0.7.0";
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const RELEASE_NOTES = [
+  {
+    version: "0.7.0",
+    title: "翻译池基础整理",
+    date: "2026-06-17",
+    summary: "这次整理了全 App 的翻译池，补齐常用按钮、状态、错误提示、设置、通知、世界频道、礼物交换和未来功能预留文案，让后续新增功能更容易保持中文、英文和马来文一致。",
+    userChanges: [
+      "补齐中文、英文和马来文的常用按钮与状态文案。",
+      "设置中心、通知中心和世界频道入口的主要文案更完整。",
+      "礼物交换、好友预留、聊天预留和未来奖池轮盘预留文案更统一。",
+      "语言切换时，主要 UI 更不容易混入其他语言。",
+      "后续新增功能可以复用 common、settings、notification、world、gift 等翻译 key。",
+    ],
+    technicalChanges: [
+      "Expanded zh-CN, en, and ms locale dictionaries.",
+      "Added reusable common, error, empty, confirm, settings, notification, world, friend, chat, prize, and onboarding keys.",
+      "Added locale key coverage checks to npm run check.",
+      "Connected settings, notification, world entry, and home layout copy to locale helpers.",
+      "Preserved existing auth, GCS, world channel API, image, like, home edit, and gift pairing flows.",
+    ],
+  },
   {
     version: "0.6.9",
     title: "礼物交换随机",
@@ -2092,29 +2112,29 @@ const DEFAULT_WORLD_MESSAGES = [
   },
 ];
 const NOTIFICATION_CATEGORIES = [
-  { id: "system", label: "系统公告", status: "可用" },
-  { id: "release", label: "版本更新", status: "可用" },
-  { id: "world-like", label: "世界频道爱心", status: "有数据时显示" },
-  { id: "friend-request", label: "好友申请", status: "即将开放" },
-  { id: "friend-accepted", label: "好友通过", status: "即将开放" },
-  { id: "comment-reply", label: "评论回复", status: "未来" },
-  { id: "direct-message", label: "私聊消息", status: "即将开放" },
-  { id: "group-message", label: "群聊消息", status: "即将开放" },
+  { id: "system", labelKey: "system", statusKey: "status.ready", isReady: true },
+  { id: "release", labelKey: "release", statusKey: "status.ready", isReady: true },
+  { id: "world-like", labelKey: "worldLike", statusKey: "status.data", isReady: true },
+  { id: "friend-request", labelKey: "friendRequest", statusKey: "status.soon" },
+  { id: "friend-accepted", labelKey: "friendAccepted", statusKey: "status.soon" },
+  { id: "comment-reply", labelKey: "commentReply", statusKey: "status.future" },
+  { id: "direct-message", labelKey: "privateMessage", statusKey: "status.soon" },
+  { id: "group-message", labelKey: "groupMessage", statusKey: "status.soon" },
 ];
 const APP_NOTIFICATIONS = [
   {
     id: "system-settings-notifications-v068",
-    type: "系统公告",
+    typeKey: "system",
     category: "system",
-    title: "设置中心整理好了",
-    text: "隐私、好友预留、内容偏好和应用操作现在放得更清楚。",
+    titleKey: "systemSettingsTitle",
+    textKey: "systemSettingsText",
   },
   {
     id: "release-v068",
-    type: "版本更新",
+    typeKey: "release",
     category: "release",
-    title: "v0.6.8 设置与通知中心优化",
-    text: "修正货币重复显示，并整理通知分类、空状态和未来好友入口。",
+    titleKey: "release068Title",
+    textKey: "release068Text",
   },
 ];
 const STORAGE_KEY = "choiceWheelState";
@@ -2424,6 +2444,32 @@ function t(key, fallback = "") {
   return translated === undefined || translated === null ? String(fallback || key) : String(translated);
 }
 
+function formatLocaleText(value, replacements = {}) {
+  let text = String(value ?? "");
+
+  Object.entries(replacements).forEach(([placeholder, replacement]) => {
+    text = text.replaceAll(`{${placeholder}}`, String(replacement));
+  });
+
+  return text;
+}
+
+function commonText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`common.${key}`, fallback), replacements);
+}
+
+function settingsText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`settings.${key}`, fallback), replacements);
+}
+
+function notificationText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`notification.${key}`, fallback), replacements);
+}
+
+function worldText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`world.${key}`, fallback), replacements);
+}
+
 function getCurrencyDisplayLabel(code) {
   const currency = CURRENCY_RATES[code];
   return currency?.displayLabel || currency?.label || code;
@@ -2446,7 +2492,27 @@ function getUnreadNotifications() {
   return getVisibleNotifications().filter((item) => !readIds.has(item.id));
 }
 
-function showComingSoonToast(message = "功能即将开放") {
+function getNotificationCategoryLabel(category) {
+  return notificationText(category?.labelKey || category?.typeKey || "reminder", category?.label || category?.type || "提醒");
+}
+
+function getNotificationCategoryStatus(category) {
+  return notificationText(category?.statusKey || "status.soon", category?.status || "即将开放");
+}
+
+function getNotificationItemTitle(item) {
+  return notificationText(item?.titleKey || "", item?.title || "");
+}
+
+function getNotificationItemText(item) {
+  return notificationText(item?.textKey || "", item?.text || "");
+}
+
+function getNotificationItemType(item) {
+  return notificationText(item?.typeKey || "reminder", item?.type || "提醒");
+}
+
+function showComingSoonToast(message = commonText("comingSoon", "功能即将开放")) {
   showToast(message);
 }
 
@@ -2650,13 +2716,7 @@ function getModeTitle(modeKey) {
 }
 
 function giftText(key, fallback = "", replacements = {}) {
-  let value = t(`gift.${key}`, fallback);
-
-  Object.entries(replacements).forEach(([placeholder, replacement]) => {
-    value = value.replaceAll(`{${placeholder}}`, String(replacement));
-  });
-
-  return value;
+  return formatLocaleText(t(`gift.${key}`, fallback), replacements);
 }
 
 function getGiftRevealModeLabel(mode) {
@@ -2740,8 +2800,8 @@ function getHomeFeatureMeta(featureId) {
       id: HOME_WORLD_FEATURE_ID,
       type: "world",
       icon: "🌍",
-      title: t("world.title", "世界频道"),
-      description: t("world.subtitle", "公开频道 · 私聊和群聊之后会放这里"),
+      title: worldText("title", "世界频道"),
+      description: worldText("subtitle", "公开频道 · 私聊和群聊之后会放这里"),
     };
   }
 
@@ -2939,19 +2999,19 @@ function renderHomeFeatureCard(feature, options = {}) {
         class="home-feature-drag-handle"
         type="button"
         data-home-layout-drag-handle="${escapeHtml(feature.id)}"
-        aria-label="\u62d6\u52a8${escapeHtml(feature.title)}\u8c03\u6574\u987a\u5e8f"
+        aria-label="${escapeHtml(settingsText("dragFeature", "拖动{title}调整顺序", { title: feature.title }))}"
         aria-keyshortcuts="ArrowUp ArrowDown Enter Space"
         ${visibleCount <= 1 ? "disabled" : ""}
       >\u2630</button>
     `
     : "";
   const canHideFeature = !isHidden && feature.id !== HOME_WORLD_FEATURE_ID;
-  const editLabel = (isHidden ? "\u6062\u590d" : "\u9690\u85cf") + feature.title;
+  const editLabel = `${isHidden ? commonText("show", "显示") : commonText("hide", "隐藏")}${feature.title}`;
   const editControl = isHomeLayoutEditing
     ? isWorldFeature && !isHidden
-      ? `<span class="home-feature-locked-hint" aria-label="\u4e16\u754c\u9891\u9053\u53ef\u79fb\u52a8\uff0c\u4e0d\u53ef\u9690\u85cf">\u5fc5\u663e\u793a</span>`
+      ? `<span class="home-feature-locked-hint" aria-label="${escapeHtml(settingsText("worldRequiredHint", "世界频道可移动，不可隐藏"))}">${escapeHtml(settingsText("required", "必显示"))}</span>`
       : isRequiredMode
-        ? `<span class="home-feature-locked-hint" aria-label="\u81f3\u5c11\u4fdd\u7559\u4e00\u4e2a\u968f\u673a\u529f\u80fd">\u4fdd\u7559</span>`
+        ? `<span class="home-feature-locked-hint" aria-label="${escapeHtml(settingsText("keepOneRandomHint", "至少保留一个随机功能"))}">${escapeHtml(settingsText("keep", "保留"))}</span>`
       : `
       <button
         class="home-feature-toggle-button${isHidden ? " is-restore" : " is-hide"}"
@@ -3021,23 +3081,23 @@ function renderModes() {
   elements.sidebar.classList.toggle("is-home-editing", isHomeLayoutEditing);
 
   if (elements.homeLayoutEditButton) {
-    elements.homeLayoutEditButton.textContent = isHomeLayoutEditing ? "\u5b8c\u6210" : "\u7f16\u8f91\u9996\u9875";
+    elements.homeLayoutEditButton.textContent = isHomeLayoutEditing ? commonText("done", "完成") : t("action.editHome", "编辑首页");
     elements.homeLayoutEditButton.setAttribute("aria-pressed", String(isHomeLayoutEditing));
   }
 
   if (isHomeLayoutEditing) {
     elements.modeList.innerHTML = `
-      ${renderHomeFeatureSection("\u663e\u793a\u4e2d\u7684\u968f\u673a\u6a21\u5f0f", visibleFeatures, {
-        emptyText: "\u81f3\u5c11\u4fdd\u7559\u4e00\u4e2a\u9996\u9875\u5165\u53e3\uff0c\u65b9\u4fbf\u968f\u65f6\u627e\u56de\u529f\u80fd\u3002",
+      ${renderHomeFeatureSection(settingsText("visibleRandomModes", "显示中的随机模式"), visibleFeatures, {
+        emptyText: settingsText("keepOneHomeEntry", "至少保留一个首页入口，方便随时找回功能。"),
         visibleModeCount,
       })}
-      ${renderHomeFeatureSection("\u2014\u2014 \u5df2\u9690\u85cf \u2014\u2014", hiddenFeatures, {
+      ${renderHomeFeatureSection(settingsText("hiddenDivider", "—— 已隐藏 ——"), hiddenFeatures, {
         isHidden: true,
-        emptyText: "\u6682\u65f6\u6ca1\u6709\u9690\u85cf\u7684\u529f\u80fd\u3002",
+        emptyText: settingsText("noHiddenFeatures", "暂时没有隐藏的功能。"),
       })}
       <div class="home-layout-editor-footer">
-        <button class="secondary-button" type="button" data-home-layout-reset>\u6062\u590d\u9ed8\u8ba4\u9996\u9875\u5e03\u5c40</button>
-        <small>\u9690\u85cf\u53ea\u662f\u672c\u673a\u663e\u793a\u504f\u597d\uff0c\u4e0d\u4f1a\u5220\u9664\u4efb\u4f55\u8bb0\u5f55\u6216\u4e16\u754c\u9891\u9053\u5185\u5bb9\u3002</small>
+        <button class="secondary-button" type="button" data-home-layout-reset>${escapeHtml(settingsText("restoreHomeLayout", "恢复默认首页布局"))}</button>
+        <small>${escapeHtml(settingsText("hiddenLocalOnly", "隐藏只是本机显示偏好，不会删除任何记录或世界频道内容。"))}</small>
       </div>
     `;
   } else {
@@ -3045,15 +3105,15 @@ function renderModes() {
       ? visibleFeatures.map((feature) => renderHomeFeatureCard(feature)).join("")
       : `
         <div class="home-layout-empty">
-          <strong>\u9996\u9875\u529f\u80fd\u5165\u53e3\u90fd\u9690\u85cf\u4e86</strong>
-          <small>\u529f\u80fd\u8fd8\u5728\uff0c\u53ef\u4ee5\u7528\u4e0a\u65b9\u7684\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002</small>
+          <strong>${escapeHtml(settingsText("allHomeHiddenTitle", "首页功能入口都隐藏了"))}</strong>
+          <small>${escapeHtml(settingsText("allHomeHiddenHint", "功能还在，可以用上方的编辑首页找回。"))}</small>
         </div>
       `;
 
     if (hiddenCount > 0) {
       elements.modeList.insertAdjacentHTML("beforeend", `
         <div class="home-layout-hint">
-          <span>\u6709\u9690\u85cf\u529f\u80fd\uff0c\u53ef\u7528\u4e0a\u65b9\u7684\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002</span>
+          <span>${escapeHtml(settingsText("hiddenHomeHint", "有隐藏功能，可用上方的编辑首页找回。"))}</span>
         </div>
       `);
     }
@@ -3077,10 +3137,10 @@ function renderModes() {
 
   elements.modeMenuLabel.textContent = getModeTitle(state.mode);
   elements.modeMenuHint.textContent = isHomeLayoutEditing
-    ? "\u7f16\u8f91\u6a21\u5f0f\u4e2d\uff1a\u70b9\u51cf\u53f7\u9690\u85cf\uff0c\u70b9\u52a0\u53f7\u6062\u590d\uff0c\u62d6\u52a8\u53f3\u4fa7\u4e09\u6761\u6a2a\u7ebf\u8c03\u6574\u987a\u5e8f\u3002"
+    ? settingsText("editModeHint", "编辑模式中：点减号隐藏，点加号恢复，拖动右侧三条横线调整顺序。")
     : hiddenCount > 0
-      ? "\u6709\u9690\u85cf\u529f\u80fd\uff0c\u53ef\u70b9\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002"
-      : "\u7b2c\u4e00\u6b21\u7528\uff1f\u5148\u4ece\u5403\u4ec0\u4e48\u3001\u4e70\u4ec0\u4e48\u6216\u81ea\u5b9a\u4e49\u968f\u673a\u5f00\u59cb\uff0c\u5176\u4ed6\u666e\u901a\u6a21\u5f0f\u4e5f\u5728\u8fd9\u91cc\u3002";
+      ? settingsText("hiddenHomeHint", "有隐藏功能，可点编辑首页找回。")
+      : settingsText("modeMenuHint", "第一次用？先从吃什么、买什么或自定义随机开始，其他普通模式也在这里。");
   elements.sidebarWorld.hidden = false;
   elements.worldChannelButton.setAttribute("aria-pressed", String(state.worldOpen));
 }
@@ -3181,39 +3241,39 @@ function renderNotificationPanel() {
     ? notifications.map((item) => `
         <article class="notification-item${state.notificationReadIds.includes(item.id) ? "" : " is-unread"}">
           <div class="notification-item-title">
-            <strong>${escapeHtml(item.title)}</strong>
-            <span>${escapeHtml(item.type || "提醒")}</span>
+            <strong>${escapeHtml(getNotificationItemTitle(item))}</strong>
+            <span>${escapeHtml(getNotificationItemType(item))}</span>
           </div>
-          <p>${escapeHtml(item.text)}</p>
+          <p>${escapeHtml(getNotificationItemText(item))}</p>
         </article>
       `).join("")
     : `
         <div class="notification-empty">
-          <strong>暂时没有通知</strong>
-          <small>系统公告、版本更新和互动提醒会出现在这里。</small>
+          <strong>${escapeHtml(notificationText("empty", "暂时没有通知"))}</strong>
+          <small>${escapeHtml(notificationText("emptyHint", "系统公告、版本更新和互动提醒会出现在这里。"))}</small>
         </div>
       `;
 
   elements.notificationPanel.innerHTML = `
     <div class="floating-panel-header">
         <div>
-          <strong>${escapeHtml(t("top.notification", "通知"))}</strong>
-          <small>${unreadCount ? `${unreadCount} 条未读` : "暂时没有未读通知"}</small>
+          <strong>${escapeHtml(notificationText("title", "通知"))}</strong>
+          <small>${escapeHtml(unreadCount ? notificationText("unreadCount", "{count} 条未读", { count: unreadCount }) : notificationText("noUnread", "暂时没有未读通知"))}</small>
         </div>
-      <button class="ghost-button compact-ghost" id="notificationCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
+      <button class="ghost-button compact-ghost" id="notificationCloseButton" type="button">${escapeHtml(commonText("close", "关闭"))}</button>
     </div>
-    <div class="notification-toolbar" aria-label="通知操作">
-      <button class="secondary-button compact-secondary" id="notificationMarkReadButton" type="button" ${notifications.length ? "" : "disabled"}>全部已读</button>
-      <button class="secondary-button compact-secondary notification-clear-button" id="notificationClearButton" type="button" ${notifications.length ? "" : "disabled"}>清空本机通知</button>
+    <div class="notification-toolbar" aria-label="${escapeHtml(notificationText("actions", "通知操作"))}">
+      <button class="secondary-button compact-secondary" id="notificationMarkReadButton" type="button" ${notifications.length ? "" : "disabled"}>${escapeHtml(notificationText("markAllRead", "全部已读"))}</button>
+      <button class="secondary-button compact-secondary notification-clear-button" id="notificationClearButton" type="button" ${notifications.length ? "" : "disabled"}>${escapeHtml(notificationText("clearLocal", "清空本机通知"))}</button>
     </div>
     <div class="notification-list">
       ${notificationMarkup}
     </div>
-    <div class="notification-category-list" aria-label="通知分类">
+    <div class="notification-category-list" aria-label="${escapeHtml(notificationText("categories", "通知分类"))}">
       ${NOTIFICATION_CATEGORIES.map((item) => `
-        <span class="notification-category-pill${item.status === "可用" ? " is-ready" : " is-future"}">
-          <strong>${escapeHtml(item.label)}</strong>
-          <small>${escapeHtml(item.status)}</small>
+        <span class="notification-category-pill${item.isReady ? " is-ready" : " is-future"}">
+          <strong>${escapeHtml(getNotificationCategoryLabel(item))}</strong>
+          <small>${escapeHtml(getNotificationCategoryStatus(item))}</small>
         </span>
       `).join("")}
     </div>
@@ -3541,12 +3601,12 @@ function renderMoreMenuPanel() {
         <small>${escapeHtml(t("menu.clearHistory.desc", "清空最近决定和收藏"))}</small>
       </button>
       <button class="more-menu-item" id="menuFeedbackButton" type="button" role="menuitem">
-        <strong>反馈问题</strong>
-        <small>提交 Bug、建议或内容错误</small>
+        <strong>${escapeHtml(settingsText("feedback", "反馈问题"))}</strong>
+        <small>${escapeHtml(t("settings.feedbackDescription", "提交 Bug、建议或内容错误"))}</small>
       </button>
       <button class="more-menu-item" id="menuSettingsButton" type="button" role="menuitem">
         <strong>${escapeHtml(t("menu.settings", "设置"))}</strong>
-        <small>账号、隐私、偏好和应用信息</small>
+        <small>${escapeHtml(t("settings.menuDescription", "账号、隐私、偏好和应用信息"))}</small>
       </button>
       <label class="more-menu-language" for="languageSelect">
         <span>
@@ -3583,13 +3643,13 @@ function renderReleaseNotesSection() {
   }
 
   return `
-    <section class="settings-section release-notes-section" id="releaseNotesSection" aria-label="版本更新内容" ${isReleaseNotesPanelOpen ? "" : "hidden"}>
+    <section class="settings-section release-notes-section" id="releaseNotesSection" aria-label="${escapeHtml(settingsText("releaseNotes", "更新内容"))}" ${isReleaseNotesPanelOpen ? "" : "hidden"}>
       <div class="settings-section-heading release-notes-heading">
         <div>
           <strong>v${escapeHtml(releaseNote.version)} · ${escapeHtml(releaseNote.title)}</strong>
           <small>${escapeHtml(releaseNote.date)} · ${escapeHtml(releaseNote.summary)}</small>
         </div>
-        <button class="ghost-button compact-ghost release-notes-close" id="releaseNotesCloseButton" type="button">收起</button>
+        <button class="ghost-button compact-ghost release-notes-close" id="releaseNotesCloseButton" type="button">${escapeHtml(commonText("collapse", "收起"))}</button>
       </div>
       <div class="release-notes-grid">
         <div class="release-notes-card">
@@ -3629,14 +3689,14 @@ function renderHomeLayoutSettingsSection() {
   return `
     <section class="settings-section home-layout-settings-section" id="homeLayoutSettingsSection">
       <div class="settings-section-heading">
-        <strong>\u81ea\u5b9a\u4e49\u9996\u9875</strong>
-        <small>\u4e3b\u8981\u7f16\u8f91\u53ef\u4ee5\u5728\u9996\u9875\u70b9\u201c\u7f16\u8f91\u9996\u9875\u201d\u5b8c\u6210\u3002</small>
+        <strong>${escapeHtml(settingsText("homeLayout", "自定义首页"))}</strong>
+        <small>${escapeHtml(settingsText("homeLayoutDescription", "主要编辑可以在首页点“编辑首页”完成。"))}</small>
       </div>
       <div class="home-layout-settings-summary">
-        <p>\u5f53\u524d\u6709 ${hiddenCount} \u4e2a\u9690\u85cf\u529f\u80fd\u3002\u9690\u85cf\u53ea\u662f\u672c\u673a\u663e\u793a\u504f\u597d\uff0c\u4e0d\u4f1a\u5220\u9664\u4e16\u754c\u9891\u9053\u6d88\u606f\u3001\u5386\u53f2\u8bb0\u5f55\u6216\u4e91\u7aef\u8d44\u6599\u3002</p>
+        <p>${escapeHtml(settingsText("homeLayoutSummary", "当前有 {count} 个隐藏功能。隐藏只是本机显示偏好，不会删除世界频道消息、历史记录或云端资料。", { count: hiddenCount }))}</p>
         <div class="settings-action-grid settings-utility-actions">
-          <button class="secondary-button" id="settingsHomeEditButton" type="button">\u53bb\u9996\u9875\u7f16\u8f91</button>
-          <button class="secondary-button" id="homeLayoutResetButton" type="button">\u6062\u590d\u9ed8\u8ba4\u9996\u9875\u5e03\u5c40</button>
+          <button class="secondary-button" id="settingsHomeEditButton" type="button">${escapeHtml(settingsText("goEditHome", "去首页编辑"))}</button>
+          <button class="secondary-button" id="homeLayoutResetButton" type="button">${escapeHtml(settingsText("restoreHomeLayout", "恢复默认首页布局"))}</button>
         </div>
       </div>
     </section>
@@ -3645,23 +3705,23 @@ function renderHomeLayoutSettingsSection() {
 
 function renderFriendSettingsSection() {
   const friendItems = [
-    { title: "搜索好友", desc: "之后可以用用户名找到朋友。", toast: "好友功能即将开放" },
-    { title: "好友申请", desc: "之后会集中查看收到和发出的申请。", toast: "好友功能即将开放" },
-    { title: "我的好友列表", desc: "之后会显示已通过的好友。", toast: "好友功能即将开放" },
+    { titleKey: "search", descKey: "searchComingSoon" },
+    { titleKey: "requests", descKey: "requestsComingSoon" },
+    { titleKey: "myFriends", descKey: "listComingSoon" },
   ];
 
   return `
     <section class="settings-section">
       <div class="settings-section-heading">
-        <strong>好友</strong>
-        <small>先预留入口，不开放搜索、私聊或群聊，避免误操作。</small>
+        <strong>${escapeHtml(settingsText("friends", "好友"))}</strong>
+        <small>${escapeHtml(t("friend.sectionDescription", "先预留入口，不开放搜索、私聊或群聊，避免误操作。"))}</small>
       </div>
       <div class="settings-placeholder-grid">
         ${friendItems.map((item) => `
-          <button class="settings-placeholder-card" type="button" data-coming-soon="${escapeHtml(item.toast)}">
-            <span>即将开放</span>
-            <strong>${escapeHtml(item.title)}</strong>
-            <small>${escapeHtml(item.desc)}</small>
+          <button class="settings-placeholder-card" type="button" data-coming-soon="${escapeHtml(t("friend.comingSoon", "好友功能即将开放"))}">
+            <span>${escapeHtml(commonText("comingSoon", "即将开放"))}</span>
+            <strong>${escapeHtml(t(`friend.${item.titleKey}`, ""))}</strong>
+            <small>${escapeHtml(t(`friend.${item.descKey}`, ""))}</small>
           </button>
         `).join("")}
       </div>
@@ -3673,15 +3733,15 @@ function renderNotificationSettingsSection() {
   return `
     <section class="settings-section">
       <div class="settings-section-heading">
-        <strong>通知</strong>
-        <small>铃铛里会显示系统公告、版本更新和后续互动提醒。</small>
+        <strong>${escapeHtml(settingsText("notifications", "通知"))}</strong>
+        <small>${escapeHtml(notificationText("emptyHint", "系统公告、版本更新和互动提醒会出现在这里。"))}</small>
       </div>
       <div class="settings-placeholder-grid">
         ${NOTIFICATION_CATEGORIES.map((item) => `
-          <button class="settings-placeholder-card${item.status === "可用" ? " is-ready" : ""}" type="button" data-coming-soon="${escapeHtml(item.status === "可用" ? "请从右上角铃铛查看通知" : `${item.label}即将开放`)}">
-            <span>${escapeHtml(item.status)}</span>
-            <strong>${escapeHtml(item.label)}</strong>
-            <small>${escapeHtml(item.status === "可用" ? "已放入通知中心" : "预留分类，功能未开放")}</small>
+          <button class="settings-placeholder-card${item.isReady ? " is-ready" : ""}" type="button" data-coming-soon="${escapeHtml(item.isReady ? notificationText("openBellHint", "请从右上角铃铛查看通知") : `${getNotificationCategoryLabel(item)} ${commonText("comingSoon", "即将开放")}`)}">
+            <span>${escapeHtml(getNotificationCategoryStatus(item))}</span>
+            <strong>${escapeHtml(getNotificationCategoryLabel(item))}</strong>
+            <small>${escapeHtml(item.isReady ? notificationText("readyHint", "已放入通知中心") : notificationText("futureHint", "预留分类，功能未开放"))}</small>
           </button>
         `).join("")}
       </div>
@@ -3703,95 +3763,95 @@ function renderSettingsPanel() {
     <form class="settings-form" id="settingsForm">
       <div class="floating-panel-header">
         <div>
-          <strong>设置中心</strong>
-          <small>账号、隐私、好友、通知、偏好和应用信息集中整理</small>
+          <strong>${escapeHtml(settingsText("title", "设置中心"))}</strong>
+          <small>${escapeHtml(settingsText("subtitle", "账号、隐私、好友、通知、偏好和应用信息集中整理"))}</small>
         </div>
-        <button class="ghost-button compact-ghost" id="settingsCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
+        <button class="ghost-button compact-ghost" id="settingsCloseButton" type="button">${escapeHtml(commonText("close", "关闭"))}</button>
       </div>
-      ${!isLoggedIn ? '<p class="settings-login-hint">登入后可以保存隐私和内容偏好到云端。</p>' : ""}
+      ${!isLoggedIn ? `<p class="settings-login-hint">${escapeHtml(settingsText("loginHint", "登入后可以保存隐私和内容偏好到云端。"))}</p>` : ""}
       <section class="settings-section">
         <div class="settings-section-heading">
-          <strong>账号</strong>
-          <small>${isLoggedIn ? escapeHtml(getUserDisplayName(currentUser)) : "尚未登入"}</small>
+          <strong>${escapeHtml(settingsText("account", "账号"))}</strong>
+          <small>${isLoggedIn ? escapeHtml(getUserDisplayName(currentUser)) : escapeHtml(settingsText("notLoggedIn", "尚未登入"))}</small>
         </div>
         <div class="settings-action-grid">
-          <button class="secondary-button" id="settingsEditProfileButton" type="button" ${disabled}>编辑个人资料</button>
-          <button class="secondary-button" id="settingsPasswordButton" type="button" ${disabled}>修改密码</button>
-          <button class="secondary-button profile-logout-button" id="settingsLogoutButton" type="button" ${disabled}>登出账号</button>
+          <button class="secondary-button" id="settingsEditProfileButton" type="button" ${disabled}>${escapeHtml(settingsText("editProfile", "编辑个人资料"))}</button>
+          <button class="secondary-button" id="settingsPasswordButton" type="button" ${disabled}>${escapeHtml(settingsText("changePassword", "修改密码"))}</button>
+          <button class="secondary-button profile-logout-button" id="settingsLogoutButton" type="button" ${disabled}>${escapeHtml(settingsText("logout", "登出账号"))}</button>
         </div>
       </section>
       <section class="settings-section">
         <div class="settings-section-heading">
-          <strong>隐私</strong>
-          <small>为之后好友和私聊功能预留；保存后不会立刻开放私聊或好友功能。</small>
+          <strong>${escapeHtml(settingsText("privacy", "隐私"))}</strong>
+          <small>${escapeHtml(settingsText("privacyDescription", "为之后好友和私聊功能预留；保存后不会立刻开放私聊或好友功能。"))}</small>
         </div>
         <label class="settings-toggle">
-          <span><strong>允许别人搜索到我</strong><small>为之后好友搜索预留</small></span>
+          <span><strong>${escapeHtml(settingsText("allowSearch", "允许别人搜索到我"))}</strong><small>${escapeHtml(settingsText("allowSearchDescription", "为之后好友搜索预留"))}</small></span>
           <input id="settingsDiscoverable" type="checkbox" ${settings.privacy.discoverable ? "checked" : ""} ${disabled} />
         </label>
         <label class="settings-toggle">
-          <span><strong>允许好友申请</strong><small>功能未开放前不会显示好友入口</small></span>
+          <span><strong>${escapeHtml(settingsText("allowFriendRequests", "允许好友申请"))}</strong><small>${escapeHtml(settingsText("allowFriendRequestsDescription", "功能未开放前不会显示好友入口"))}</small></span>
           <input id="settingsAllowFriendRequests" type="checkbox" ${settings.privacy.allowFriendRequests ? "checked" : ""} ${disabled} />
         </label>
         <label class="settings-toggle">
-          <span><strong>显示在线状态</strong><small>为之后世界频道和好友状态预留</small></span>
+          <span><strong>${escapeHtml(settingsText("showOnlineStatus", "显示在线状态"))}</strong><small>${escapeHtml(settingsText("showOnlineStatusDescription", "为之后世界频道和好友状态预留"))}</small></span>
           <input id="settingsShowOnlineStatus" type="checkbox" ${settings.privacy.showOnlineStatus ? "checked" : ""} ${disabled} />
         </label>
         <div class="field">
-          <label for="settingsAllowDirectMessages">允许私聊</label>
+          <label for="settingsAllowDirectMessages">${escapeHtml(settingsText("allowPrivateChat", "允许私聊"))}</label>
           <select id="settingsAllowDirectMessages" ${disabled}>
-            <option value="everyone" ${settings.privacy.allowDirectMessages === "everyone" ? "selected" : ""}>所有人</option>
-            <option value="friendsOnly" ${settings.privacy.allowDirectMessages === "friendsOnly" ? "selected" : ""}>仅好友</option>
-            <option value="none" ${settings.privacy.allowDirectMessages === "none" ? "selected" : ""}>不允许</option>
+            <option value="everyone" ${settings.privacy.allowDirectMessages === "everyone" ? "selected" : ""}>${escapeHtml(settingsText("privateChatEveryone", "所有人"))}</option>
+            <option value="friendsOnly" ${settings.privacy.allowDirectMessages === "friendsOnly" ? "selected" : ""}>${escapeHtml(settingsText("privateChatFriendsOnly", "仅好友"))}</option>
+            <option value="none" ${settings.privacy.allowDirectMessages === "none" ? "selected" : ""}>${escapeHtml(settingsText("privateChatDisabled", "不允许"))}</option>
           </select>
-          <small class="field-hint">私聊功能未开放，这里只是先保存你的偏好。</small>
+          <small class="field-hint">${escapeHtml(settingsText("privateChatReserved", "私聊功能未开放，这里只是先保存你的偏好。"))}</small>
         </div>
       </section>
       ${renderFriendSettingsSection()}
       ${renderNotificationSettingsSection()}
       <section class="settings-section">
         <div class="settings-section-heading">
-          <strong>内容偏好</strong>
-          <small>保存默认语言、货币和世界频道筛选偏好。</small>
+          <strong>${escapeHtml(settingsText("contentPreferences", "内容偏好"))}</strong>
+          <small>${escapeHtml(settingsText("contentPreferencesDescription", "保存默认语言、货币和世界频道筛选偏好。"))}</small>
         </div>
         <div class="settings-grid">
           <div class="field">
-            <label for="settingsLanguage">默认语言</label>
+            <label for="settingsLanguage">${escapeHtml(settingsText("defaultLanguage", "默认语言"))}</label>
             <select id="settingsLanguage" ${disabled}>
               ${SUPPORTED_LANGUAGES.map((language) => `<option value="${language}" ${settings.preferences.language === language ? "selected" : ""}>${LANGUAGE_LABELS[language]}</option>`).join("")}
             </select>
           </div>
           <div class="field">
-            <label for="settingsCurrency">默认货币</label>
+            <label for="settingsCurrency">${escapeHtml(settingsText("defaultCurrency", "默认货币"))}</label>
             <select id="settingsCurrency" ${disabled}>
               ${renderCurrencyOptions(settings.preferences.currency)}
             </select>
           </div>
           <div class="field">
-            <label for="settingsWorldRegion">世界频道地区</label>
+            <label for="settingsWorldRegion">${escapeHtml(settingsText("worldRegion", "世界频道地区"))}</label>
             <select id="settingsWorldRegion" ${disabled}>
               ${WORLD_REGION_OPTIONS.map((region) => `<option value="${region.value}" ${settings.preferences.worldRegion === region.value ? "selected" : ""}>${region.label}</option>`).join("")}
             </select>
           </div>
           <div class="field">
-            <label for="settingsWorldTopics">世界频道主题筛选</label>
+            <label for="settingsWorldTopics">${escapeHtml(settingsText("worldTopics", "世界频道主题筛选"))}</label>
             <input id="settingsWorldTopics" value="${escapeHtml(formatWorldTopics(settings.preferences.worldTopics))}" placeholder="general, food, travel" ${disabled} />
           </div>
         </div>
       </section>
       <section class="settings-section">
         <div class="settings-section-heading">
-          <strong>应用</strong>
-          <small>当前版本、更新内容、反馈和本机记录。</small>
+          <strong>${escapeHtml(settingsText("app", "应用"))}</strong>
+          <small>${escapeHtml(settingsText("appDescription", "当前版本、更新内容、反馈和本机记录。"))}</small>
         </div>
         <button class="settings-version-button" id="settingsVersionButton" type="button" aria-expanded="${isReleaseNotesPanelOpen}">
-          <span>当前版本</span>
+          <span>${escapeHtml(settingsText("currentVersion", "当前版本"))}</span>
           <strong>v${APP_VERSION}</strong>
-          <small id="settingsVersionHint">${isReleaseNotesPanelOpen ? "更新内容已展开" : "点击查看更新内容"}</small>
+          <small id="settingsVersionHint">${escapeHtml(isReleaseNotesPanelOpen ? settingsText("releaseNotesExpanded", "更新内容已展开") : settingsText("releaseNotesHint", "点击查看更新内容"))}</small>
         </button>
         <div class="settings-action-grid settings-utility-actions">
-          <button class="secondary-button settings-feedback-button" id="settingsFeedbackButton" type="button">反馈问题</button>
-          <button class="secondary-button settings-clear-button" id="settingsClearLocalButton" type="button">清除记录</button>
+          <button class="secondary-button settings-feedback-button" id="settingsFeedbackButton" type="button">${escapeHtml(settingsText("feedback", "反馈问题"))}</button>
+          <button class="secondary-button settings-clear-button" id="settingsClearLocalButton" type="button">${escapeHtml(settingsText("clearRecords", "清除记录"))}</button>
         </div>
       </section>
       ${renderHomeLayoutSettingsSection()}
@@ -3799,51 +3859,51 @@ function renderSettingsPanel() {
       <section class="settings-section">
         <div class="settings-section-heading connected-apps-heading">
           <div>
-            <strong>关联小应用</strong>
-            <small>未来可以把随心转盘和更多生活奇思妙想小工具连接到同一个账号，方便同步个人资料、设置和使用记录。</small>
+            <strong>${escapeHtml(settingsText("connectedApps", "关联小应用"))}</strong>
+            <small>${escapeHtml(settingsText("connectedAppsDescription", "未来可以把随心转盘和更多生活奇思妙想小工具连接到同一个账号，方便同步个人资料、设置和使用记录。"))}</small>
           </div>
-          <span class="connected-apps-badge">开发中</span>
+          <span class="connected-apps-badge">${escapeHtml(settingsText("connectedAppsBadge", "开发中"))}</span>
         </div>
-        <div class="connected-apps-row" aria-label="关联小应用示例">
+        <div class="connected-apps-row" aria-label="${escapeHtml(settingsText("connectedAppsAria", "关联小应用示例"))}">
           <article class="connected-app-card is-current">
             <span class="connected-app-icon connected-app-icon-image">
               <img src="./assets/icons/app-icon.png" alt="" loading="lazy" />
             </span>
             <div class="connected-app-copy">
-              <strong>随心转盘</strong>
-              <small>当前应用</small>
+              <strong>${escapeHtml(t("app.name", "随心转盘"))}</strong>
+              <small>${escapeHtml(settingsText("currentApp", "当前应用"))}</small>
             </div>
-            <span class="connected-app-status is-current">当前</span>
+            <span class="connected-app-status is-current">${escapeHtml(settingsText("current", "当前"))}</span>
           </article>
           <article class="connected-app-card is-disabled" aria-disabled="true">
             <span class="connected-app-icon">🧩</span>
             <div class="connected-app-copy">
-              <strong>奇思妙想工具</strong>
-              <small>计划中</small>
+              <strong>${escapeHtml(settingsText("ideaTool", "奇思妙想工具"))}</strong>
+              <small>${escapeHtml(settingsText("planned", "计划中"))}</small>
             </div>
-            <span class="connected-app-status">计划中</span>
+            <span class="connected-app-status">${escapeHtml(settingsText("planned", "计划中"))}</span>
           </article>
           <article class="connected-app-card is-disabled" aria-disabled="true">
             <span class="connected-app-icon">🧩</span>
             <div class="connected-app-copy">
-              <strong>生活记录工具</strong>
-              <small>计划中</small>
+              <strong>${escapeHtml(settingsText("lifeLogTool", "生活记录工具"))}</strong>
+              <small>${escapeHtml(settingsText("planned", "计划中"))}</small>
             </div>
-            <span class="connected-app-status">计划中</span>
+            <span class="connected-app-status">${escapeHtml(settingsText("planned", "计划中"))}</span>
           </article>
           <article class="connected-app-card is-disabled" aria-disabled="true">
             <span class="connected-app-icon">🧩</span>
             <div class="connected-app-copy">
-              <strong>更多小工具</strong>
-              <small>计划中</small>
+              <strong>${escapeHtml(settingsText("moreTools", "更多小工具"))}</strong>
+              <small>${escapeHtml(settingsText("planned", "计划中"))}</small>
             </div>
-            <span class="connected-app-status">计划中</span>
+            <span class="connected-app-status">${escapeHtml(settingsText("planned", "计划中"))}</span>
           </article>
         </div>
-        <p class="settings-footnote">当前只是占位展示：不会跳转外部应用，不会读取其他应用数据，也不会启动真实授权。</p>
+        <p class="settings-footnote">${escapeHtml(settingsText("connectedAppsFootnote", "当前只是占位展示：不会跳转外部应用，不会读取其他应用数据，也不会启动真实授权。"))}</p>
       </section>
       <div class="settings-form-actions">
-        <button class="primary-button compact-primary" id="settingsSubmitButton" type="submit" ${disabled}>保存设置</button>
+        <button class="primary-button compact-primary" id="settingsSubmitButton" type="submit" ${disabled}>${escapeHtml(settingsText("saveSettings", "保存设置"))}</button>
       </div>
     </form>
   `;
@@ -3866,7 +3926,7 @@ function renderSettingsPanel() {
 
 function bindSettingsPlaceholderControls() {
   document.querySelectorAll("[data-coming-soon]").forEach((button) => {
-    button.addEventListener("click", () => showComingSoonToast(button.dataset.comingSoon || "功能即将开放"));
+    button.addEventListener("click", () => showComingSoonToast(button.dataset.comingSoon || commonText("comingSoon", "功能即将开放")));
   });
 }
 
@@ -4185,7 +4245,7 @@ function resetHomeLayout() {
   ensureVisibleHomeMode();
   saveState();
   refreshHomeLayoutUi();
-  showToast("\u9996\u9875\u5e03\u5c40\u5df2\u6062\u590d\u9ed8\u8ba4\u3002");
+  showToast(settingsText("homeLayoutRestored", "首页布局已恢复默认。"));
 }
 
 function getSettingsFormPayload() {
@@ -4215,7 +4275,7 @@ async function saveSettingsCenter(event) {
   const submitButton = document.querySelector("#settingsSubmitButton");
 
   if (!currentUser) {
-    showToast("请先登入后再保存设置。");
+    showToast(settingsText("loginToSave", "请先登入后再保存设置。"));
     return;
   }
 
@@ -4224,7 +4284,7 @@ async function saveSettingsCenter(event) {
   try {
     if (submitButton) {
       submitButton.disabled = true;
-      submitButton.textContent = "正在保存…";
+      submitButton.textContent = settingsText("saving", "正在保存…");
     }
 
     const payload = await authRequest("update-settings", { settings });
@@ -4236,19 +4296,19 @@ async function saveSettingsCenter(event) {
     state.currency = preferences.currency;
     saveState();
     render();
-    showToast("设置已保存。");
+    showToast(settingsText("savedToast", "设置已保存。"));
   } catch (error) {
     reportClientError(error, {
       type: "auth-settings-update-failed",
       source: AUTH_ENDPOINT,
     });
-    showToast("设置暂时保存失败，请稍后再试");
+    showToast(settingsText("saveFailedToast", "设置暂时保存失败，请稍后再试。"));
   } finally {
     const currentSubmitButton = document.querySelector("#settingsSubmitButton");
 
     if (currentSubmitButton) {
       currentSubmitButton.disabled = false;
-      currentSubmitButton.textContent = "保存设置";
+      currentSubmitButton.textContent = settingsText("saveSettings", "保存设置");
     }
   }
 }
@@ -4489,7 +4549,7 @@ function renderWorldControls() {
       <form class="world-panel auth-panel" id="authForm">
         <div class="world-panel-header">
           <strong>${isRegisterMode ? "注册新账号" : "登入世界频道"}</strong>
-          <small>登录后可发送</small>
+          <small>${escapeHtml(worldText("loginToPost", "登录后可发送"))}</small>
         </div>
         <div class="auth-mode-tabs" role="tablist" aria-label="登入注册切换">
           <button class="auth-mode-tab${!isRegisterMode ? " is-active" : ""}" type="button" data-auth-mode="login" aria-pressed="${!isRegisterMode}">登入</button>
@@ -4568,34 +4628,34 @@ function renderWorldControls() {
           </span>
           <div class="world-composer-copy">
             <strong>${escapeHtml(displayName)}</strong>
-            <small><span class="world-online-dot" aria-hidden="true"></span>在线</small>
+            <small><span class="world-online-dot" aria-hidden="true"></span>${escapeHtml(worldText("online", "在线"))}</small>
           </div>
         </div>
       </div>
       <div class="field world-message-field">
-        <label for="worldMessageInput">发一句到世界频道</label>
+        <label for="worldMessageInput">${escapeHtml(worldText("inputLabel", "发一句到世界频道"))}</label>
         <div class="world-textarea-wrap">
           <textarea id="worldMessageInput" maxlength="${WORLD_MESSAGE_MAX_LENGTH}" rows="2" placeholder="${escapeHtml(worldPlaceholder)}"></textarea>
           <small class="world-character-hint" id="worldCharacterHint" aria-live="polite" hidden></small>
         </div>
       </div>
       <div class="world-composer-actions">
-        <button class="primary-button compact-primary" id="worldSendButton" type="submit">发送</button>
+        <button class="primary-button compact-primary" id="worldSendButton" type="submit">${escapeHtml(worldText("send", "发送"))}</button>
         <div class="world-image-action">
           <label class="image-upload-button">
             <input id="worldImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
-            图片
+            ${escapeHtml(worldText("image", "图片"))}
           </label>
-          <small class="upload-status" id="worldUploadStatus">先预览再发送</small>
+          <small class="upload-status" id="worldUploadStatus">${escapeHtml(worldText("previewBeforeSend", "先预览再发送"))}</small>
         </div>
       </div>
       <div class="pending-image-preview" id="worldPendingImage" hidden>
-        <img id="worldPendingImageThumb" alt="待发送图片缩略图" />
+        <img id="worldPendingImageThumb" alt="${escapeHtml(worldText("pendingImageAlt", "待发送图片缩略图"))}" />
         <div class="world-crop-copy">
           <strong id="worldPendingImageName"></strong>
-          <small id="worldPendingImageMeta">图片已准备，点「发送」才上传。</small>
+          <small id="worldPendingImageMeta">${escapeHtml(worldText("pendingImageReady", "图片已准备，点「发送」才上传。"))}</small>
         </div>
-        <button class="ghost-button compact-ghost" id="clearWorldImageButton" type="button">移除</button>
+        <button class="ghost-button compact-ghost" id="clearWorldImageButton" type="button">${escapeHtml(commonText("remove", "移除"))}</button>
       </div>
     </form>
   `;
@@ -4620,24 +4680,26 @@ function pickWorldPlaceholder() {
 }
 
 function getWorldPlaceholder() {
-  return typeof currentWorldPlaceholder === "string" && currentWorldPlaceholder.trim()
+  const placeholder = typeof currentWorldPlaceholder === "string" && currentWorldPlaceholder.trim()
     ? currentWorldPlaceholder
     : pickWorldPlaceholder();
+
+  return worldText("inputPlaceholder", placeholder);
 }
 
 function getWorldCharacterHint(length) {
   const remaining = Math.max(WORLD_MESSAGE_MAX_LENGTH - length, 0);
 
   if (length >= WORLD_MESSAGE_MAX_LENGTH) {
-    return "字数满了，先发出去吧";
+    return worldText("characterFull", "字数满了，先发出去吧");
   }
 
   if (length >= 215) {
-    return `快满了，还剩 ${remaining} 字`;
+    return worldText("characterAlmostFull", "快满了，还剩 {count} 字", { count: remaining });
   }
 
   if (length >= 200) {
-    return `还可以输入 ${remaining} 字`;
+    return worldText("characterRemaining", "还可以输入 {count} 字", { count: remaining });
   }
 
   return "";
@@ -5758,7 +5820,7 @@ function renderGiftPreview() {
 function renderWorldChannel() {
   const visibleMessages = state.worldMessages.filter((message) => !isDeletedWorldMessageClient(message));
 
-  elements.worldChatCount.textContent = `${visibleMessages.length} 条消息`;
+  elements.worldChatCount.textContent = worldText("messageCount", "{count} 条消息", { count: visibleMessages.length });
   elements.worldChatList.innerHTML = `
     <div class="world-chat">
       ${visibleMessages
@@ -5800,9 +5862,9 @@ function renderWorldLikeButton(message) {
   const likeCount = Math.max(Number(message.likeCount) || 0, 0);
   const label = currentAccount
     ? isLiked
-      ? "取消爱心"
-      : "点爱心"
-    : "登录后可以点爱心";
+      ? worldText("unlike", "取消爱心")
+      : worldText("like", "点爱心")
+    : worldText("loginToLike", "登录后可以点爱心");
 
   return `
     <button class="world-like-button${isLiked ? " is-liked" : ""}${isPending ? " is-loading" : ""}" type="button" data-world-like="${escapeHtml(message.id)}" aria-pressed="${isLiked}" aria-label="${label}" ${isPending ? "disabled" : ""}>
@@ -5823,11 +5885,11 @@ function renderWorldAttachment(attachment, message = null) {
     return "";
   }
 
-  const imageAlt = attachment.alt || attachment.name || "世界频道图片";
+  const imageAlt = attachment.alt || attachment.name || worldText("imageAlt", "世界频道图片");
   const caption = message ? getWorldMessageText(message) : "";
 
   return `
-    <button class="world-image-link" type="button" data-world-image-url="${escapeHtml(attachment.url)}" data-world-image-alt="${escapeHtml(imageAlt)}" data-world-image-caption="${escapeHtml(caption)}" aria-label="打开世界频道图片预览">
+    <button class="world-image-link" type="button" data-world-image-url="${escapeHtml(attachment.url)}" data-world-image-alt="${escapeHtml(imageAlt)}" data-world-image-caption="${escapeHtml(caption)}" aria-label="${escapeHtml(worldText("openImagePreview", "打开世界频道图片预览"))}">
       <img src="${escapeHtml(attachment.url)}" alt="${escapeHtml(imageAlt)}" loading="lazy" />
     </button>
   `;
@@ -6943,7 +7005,7 @@ function markAllNotificationsRead() {
   state.notificationReadIds = [...new Set([...state.notificationReadIds, ...visibleIds])];
   saveState();
   renderTopUserTools();
-  showToast("通知已全部标为已读");
+  showToast(notificationText("markedRead", "通知已全部标为已读"));
 }
 
 function clearLocalNotifications() {
@@ -6952,7 +7014,7 @@ function clearLocalNotifications() {
   state.notificationReadIds = [...new Set([...state.notificationReadIds, ...visibleIds])];
   saveState();
   renderTopUserTools();
-  showToast("本机通知已清空");
+  showToast(notificationText("cleared", "本机通知已清空"));
 }
 
 function toggleMoreMenu() {
@@ -6994,7 +7056,7 @@ function closeSettingsPanel() {
 
 function openProfileFromSettings(target = "profile") {
   if (!getCurrentUser()) {
-    showToast("请先登入再编辑账号。");
+    showToast(settingsText("loginToEdit", "请先登入再编辑账号。"));
     return;
   }
 
