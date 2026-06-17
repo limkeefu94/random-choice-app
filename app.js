@@ -1832,6 +1832,9 @@ const RELEASE_NOTES = [
       "Normalized default image-only world message captions across zh-CN, en, and ms.",
       "Added helper to detect localized and legacy default image captions.",
       "Preserved user-written image captions.",
+      "Preserved raw MYR budget values and deferred currency formatting to render/copy time.",
+      "Added missing username locale keys for world sign-in forms.",
+      "Added shared filter.budget locale key.",
       "Preserved existing auth, GCS, world channel API, image, like, home edit, and gift pairing flows.",
     ],
   },
@@ -2512,8 +2515,8 @@ function fixedLabelText(value, fallback = value) {
 }
 
 function formatBudgetLabel(budget, options = {}) {
-  const { perPerson = false, prefix = "budgetApprox" } = options;
-  const formattedBudget = formatBudget(budget);
+  const { perPerson = false, prefix = "budgetApprox", convert = true } = options;
+  const formattedBudget = convert ? formatBudget(budget) : String(budget || "").trim();
 
   if (!formattedBudget) {
     return "";
@@ -2524,6 +2527,10 @@ function formatBudgetLabel(budget, options = {}) {
   }
 
   return resultText(prefix, "预算约 {budget}", { budget: formattedBudget });
+}
+
+function formatRawBudgetLabel(budget, options = {}) {
+  return formatBudgetLabel(budget, { ...options, convert: false });
 }
 
 function joinFixedLabels(values, separator = " / ") {
@@ -6462,7 +6469,7 @@ function getResult() {
     return {
       mode: state.mode,
       title: fixedLabelText(dishResult.title, dishResult.title),
-      meta: `${sourceLabel} · ${joinFixedLabels(dishResult.tags, " / ")} · ${formatBudgetLabel(dishResult.budget)}${poolNote}`,
+      meta: `${sourceLabel} · ${joinFixedLabels(dishResult.tags, " / ")} · ${formatRawBudgetLabel(dishResult.budget)}${poolNote}`,
     };
   }
 
@@ -6472,7 +6479,7 @@ function getResult() {
     return {
       mode: state.mode,
       title: fixedLabelText(drinkResult.title, drinkResult.title),
-      meta: `${fixedLabelText(state.drink.country)} · ${drinkResult.brand} · ${joinFixedLabels(drinkResult.tags, " / ")} · ${formatBudgetLabel(drinkResult.budget)}${poolNote}`,
+      meta: `${fixedLabelText(state.drink.country)} · ${drinkResult.brand} · ${joinFixedLabels(drinkResult.tags, " / ")} · ${formatRawBudgetLabel(drinkResult.budget)}${poolNote}`,
     };
   }
 
@@ -6483,7 +6490,7 @@ function getResult() {
     return {
       mode: state.mode,
       title: fixedLabelText(travelResult.title, travelResult.title),
-      meta: `${fixedLabelText(travelResult.country)} · ${formatLocaleText(t("travel.days", "{count} 天"), { count: travelResult.days })} · ${joinFixedLabels(getDestinationActivities(travelResult).slice(0, 3), " / ")} · ${fixedLabelText(state.travel.transport === "全部" ? travelResult.transports[0] : state.travel.transport)} · ${formatBudgetLabel(budgetText, { perPerson: true })}${poolNote}。${fixedLabelText(travelResult.note, travelResult.note)}`,
+      meta: `${fixedLabelText(travelResult.country)} · ${formatLocaleText(t("travel.days", "{count} 天"), { count: travelResult.days })} · ${joinFixedLabels(getDestinationActivities(travelResult).slice(0, 3), " / ")} · ${fixedLabelText(state.travel.transport === "全部" ? travelResult.transports[0] : state.travel.transport)} · ${formatRawBudgetLabel(budgetText, { perPerson: true })}${poolNote}。${fixedLabelText(travelResult.note, travelResult.note)}`,
     };
   }
 
@@ -6534,7 +6541,7 @@ function buildShoppingResultMeta(item, poolNote = "") {
     fixedLabelText(item.category),
     fixedLabelText(item.subcategory),
     fixedLabelText(item.level),
-    formatBudgetLabel(item.budget),
+    formatRawBudgetLabel(item.budget),
   ].filter(Boolean);
 
   return `${parts.join(" · ")}${poolNote}`;
