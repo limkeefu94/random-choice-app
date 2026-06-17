@@ -1835,6 +1835,9 @@ const RELEASE_NOTES = [
       "Preserved raw MYR budget values and deferred currency formatting to render/copy time.",
       "Added missing username locale keys for world sign-in forms.",
       "Added shared filter.budget locale key.",
+      "Preserved raw option identifiers/titles in generated results.",
+      "Deferred localized result title formatting to render/copy time.",
+      "Made favorite/history matching stable across language changes.",
       "Preserved existing auth, GCS, world channel API, image, like, home edit, and gift pairing flows.",
     ],
   },
@@ -2512,6 +2515,74 @@ function candidateText(key, fallback = "", replacements = {}) {
 function fixedLabelText(value, fallback = value) {
   const key = String(value || "").trim();
   return key ? t(`label.${key}`, fallback || key) : "";
+}
+
+function getRawLabelKeyFromDisplay(value) {
+  const text = String(value || "").trim();
+
+  if (!text) {
+    return "";
+  }
+
+  const locales = window.APP_LOCALES || {};
+
+  for (const dictionary of Object.values(locales)) {
+    if (!dictionary || typeof dictionary !== "object") {
+      continue;
+    }
+
+    for (const [key, translatedValue] of Object.entries(dictionary)) {
+      if (key.startsWith("label.") && String(translatedValue || "").trim() === text) {
+        return key.slice("label.".length);
+      }
+    }
+  }
+
+  return text;
+}
+
+function getResultRawTitle(result) {
+  const rawTitle = String(result?.rawTitle || result?.titleKey || "").trim();
+
+  if (rawTitle) {
+    return rawTitle;
+  }
+
+  if (["food", "drink", "travel", "shopping"].includes(result?.mode)) {
+    return getRawLabelKeyFromDisplay(result?.title);
+  }
+
+  return String(result?.title || "").trim();
+}
+
+function getResultDisplayTitle(result) {
+  const title = String(result?.title || "").trim();
+  const rawTitle = getResultRawTitle(result);
+
+  if (!rawTitle) {
+    return title;
+  }
+
+  if (!["food", "drink", "travel", "shopping"].includes(result?.mode)) {
+    return title || rawTitle;
+  }
+
+  return fixedLabelText(rawTitle, title || rawTitle);
+}
+
+function getResultStableKey(result) {
+  if (!result) {
+    return "";
+  }
+
+  const mode = result.mode || "";
+  const rawTitle = getResultRawTitle(result) || String(result.title || "").trim();
+
+  if (mode === "number") {
+    return `${mode}:${result.lotteryGameId || rawTitle}`;
+  }
+
+  return `${mode}:${rawTitle}`;
 }
 
 function formatBudgetLabel(budget, options = {}) {
@@ -6468,7 +6539,8 @@ function getResult() {
 
     return {
       mode: state.mode,
-      title: fixedLabelText(dishResult.title, dishResult.title),
+      title: dishResult.title,
+      rawTitle: dishResult.title,
       meta: `${sourceLabel} · ${joinFixedLabels(dishResult.tags, " / ")} · ${formatRawBudgetLabel(dishResult.budget)}${poolNote}`,
     };
   }
@@ -6478,7 +6550,8 @@ function getResult() {
 
     return {
       mode: state.mode,
-      title: fixedLabelText(drinkResult.title, drinkResult.title),
+      title: drinkResult.title,
+      rawTitle: drinkResult.title,
       meta: `${fixedLabelText(state.drink.country)} · ${drinkResult.brand} · ${joinFixedLabels(drinkResult.tags, " / ")} · ${formatRawBudgetLabel(drinkResult.budget)}${poolNote}`,
     };
   }
@@ -6489,7 +6562,8 @@ function getResult() {
 
     return {
       mode: state.mode,
-      title: fixedLabelText(travelResult.title, travelResult.title),
+      title: travelResult.title,
+      rawTitle: travelResult.title,
       meta: `${fixedLabelText(travelResult.country)} · ${formatLocaleText(t("travel.days", "{count} 天"), { count: travelResult.days })} · ${joinFixedLabels(getDestinationActivities(travelResult).slice(0, 3), " / ")} · ${fixedLabelText(state.travel.transport === "全部" ? travelResult.transports[0] : state.travel.transport)} · ${formatRawBudgetLabel(budgetText, { perPerson: true })}${poolNote}。${fixedLabelText(travelResult.note, travelResult.note)}`,
     };
   }
@@ -6513,6 +6587,7 @@ function getResult() {
     return {
       mode: state.mode,
       title: shoppingResult.title,
+      rawTitle: shoppingResult.title,
       meta: buildShoppingResultMeta(shoppingResult, poolNote),
       shopping: buildShoppingResultDetails(shoppingResult),
     };
@@ -6523,6 +6598,7 @@ function getResult() {
   return {
     mode: state.mode,
     title: customResult.title,
+    rawTitle: customResult.title,
     meta: resultText("customOptionMeta", "来自你的 {count} 个自定义选项", { count: options.length }) + poolNote,
   };
 }
@@ -10037,7 +10113,7 @@ function getResultCopyText(result = state.currentResult) {
   const lines = [
     getModeTitle(result.mode),
     "",
-    result.title,
+    getResultDisplayTitle(result),
     ...getResultMetaLines(result),
   ];
 
@@ -10150,7 +10226,7 @@ function drawResult() {
 function renderResult(result) {
   elements.resultStage.classList.toggle("is-gift-result", result.mode === "gift");
   elements.resultLabel.textContent = getModeText(result.mode, "label");
-  elements.resultValue.textContent = result.mode === "number" ? result.title : result.title;
+  elements.resultValue.textContent = result.mode === "number" ? result.title : getResultDisplayTitle(result);
   elements.resultMeta.innerHTML = renderResultMeta(result);
   updateResultActionButtons(result);
 
@@ -10301,7 +10377,8 @@ function isFavoriteResult(result = state.currentResult) {
     return false;
   }
 
-  return state.favorites.some((item) => item.title === result.title && item.mode === result.mode);
+  const resultKey = getResultStableKey(result);
+  return state.favorites.some((item) => item.mode === result.mode && getResultStableKey(item) === resultKey);
 }
 
 function renderHistory() {
@@ -10324,7 +10401,7 @@ function renderStackItems(items, emptyText) {
       const timeText = item.time ? ` · ${item.time}` : "";
       return `
         <article class="stack-item">
-          <strong>${escapeHtml(item.title)}</strong>
+          <strong>${escapeHtml(getResultDisplayTitle(item))}</strong>
           <small>${renderStackItemMeta(item, timeText)}</small>
         </article>
       `;
