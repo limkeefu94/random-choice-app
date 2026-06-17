@@ -76,6 +76,12 @@ const WORLD_IMAGE_CROP_MODES = {
   landscape: { label: "横图", aspectRatio: 4 / 3 },
   portrait: { label: "竖图", aspectRatio: 3 / 4 },
 };
+const WORLD_DEFAULT_IMAGE_CAPTION_VALUES = [
+  "分享了一张图片",
+  "上传了一张图片",
+  "Shared a photo",
+  "Berkongsi satu gambar",
+];
 const TRAVEL_MOODS = ["全部", "短途", "放松", "自然", "城市", "美食", "文化", "冒险", "购物", "海岛", "亲子"];
 const TRAVEL_ACTIVITIES = ["全部", "潜水", "浮潜", "海岛跳岛", "爬山", "徒步", "滑雪", "冲浪", "露营", "温泉", "沙漠", "极光", "野生动物", "赏鲸", "骑行", "皮划艇", "漂流", "文化探索", "美食巡礼", "城市漫游", "购物", "亲子乐园", "摄影", "自驾风景"];
 const TRAVEL_LEVELS = ["全部", "穷游", "低消费", "舒适", "轻奢", "奢华"];
@@ -1766,11 +1772,11 @@ const LOTTERY_COUNTRIES = ["全部", ...new Set(LOTTERY_DATA.map((item) => item.
 );
 
 const DAILY_TIPS = [
-  { title: "轻一点的决定", text: "如果抽到的结果让你皱眉，那其实你已经知道自己不想要什么了。" },
-  { title: "三秒规则", text: "按下随机后，第一反应通常很诚实。开心就去做，抗拒就重抽。" },
-  { title: "今天别太完美", text: "随机不是替你负责，而是帮你打破僵住的那一分钟。" },
-  { title: "先抽小事", text: "从午餐、咖啡、散步路线开始，给大脑省一点电。" },
-  { title: "锁定朋友提案", text: "把 5 个朋友各自想去的地点锁住，就能只在这 5 个里随机。" },
+  { key: "lighterDecision", title: "轻一点的决定", text: "如果抽到的结果让你皱眉，那其实你已经知道自己不想要什么了。" },
+  { key: "threeSecondRule", title: "三秒规则", text: "按下随机后，第一反应通常很诚实。开心就去做，抗拒就重抽。" },
+  { key: "imperfectDay", title: "今天别太完美", text: "随机不是替你负责，而是帮你打破僵住的那一分钟。" },
+  { key: "smallFirst", title: "先抽小事", text: "从午餐、咖啡、散步路线开始，给大脑省一点电。" },
+  { key: "friendLocks", title: "锁定朋友提案", text: "把 5 个朋友各自想去的地点锁住，就能只在这 5 个里随机。" },
 ];
 
 const DEFAULT_CUSTOM_TEXT = "看电影\n去散步\n整理书桌\n喝一杯咖啡\n给朋友发消息\n早点睡";
@@ -1792,10 +1798,49 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.6.9";
+const APP_VERSION = "0.7.0";
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const RELEASE_NOTES = [
+  {
+    version: "0.7.0",
+    title: "翻译池基础整理",
+    date: "2026-06-17",
+    summary: "这次整理了全 App 的翻译池，补齐常用按钮、状态、错误提示、设置、通知、世界频道、礼物交换和未来功能预留文案，让后续新增功能更容易保持中文、英文和马来文一致。",
+    userChanges: [
+      "补齐中文、英文和马来文的常用按钮与状态文案。",
+      "设置中心、通知中心和世界频道入口的主要文案更完整。",
+      "礼物交换、好友预留、聊天预留和未来奖池轮盘预留文案更统一。",
+      "补齐首页、结果按钮、世界频道登录面板和候选区的多语言文案。",
+      "补齐今日灵感、旅行筛选和候选卡片等更多多语言文案。",
+      "英文和马来文界面进一步减少中文残留。",
+      "世界频道图片消息改成更自然的“分享了一张图片”。",
+      "语言切换时，主要 UI 更不容易混入其他语言。",
+      "后续新增功能可以复用 common、settings、notification、world、gift 等翻译 key。",
+    ],
+    technicalChanges: [
+      "Expanded zh-CN, en, and ms locale dictionaries.",
+      "Added reusable common, error, empty, confirm, settings, notification, world, friend, chat, prize, and onboarding keys.",
+      "Added locale key coverage checks to npm run check.",
+      "Connected settings, notification, world entry, and home layout copy to locale helpers.",
+      "Added missing locale keys for home/sidebar/result/world/filter UI.",
+      "Replaced hardcoded Chinese labels in main UI panels.",
+      "Localized default world image-message text.",
+      "Added locale coverage for inspiration and travel/filter labels.",
+      "Localized mode-specific filter labels and selected fixed option labels.",
+      "Extended locale key coverage checks for mode-specific UI copy.",
+      "Normalized default image-only world message captions across zh-CN, en, and ms.",
+      "Added helper to detect localized and legacy default image captions.",
+      "Preserved user-written image captions.",
+      "Preserved raw MYR budget values and deferred currency formatting to render/copy time.",
+      "Added missing username locale keys for world sign-in forms.",
+      "Added shared filter.budget locale key.",
+      "Preserved raw option identifiers/titles in generated results.",
+      "Deferred localized result title formatting to render/copy time.",
+      "Made favorite/history matching stable across language changes.",
+      "Preserved existing auth, GCS, world channel API, image, like, home edit, and gift pairing flows.",
+    ],
+  },
   {
     version: "0.6.9",
     title: "礼物交换随机",
@@ -2092,29 +2137,29 @@ const DEFAULT_WORLD_MESSAGES = [
   },
 ];
 const NOTIFICATION_CATEGORIES = [
-  { id: "system", label: "系统公告", status: "可用" },
-  { id: "release", label: "版本更新", status: "可用" },
-  { id: "world-like", label: "世界频道爱心", status: "有数据时显示" },
-  { id: "friend-request", label: "好友申请", status: "即将开放" },
-  { id: "friend-accepted", label: "好友通过", status: "即将开放" },
-  { id: "comment-reply", label: "评论回复", status: "未来" },
-  { id: "direct-message", label: "私聊消息", status: "即将开放" },
-  { id: "group-message", label: "群聊消息", status: "即将开放" },
+  { id: "system", labelKey: "system", statusKey: "status.ready", isReady: true },
+  { id: "release", labelKey: "release", statusKey: "status.ready", isReady: true },
+  { id: "world-like", labelKey: "worldLike", statusKey: "status.data", isReady: true },
+  { id: "friend-request", labelKey: "friendRequest", statusKey: "status.soon" },
+  { id: "friend-accepted", labelKey: "friendAccepted", statusKey: "status.soon" },
+  { id: "comment-reply", labelKey: "commentReply", statusKey: "status.future" },
+  { id: "direct-message", labelKey: "privateMessage", statusKey: "status.soon" },
+  { id: "group-message", labelKey: "groupMessage", statusKey: "status.soon" },
 ];
 const APP_NOTIFICATIONS = [
   {
     id: "system-settings-notifications-v068",
-    type: "系统公告",
+    typeKey: "system",
     category: "system",
-    title: "设置中心整理好了",
-    text: "隐私、好友预留、内容偏好和应用操作现在放得更清楚。",
+    titleKey: "systemSettingsTitle",
+    textKey: "systemSettingsText",
   },
   {
     id: "release-v068",
-    type: "版本更新",
+    typeKey: "release",
     category: "release",
-    title: "v0.6.8 设置与通知中心优化",
-    text: "修正货币重复显示，并整理通知分类、空状态和未来好友入口。",
+    titleKey: "release068Title",
+    textKey: "release068Text",
   },
 ];
 const STORAGE_KEY = "choiceWheelState";
@@ -2213,11 +2258,14 @@ const elements = {
   feedbackPanel: document.querySelector("#feedbackPanel"),
   modeList: document.querySelector("#modeList"),
   modeMenuToggle: document.querySelector("#modeMenuToggle"),
+  modeMenuToggleText: document.querySelector("#modeMenuToggleText"),
   modeMenuLabel: document.querySelector("#modeMenuLabel"),
   modeMenuHint: document.querySelector("#modeMenuHint"),
   homeLayoutEditButton: document.querySelector("#homeLayoutEditButton"),
+  homeFeaturesTitle: document.querySelector("#homeFeaturesTitle"),
   sidebar: document.querySelector(".sidebar"),
   sidebarWorld: document.querySelector(".sidebar-world"),
+  socialEntryTitle: document.querySelector("#socialEntryTitle"),
   worldChannelButton: document.querySelector("#worldChannelButton"),
   worldCloseButton: document.querySelector("#worldCloseButton"),
   todayLabel: document.querySelector("#todayLabel"),
@@ -2226,8 +2274,10 @@ const elements = {
   actionRow: document.querySelector(".action-row"),
   modeTitle: document.querySelector("#modeTitle"),
   modeDescription: document.querySelector("#modeDescription"),
+  filterTitle: document.querySelector("#filterTitle"),
   controlHint: document.querySelector("#controlHint"),
   modeControls: document.querySelector("#modeControls"),
+  candidateTitle: document.querySelector("#candidateTitle"),
   previewPanel: document.querySelector(".preview-panel"),
   optionPreview: document.querySelector("#optionPreview"),
   previewCount: document.querySelector("#previewCount"),
@@ -2249,9 +2299,13 @@ const elements = {
   worldChannelTitle: document.querySelector("#worldChannelButton strong"),
   worldChannelSubtitle: document.querySelector("#worldChannelButton small"),
   dailyInspiration: document.querySelector("#dailyInspiration"),
+  inspirationTitle: document.querySelector("#inspirationTitle"),
+  inspirationSubtitle: document.querySelector("#inspirationSubtitle"),
   historyList: document.querySelector("#historyList"),
+  recentTitle: document.querySelector("#recentTitle"),
   historyCount: document.querySelector("#historyCount"),
   favoritesList: document.querySelector("#favoritesList"),
+  favoritesTitle: document.querySelector("#favoritesTitle"),
   favoriteCount: document.querySelector("#favoriteCount"),
   toast: document.querySelector("#toast"),
 };
@@ -2424,6 +2478,144 @@ function t(key, fallback = "") {
   return translated === undefined || translated === null ? String(fallback || key) : String(translated);
 }
 
+function formatLocaleText(value, replacements = {}) {
+  let text = String(value ?? "");
+
+  Object.entries(replacements).forEach(([placeholder, replacement]) => {
+    text = text.replaceAll(`{${placeholder}}`, String(replacement));
+  });
+
+  return text;
+}
+
+function commonText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`common.${key}`, fallback), replacements);
+}
+
+function settingsText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`settings.${key}`, fallback), replacements);
+}
+
+function homeText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`home.${key}`, fallback), replacements);
+}
+
+function resultText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`result.${key}`, fallback), replacements);
+}
+
+function filterText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`filter.${key}`, fallback), replacements);
+}
+
+function candidateText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`candidate.${key}`, fallback), replacements);
+}
+
+function fixedLabelText(value, fallback = value) {
+  const key = String(value || "").trim();
+  return key ? t(`label.${key}`, fallback || key) : "";
+}
+
+function getRawLabelKeyFromDisplay(value) {
+  const text = String(value || "").trim();
+
+  if (!text) {
+    return "";
+  }
+
+  const locales = window.APP_LOCALES || {};
+
+  for (const dictionary of Object.values(locales)) {
+    if (!dictionary || typeof dictionary !== "object") {
+      continue;
+    }
+
+    for (const [key, translatedValue] of Object.entries(dictionary)) {
+      if (key.startsWith("label.") && String(translatedValue || "").trim() === text) {
+        return key.slice("label.".length);
+      }
+    }
+  }
+
+  return text;
+}
+
+function getResultRawTitle(result) {
+  const rawTitle = String(result?.rawTitle || result?.titleKey || "").trim();
+
+  if (rawTitle) {
+    return rawTitle;
+  }
+
+  if (["food", "drink", "travel", "shopping"].includes(result?.mode)) {
+    return getRawLabelKeyFromDisplay(result?.title);
+  }
+
+  return String(result?.title || "").trim();
+}
+
+function getResultDisplayTitle(result) {
+  const title = String(result?.title || "").trim();
+  const rawTitle = getResultRawTitle(result);
+
+  if (!rawTitle) {
+    return title;
+  }
+
+  if (!["food", "drink", "travel", "shopping"].includes(result?.mode)) {
+    return title || rawTitle;
+  }
+
+  return fixedLabelText(rawTitle, title || rawTitle);
+}
+
+function getResultStableKey(result) {
+  if (!result) {
+    return "";
+  }
+
+  const mode = result.mode || "";
+  const rawTitle = getResultRawTitle(result) || String(result.title || "").trim();
+
+  if (mode === "number") {
+    return `${mode}:${result.lotteryGameId || rawTitle}`;
+  }
+
+  return `${mode}:${rawTitle}`;
+}
+
+function formatBudgetLabel(budget, options = {}) {
+  const { perPerson = false, prefix = "budgetApprox", convert = true } = options;
+  const formattedBudget = convert ? formatBudget(budget) : String(budget || "").trim();
+
+  if (!formattedBudget) {
+    return "";
+  }
+
+  if (perPerson) {
+    return resultText("budgetApproxPerPerson", "预算约 {budget}/人", { budget: formattedBudget });
+  }
+
+  return resultText(prefix, "预算约 {budget}", { budget: formattedBudget });
+}
+
+function formatRawBudgetLabel(budget, options = {}) {
+  return formatBudgetLabel(budget, { ...options, convert: false });
+}
+
+function joinFixedLabels(values, separator = " / ") {
+  return values.map((value) => fixedLabelText(value)).filter(Boolean).join(separator);
+}
+
+function notificationText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`notification.${key}`, fallback), replacements);
+}
+
+function worldText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`world.${key}`, fallback), replacements);
+}
+
 function getCurrencyDisplayLabel(code) {
   const currency = CURRENCY_RATES[code];
   return currency?.displayLabel || currency?.label || code;
@@ -2446,7 +2638,27 @@ function getUnreadNotifications() {
   return getVisibleNotifications().filter((item) => !readIds.has(item.id));
 }
 
-function showComingSoonToast(message = "功能即将开放") {
+function getNotificationCategoryLabel(category) {
+  return notificationText(category?.labelKey || category?.typeKey || "reminder", category?.label || category?.type || "提醒");
+}
+
+function getNotificationCategoryStatus(category) {
+  return notificationText(category?.statusKey || "status.soon", category?.status || "即将开放");
+}
+
+function getNotificationItemTitle(item) {
+  return notificationText(item?.titleKey || "", item?.title || "");
+}
+
+function getNotificationItemText(item) {
+  return notificationText(item?.textKey || "", item?.text || "");
+}
+
+function getNotificationItemType(item) {
+  return notificationText(item?.typeKey || "reminder", item?.type || "提醒");
+}
+
+function showComingSoonToast(message = commonText("comingSoon", "功能即将开放")) {
   showToast(message);
 }
 
@@ -2581,7 +2793,7 @@ function syncRandomButtonState() {
   const giftButtonLabel = state.gift.pairs.length ? giftText("button.shuffleAgain", "重新洗牌") : giftText("button.startPairing", "开始配对");
 
   elements.randomButton.disabled = false;
-  elements.randomButtonLabel.textContent = state.mode === "gift" ? giftButtonLabel : t("actions.random", "随机决定");
+  elements.randomButtonLabel.textContent = state.mode === "gift" ? giftButtonLabel : resultText("randomPick", "随机一下");
 }
 
 function cleanupGiftShuffleUi() {
@@ -2650,13 +2862,7 @@ function getModeTitle(modeKey) {
 }
 
 function giftText(key, fallback = "", replacements = {}) {
-  let value = t(`gift.${key}`, fallback);
-
-  Object.entries(replacements).forEach(([placeholder, replacement]) => {
-    value = value.replaceAll(`{${placeholder}}`, String(replacement));
-  });
-
-  return value;
+  return formatLocaleText(t(`gift.${key}`, fallback), replacements);
 }
 
 function getGiftRevealModeLabel(mode) {
@@ -2740,8 +2946,8 @@ function getHomeFeatureMeta(featureId) {
       id: HOME_WORLD_FEATURE_ID,
       type: "world",
       icon: "🌍",
-      title: t("world.title", "世界频道"),
-      description: t("world.subtitle", "公开频道 · 私聊和群聊之后会放这里"),
+      title: worldText("title", "世界频道"),
+      description: worldText("subtitle", "公开频道 · 私聊和群聊之后会放这里"),
     };
   }
 
@@ -2908,8 +3114,22 @@ function applyStaticTranslations() {
   elements.profileAvatarButton.setAttribute("aria-label", t("top.profile", "个人资料"));
   elements.moreMenuButton.setAttribute("aria-label", t("top.more", "更多"));
   elements.moreMenuButtonLabel.textContent = t("top.more", "更多");
-  elements.randomButtonLabel.textContent = t("actions.random", "随机决定");
-  elements.favoriteButton.textContent = t("actions.favorite", "收藏结果");
+  elements.randomButtonLabel.textContent = resultText("randomPick", "随机一下");
+  elements.favoriteButton.textContent = resultText("saveResult", "收藏结果");
+  elements.copyResultButton.textContent = resultText("copyResult", "复制结果");
+  elements.shareResultButton.textContent = resultText("share", "分享");
+  elements.surpriseModeButton.textContent = homeText("modeHelp", "帮我换个模式");
+  elements.homeFeaturesTitle.textContent = homeText("featuresTitle", "首页功能");
+  elements.modeMenuToggleText.textContent = homeText("chooseMode", "选择模式");
+  elements.socialEntryTitle.textContent = homeText("socialEntry", "社交入口");
+  elements.sidebar.setAttribute("aria-label", homeText("chooseMode", "选择模式"));
+  elements.modeList.setAttribute("aria-label", homeText("randomModeList", "随机模式列表"));
+  elements.filterTitle.textContent = filterText("title", "筛选条件");
+  elements.candidateTitle.textContent = candidateText("title", "当前候选");
+  elements.inspirationTitle.textContent = homeText("inspirationTitle", "今日灵感");
+  elements.inspirationSubtitle.textContent = homeText("inspirationSubtitle", "每天换一点点");
+  elements.recentTitle.textContent = homeText("recentTitle", "最近决定");
+  elements.favoritesTitle.textContent = homeText("favoritesTitle", "收藏");
   elements.worldChannelTitle.textContent = t("world.title", "世界频道");
   elements.worldChannelSubtitle.textContent = t("world.subtitle", "公开频道 · 私聊和群聊之后会放这里");
   elements.notificationPanel.setAttribute("aria-label", t("top.notification", "通知"));
@@ -2939,19 +3159,19 @@ function renderHomeFeatureCard(feature, options = {}) {
         class="home-feature-drag-handle"
         type="button"
         data-home-layout-drag-handle="${escapeHtml(feature.id)}"
-        aria-label="\u62d6\u52a8${escapeHtml(feature.title)}\u8c03\u6574\u987a\u5e8f"
+        aria-label="${escapeHtml(settingsText("dragFeature", "拖动{title}调整顺序", { title: feature.title }))}"
         aria-keyshortcuts="ArrowUp ArrowDown Enter Space"
         ${visibleCount <= 1 ? "disabled" : ""}
       >\u2630</button>
     `
     : "";
   const canHideFeature = !isHidden && feature.id !== HOME_WORLD_FEATURE_ID;
-  const editLabel = (isHidden ? "\u6062\u590d" : "\u9690\u85cf") + feature.title;
+  const editLabel = `${isHidden ? commonText("show", "显示") : commonText("hide", "隐藏")}${feature.title}`;
   const editControl = isHomeLayoutEditing
     ? isWorldFeature && !isHidden
-      ? `<span class="home-feature-locked-hint" aria-label="\u4e16\u754c\u9891\u9053\u53ef\u79fb\u52a8\uff0c\u4e0d\u53ef\u9690\u85cf">\u5fc5\u663e\u793a</span>`
+      ? `<span class="home-feature-locked-hint" aria-label="${escapeHtml(settingsText("worldRequiredHint", "世界频道可移动，不可隐藏"))}">${escapeHtml(settingsText("required", "必显示"))}</span>`
       : isRequiredMode
-        ? `<span class="home-feature-locked-hint" aria-label="\u81f3\u5c11\u4fdd\u7559\u4e00\u4e2a\u968f\u673a\u529f\u80fd">\u4fdd\u7559</span>`
+        ? `<span class="home-feature-locked-hint" aria-label="${escapeHtml(settingsText("keepOneRandomHint", "至少保留一个随机功能"))}">${escapeHtml(settingsText("keep", "保留"))}</span>`
       : `
       <button
         class="home-feature-toggle-button${isHidden ? " is-restore" : " is-hide"}"
@@ -3021,23 +3241,23 @@ function renderModes() {
   elements.sidebar.classList.toggle("is-home-editing", isHomeLayoutEditing);
 
   if (elements.homeLayoutEditButton) {
-    elements.homeLayoutEditButton.textContent = isHomeLayoutEditing ? "\u5b8c\u6210" : "\u7f16\u8f91\u9996\u9875";
+    elements.homeLayoutEditButton.textContent = isHomeLayoutEditing ? commonText("done", "完成") : homeText("editHome", "编辑首页");
     elements.homeLayoutEditButton.setAttribute("aria-pressed", String(isHomeLayoutEditing));
   }
 
   if (isHomeLayoutEditing) {
     elements.modeList.innerHTML = `
-      ${renderHomeFeatureSection("\u663e\u793a\u4e2d\u7684\u968f\u673a\u6a21\u5f0f", visibleFeatures, {
-        emptyText: "\u81f3\u5c11\u4fdd\u7559\u4e00\u4e2a\u9996\u9875\u5165\u53e3\uff0c\u65b9\u4fbf\u968f\u65f6\u627e\u56de\u529f\u80fd\u3002",
+      ${renderHomeFeatureSection(settingsText("visibleRandomModes", "显示中的随机模式"), visibleFeatures, {
+        emptyText: settingsText("keepOneHomeEntry", "至少保留一个首页入口，方便随时找回功能。"),
         visibleModeCount,
       })}
-      ${renderHomeFeatureSection("\u2014\u2014 \u5df2\u9690\u85cf \u2014\u2014", hiddenFeatures, {
+      ${renderHomeFeatureSection(settingsText("hiddenDivider", "—— 已隐藏 ——"), hiddenFeatures, {
         isHidden: true,
-        emptyText: "\u6682\u65f6\u6ca1\u6709\u9690\u85cf\u7684\u529f\u80fd\u3002",
+        emptyText: settingsText("noHiddenFeatures", "暂时没有隐藏的功能。"),
       })}
       <div class="home-layout-editor-footer">
-        <button class="secondary-button" type="button" data-home-layout-reset>\u6062\u590d\u9ed8\u8ba4\u9996\u9875\u5e03\u5c40</button>
-        <small>\u9690\u85cf\u53ea\u662f\u672c\u673a\u663e\u793a\u504f\u597d\uff0c\u4e0d\u4f1a\u5220\u9664\u4efb\u4f55\u8bb0\u5f55\u6216\u4e16\u754c\u9891\u9053\u5185\u5bb9\u3002</small>
+        <button class="secondary-button" type="button" data-home-layout-reset>${escapeHtml(settingsText("restoreHomeLayout", "恢复默认首页布局"))}</button>
+        <small>${escapeHtml(settingsText("hiddenLocalOnly", "隐藏只是本机显示偏好，不会删除任何记录或世界频道内容。"))}</small>
       </div>
     `;
   } else {
@@ -3045,15 +3265,15 @@ function renderModes() {
       ? visibleFeatures.map((feature) => renderHomeFeatureCard(feature)).join("")
       : `
         <div class="home-layout-empty">
-          <strong>\u9996\u9875\u529f\u80fd\u5165\u53e3\u90fd\u9690\u85cf\u4e86</strong>
-          <small>\u529f\u80fd\u8fd8\u5728\uff0c\u53ef\u4ee5\u7528\u4e0a\u65b9\u7684\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002</small>
+          <strong>${escapeHtml(settingsText("allHomeHiddenTitle", "首页功能入口都隐藏了"))}</strong>
+          <small>${escapeHtml(settingsText("allHomeHiddenHint", "功能还在，可以用上方的编辑首页找回。"))}</small>
         </div>
       `;
 
     if (hiddenCount > 0) {
       elements.modeList.insertAdjacentHTML("beforeend", `
         <div class="home-layout-hint">
-          <span>\u6709\u9690\u85cf\u529f\u80fd\uff0c\u53ef\u7528\u4e0a\u65b9\u7684\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002</span>
+          <span>${escapeHtml(settingsText("hiddenHomeHint", "有隐藏功能，可用上方的编辑首页找回。"))}</span>
         </div>
       `);
     }
@@ -3077,10 +3297,10 @@ function renderModes() {
 
   elements.modeMenuLabel.textContent = getModeTitle(state.mode);
   elements.modeMenuHint.textContent = isHomeLayoutEditing
-    ? "\u7f16\u8f91\u6a21\u5f0f\u4e2d\uff1a\u70b9\u51cf\u53f7\u9690\u85cf\uff0c\u70b9\u52a0\u53f7\u6062\u590d\uff0c\u62d6\u52a8\u53f3\u4fa7\u4e09\u6761\u6a2a\u7ebf\u8c03\u6574\u987a\u5e8f\u3002"
+    ? settingsText("editModeHint", "编辑模式中：点减号隐藏，点加号恢复，拖动右侧三条横线调整顺序。")
     : hiddenCount > 0
-      ? "\u6709\u9690\u85cf\u529f\u80fd\uff0c\u53ef\u70b9\u7f16\u8f91\u9996\u9875\u627e\u56de\u3002"
-      : "\u7b2c\u4e00\u6b21\u7528\uff1f\u5148\u4ece\u5403\u4ec0\u4e48\u3001\u4e70\u4ec0\u4e48\u6216\u81ea\u5b9a\u4e49\u968f\u673a\u5f00\u59cb\uff0c\u5176\u4ed6\u666e\u901a\u6a21\u5f0f\u4e5f\u5728\u8fd9\u91cc\u3002";
+      ? homeText("hiddenTip", "有隐藏功能，可点编辑首页找回。")
+      : settingsText("modeMenuHint", "第一次用？先从吃什么、买什么或自定义随机开始，其他普通模式也在这里。");
   elements.sidebarWorld.hidden = false;
   elements.worldChannelButton.setAttribute("aria-pressed", String(state.worldOpen));
 }
@@ -3181,39 +3401,39 @@ function renderNotificationPanel() {
     ? notifications.map((item) => `
         <article class="notification-item${state.notificationReadIds.includes(item.id) ? "" : " is-unread"}">
           <div class="notification-item-title">
-            <strong>${escapeHtml(item.title)}</strong>
-            <span>${escapeHtml(item.type || "提醒")}</span>
+            <strong>${escapeHtml(getNotificationItemTitle(item))}</strong>
+            <span>${escapeHtml(getNotificationItemType(item))}</span>
           </div>
-          <p>${escapeHtml(item.text)}</p>
+          <p>${escapeHtml(getNotificationItemText(item))}</p>
         </article>
       `).join("")
     : `
         <div class="notification-empty">
-          <strong>暂时没有通知</strong>
-          <small>系统公告、版本更新和互动提醒会出现在这里。</small>
+          <strong>${escapeHtml(notificationText("empty", "暂时没有通知"))}</strong>
+          <small>${escapeHtml(notificationText("emptyHint", "系统公告、版本更新和互动提醒会出现在这里。"))}</small>
         </div>
       `;
 
   elements.notificationPanel.innerHTML = `
     <div class="floating-panel-header">
         <div>
-          <strong>${escapeHtml(t("top.notification", "通知"))}</strong>
-          <small>${unreadCount ? `${unreadCount} 条未读` : "暂时没有未读通知"}</small>
+          <strong>${escapeHtml(notificationText("title", "通知"))}</strong>
+          <small>${escapeHtml(unreadCount ? notificationText("unreadCount", "{count} 条未读", { count: unreadCount }) : notificationText("noUnread", "暂时没有未读通知"))}</small>
         </div>
-      <button class="ghost-button compact-ghost" id="notificationCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
+      <button class="ghost-button compact-ghost" id="notificationCloseButton" type="button">${escapeHtml(commonText("close", "关闭"))}</button>
     </div>
-    <div class="notification-toolbar" aria-label="通知操作">
-      <button class="secondary-button compact-secondary" id="notificationMarkReadButton" type="button" ${notifications.length ? "" : "disabled"}>全部已读</button>
-      <button class="secondary-button compact-secondary notification-clear-button" id="notificationClearButton" type="button" ${notifications.length ? "" : "disabled"}>清空本机通知</button>
+    <div class="notification-toolbar" aria-label="${escapeHtml(notificationText("actions", "通知操作"))}">
+      <button class="secondary-button compact-secondary" id="notificationMarkReadButton" type="button" ${notifications.length ? "" : "disabled"}>${escapeHtml(notificationText("markAllRead", "全部已读"))}</button>
+      <button class="secondary-button compact-secondary notification-clear-button" id="notificationClearButton" type="button" ${notifications.length ? "" : "disabled"}>${escapeHtml(notificationText("clearLocal", "清空本机通知"))}</button>
     </div>
     <div class="notification-list">
       ${notificationMarkup}
     </div>
-    <div class="notification-category-list" aria-label="通知分类">
+    <div class="notification-category-list" aria-label="${escapeHtml(notificationText("categories", "通知分类"))}">
       ${NOTIFICATION_CATEGORIES.map((item) => `
-        <span class="notification-category-pill${item.status === "可用" ? " is-ready" : " is-future"}">
-          <strong>${escapeHtml(item.label)}</strong>
-          <small>${escapeHtml(item.status)}</small>
+        <span class="notification-category-pill${item.isReady ? " is-ready" : " is-future"}">
+          <strong>${escapeHtml(getNotificationCategoryLabel(item))}</strong>
+          <small>${escapeHtml(getNotificationCategoryStatus(item))}</small>
         </span>
       `).join("")}
     </div>
@@ -3428,15 +3648,15 @@ function openProfileEditorFromHome() {
 
 function renderMyProfileFeed(messages) {
   if (isMyWorldMessagesLoading && !messages.length) {
-    return `<div class="my-profile-empty"><strong>正在读取你的动态…</strong><small>稍等一下，世界频道内容马上回来。</small></div>`;
+    return `<div class="my-profile-empty"><strong>${escapeHtml(worldText("profileLoadingTitle", "正在读取你的动态…"))}</strong><small>${escapeHtml(worldText("profileLoadingHint", "稍等一下，世界频道内容马上回来。"))}</small></div>`;
   }
 
   if (!messages.length) {
     return `
       <div class="my-profile-empty">
-        <strong>你还没有发布内容</strong>
-        <small>去世界频道分享一个随机结果吧。</small>
-        <button class="secondary-button" id="myProfileOpenWorldButton" type="button">打开世界频道</button>
+        <strong>${escapeHtml(worldText("profileEmptyTitle", "你还没有发布内容"))}</strong>
+        <small>${escapeHtml(worldText("profileEmptyHint", "去世界频道分享一个随机结果吧。"))}</small>
+        <button class="secondary-button" id="myProfileOpenWorldButton" type="button">${escapeHtml(worldText("openWorld", "打开世界频道"))}</button>
       </div>
     `;
   }
@@ -3451,7 +3671,7 @@ function renderMyProfileFeed(messages) {
 function renderMyProfileMessage(message) {
   const isEditing = editingWorldMessageId === message.id;
   const text = getWorldMessageText(message);
-  const displayText = text || (message.attachment?.type === "image" ? "图片动态" : "（没有文字）");
+  const displayText = text || (message.attachment?.type === "image" ? worldText("imagePost", "图片动态") : worldText("noText", "（没有文字）"));
   const likeMarkup = Number(message.likeCount) > 0 ? `<small>${message.likedByCurrentUser ? "❤️" : "♡"} ${Number(message.likeCount)}</small>` : "";
 
   return `
@@ -3541,12 +3761,12 @@ function renderMoreMenuPanel() {
         <small>${escapeHtml(t("menu.clearHistory.desc", "清空最近决定和收藏"))}</small>
       </button>
       <button class="more-menu-item" id="menuFeedbackButton" type="button" role="menuitem">
-        <strong>反馈问题</strong>
-        <small>提交 Bug、建议或内容错误</small>
+        <strong>${escapeHtml(settingsText("feedback", "反馈问题"))}</strong>
+        <small>${escapeHtml(t("settings.feedbackDescription", "提交 Bug、建议或内容错误"))}</small>
       </button>
       <button class="more-menu-item" id="menuSettingsButton" type="button" role="menuitem">
         <strong>${escapeHtml(t("menu.settings", "设置"))}</strong>
-        <small>账号、隐私、偏好和应用信息</small>
+        <small>${escapeHtml(t("settings.menuDescription", "账号、隐私、偏好和应用信息"))}</small>
       </button>
       <label class="more-menu-language" for="languageSelect">
         <span>
@@ -3583,13 +3803,13 @@ function renderReleaseNotesSection() {
   }
 
   return `
-    <section class="settings-section release-notes-section" id="releaseNotesSection" aria-label="版本更新内容" ${isReleaseNotesPanelOpen ? "" : "hidden"}>
+    <section class="settings-section release-notes-section" id="releaseNotesSection" aria-label="${escapeHtml(settingsText("releaseNotes", "更新内容"))}" ${isReleaseNotesPanelOpen ? "" : "hidden"}>
       <div class="settings-section-heading release-notes-heading">
         <div>
           <strong>v${escapeHtml(releaseNote.version)} · ${escapeHtml(releaseNote.title)}</strong>
           <small>${escapeHtml(releaseNote.date)} · ${escapeHtml(releaseNote.summary)}</small>
         </div>
-        <button class="ghost-button compact-ghost release-notes-close" id="releaseNotesCloseButton" type="button">收起</button>
+        <button class="ghost-button compact-ghost release-notes-close" id="releaseNotesCloseButton" type="button">${escapeHtml(commonText("collapse", "收起"))}</button>
       </div>
       <div class="release-notes-grid">
         <div class="release-notes-card">
@@ -3629,14 +3849,14 @@ function renderHomeLayoutSettingsSection() {
   return `
     <section class="settings-section home-layout-settings-section" id="homeLayoutSettingsSection">
       <div class="settings-section-heading">
-        <strong>\u81ea\u5b9a\u4e49\u9996\u9875</strong>
-        <small>\u4e3b\u8981\u7f16\u8f91\u53ef\u4ee5\u5728\u9996\u9875\u70b9\u201c\u7f16\u8f91\u9996\u9875\u201d\u5b8c\u6210\u3002</small>
+        <strong>${escapeHtml(settingsText("homeLayout", "自定义首页"))}</strong>
+        <small>${escapeHtml(settingsText("homeLayoutDescription", "主要编辑可以在首页点“编辑首页”完成。"))}</small>
       </div>
       <div class="home-layout-settings-summary">
-        <p>\u5f53\u524d\u6709 ${hiddenCount} \u4e2a\u9690\u85cf\u529f\u80fd\u3002\u9690\u85cf\u53ea\u662f\u672c\u673a\u663e\u793a\u504f\u597d\uff0c\u4e0d\u4f1a\u5220\u9664\u4e16\u754c\u9891\u9053\u6d88\u606f\u3001\u5386\u53f2\u8bb0\u5f55\u6216\u4e91\u7aef\u8d44\u6599\u3002</p>
+        <p>${escapeHtml(settingsText("homeLayoutSummary", "当前有 {count} 个隐藏功能。隐藏只是本机显示偏好，不会删除世界频道消息、历史记录或云端资料。", { count: hiddenCount }))}</p>
         <div class="settings-action-grid settings-utility-actions">
-          <button class="secondary-button" id="settingsHomeEditButton" type="button">\u53bb\u9996\u9875\u7f16\u8f91</button>
-          <button class="secondary-button" id="homeLayoutResetButton" type="button">\u6062\u590d\u9ed8\u8ba4\u9996\u9875\u5e03\u5c40</button>
+          <button class="secondary-button" id="settingsHomeEditButton" type="button">${escapeHtml(settingsText("goEditHome", "去首页编辑"))}</button>
+          <button class="secondary-button" id="homeLayoutResetButton" type="button">${escapeHtml(settingsText("restoreHomeLayout", "恢复默认首页布局"))}</button>
         </div>
       </div>
     </section>
@@ -3645,23 +3865,23 @@ function renderHomeLayoutSettingsSection() {
 
 function renderFriendSettingsSection() {
   const friendItems = [
-    { title: "搜索好友", desc: "之后可以用用户名找到朋友。", toast: "好友功能即将开放" },
-    { title: "好友申请", desc: "之后会集中查看收到和发出的申请。", toast: "好友功能即将开放" },
-    { title: "我的好友列表", desc: "之后会显示已通过的好友。", toast: "好友功能即将开放" },
+    { titleKey: "search", descKey: "searchComingSoon" },
+    { titleKey: "requests", descKey: "requestsComingSoon" },
+    { titleKey: "myFriends", descKey: "listComingSoon" },
   ];
 
   return `
     <section class="settings-section">
       <div class="settings-section-heading">
-        <strong>好友</strong>
-        <small>先预留入口，不开放搜索、私聊或群聊，避免误操作。</small>
+        <strong>${escapeHtml(settingsText("friends", "好友"))}</strong>
+        <small>${escapeHtml(t("friend.sectionDescription", "先预留入口，不开放搜索、私聊或群聊，避免误操作。"))}</small>
       </div>
       <div class="settings-placeholder-grid">
         ${friendItems.map((item) => `
-          <button class="settings-placeholder-card" type="button" data-coming-soon="${escapeHtml(item.toast)}">
-            <span>即将开放</span>
-            <strong>${escapeHtml(item.title)}</strong>
-            <small>${escapeHtml(item.desc)}</small>
+          <button class="settings-placeholder-card" type="button" data-coming-soon="${escapeHtml(t("friend.comingSoon", "好友功能即将开放"))}">
+            <span>${escapeHtml(commonText("comingSoon", "即将开放"))}</span>
+            <strong>${escapeHtml(t(`friend.${item.titleKey}`, ""))}</strong>
+            <small>${escapeHtml(t(`friend.${item.descKey}`, ""))}</small>
           </button>
         `).join("")}
       </div>
@@ -3673,15 +3893,15 @@ function renderNotificationSettingsSection() {
   return `
     <section class="settings-section">
       <div class="settings-section-heading">
-        <strong>通知</strong>
-        <small>铃铛里会显示系统公告、版本更新和后续互动提醒。</small>
+        <strong>${escapeHtml(settingsText("notifications", "通知"))}</strong>
+        <small>${escapeHtml(notificationText("emptyHint", "系统公告、版本更新和互动提醒会出现在这里。"))}</small>
       </div>
       <div class="settings-placeholder-grid">
         ${NOTIFICATION_CATEGORIES.map((item) => `
-          <button class="settings-placeholder-card${item.status === "可用" ? " is-ready" : ""}" type="button" data-coming-soon="${escapeHtml(item.status === "可用" ? "请从右上角铃铛查看通知" : `${item.label}即将开放`)}">
-            <span>${escapeHtml(item.status)}</span>
-            <strong>${escapeHtml(item.label)}</strong>
-            <small>${escapeHtml(item.status === "可用" ? "已放入通知中心" : "预留分类，功能未开放")}</small>
+          <button class="settings-placeholder-card${item.isReady ? " is-ready" : ""}" type="button" data-coming-soon="${escapeHtml(item.isReady ? notificationText("openBellHint", "请从右上角铃铛查看通知") : `${getNotificationCategoryLabel(item)} ${commonText("comingSoon", "即将开放")}`)}">
+            <span>${escapeHtml(getNotificationCategoryStatus(item))}</span>
+            <strong>${escapeHtml(getNotificationCategoryLabel(item))}</strong>
+            <small>${escapeHtml(item.isReady ? notificationText("readyHint", "已放入通知中心") : notificationText("futureHint", "预留分类，功能未开放"))}</small>
           </button>
         `).join("")}
       </div>
@@ -3703,95 +3923,95 @@ function renderSettingsPanel() {
     <form class="settings-form" id="settingsForm">
       <div class="floating-panel-header">
         <div>
-          <strong>设置中心</strong>
-          <small>账号、隐私、好友、通知、偏好和应用信息集中整理</small>
+          <strong>${escapeHtml(settingsText("title", "设置中心"))}</strong>
+          <small>${escapeHtml(settingsText("subtitle", "账号、隐私、好友、通知、偏好和应用信息集中整理"))}</small>
         </div>
-        <button class="ghost-button compact-ghost" id="settingsCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
+        <button class="ghost-button compact-ghost" id="settingsCloseButton" type="button">${escapeHtml(commonText("close", "关闭"))}</button>
       </div>
-      ${!isLoggedIn ? '<p class="settings-login-hint">登入后可以保存隐私和内容偏好到云端。</p>' : ""}
+      ${!isLoggedIn ? `<p class="settings-login-hint">${escapeHtml(settingsText("loginHint", "登入后可以保存隐私和内容偏好到云端。"))}</p>` : ""}
       <section class="settings-section">
         <div class="settings-section-heading">
-          <strong>账号</strong>
-          <small>${isLoggedIn ? escapeHtml(getUserDisplayName(currentUser)) : "尚未登入"}</small>
+          <strong>${escapeHtml(settingsText("account", "账号"))}</strong>
+          <small>${isLoggedIn ? escapeHtml(getUserDisplayName(currentUser)) : escapeHtml(settingsText("notLoggedIn", "尚未登入"))}</small>
         </div>
         <div class="settings-action-grid">
-          <button class="secondary-button" id="settingsEditProfileButton" type="button" ${disabled}>编辑个人资料</button>
-          <button class="secondary-button" id="settingsPasswordButton" type="button" ${disabled}>修改密码</button>
-          <button class="secondary-button profile-logout-button" id="settingsLogoutButton" type="button" ${disabled}>登出账号</button>
+          <button class="secondary-button" id="settingsEditProfileButton" type="button" ${disabled}>${escapeHtml(settingsText("editProfile", "编辑个人资料"))}</button>
+          <button class="secondary-button" id="settingsPasswordButton" type="button" ${disabled}>${escapeHtml(settingsText("changePassword", "修改密码"))}</button>
+          <button class="secondary-button profile-logout-button" id="settingsLogoutButton" type="button" ${disabled}>${escapeHtml(settingsText("logout", "登出账号"))}</button>
         </div>
       </section>
       <section class="settings-section">
         <div class="settings-section-heading">
-          <strong>隐私</strong>
-          <small>为之后好友和私聊功能预留；保存后不会立刻开放私聊或好友功能。</small>
+          <strong>${escapeHtml(settingsText("privacy", "隐私"))}</strong>
+          <small>${escapeHtml(settingsText("privacyDescription", "为之后好友和私聊功能预留；保存后不会立刻开放私聊或好友功能。"))}</small>
         </div>
         <label class="settings-toggle">
-          <span><strong>允许别人搜索到我</strong><small>为之后好友搜索预留</small></span>
+          <span><strong>${escapeHtml(settingsText("allowSearch", "允许别人搜索到我"))}</strong><small>${escapeHtml(settingsText("allowSearchDescription", "为之后好友搜索预留"))}</small></span>
           <input id="settingsDiscoverable" type="checkbox" ${settings.privacy.discoverable ? "checked" : ""} ${disabled} />
         </label>
         <label class="settings-toggle">
-          <span><strong>允许好友申请</strong><small>功能未开放前不会显示好友入口</small></span>
+          <span><strong>${escapeHtml(settingsText("allowFriendRequests", "允许好友申请"))}</strong><small>${escapeHtml(settingsText("allowFriendRequestsDescription", "功能未开放前不会显示好友入口"))}</small></span>
           <input id="settingsAllowFriendRequests" type="checkbox" ${settings.privacy.allowFriendRequests ? "checked" : ""} ${disabled} />
         </label>
         <label class="settings-toggle">
-          <span><strong>显示在线状态</strong><small>为之后世界频道和好友状态预留</small></span>
+          <span><strong>${escapeHtml(settingsText("showOnlineStatus", "显示在线状态"))}</strong><small>${escapeHtml(settingsText("showOnlineStatusDescription", "为之后世界频道和好友状态预留"))}</small></span>
           <input id="settingsShowOnlineStatus" type="checkbox" ${settings.privacy.showOnlineStatus ? "checked" : ""} ${disabled} />
         </label>
         <div class="field">
-          <label for="settingsAllowDirectMessages">允许私聊</label>
+          <label for="settingsAllowDirectMessages">${escapeHtml(settingsText("allowPrivateChat", "允许私聊"))}</label>
           <select id="settingsAllowDirectMessages" ${disabled}>
-            <option value="everyone" ${settings.privacy.allowDirectMessages === "everyone" ? "selected" : ""}>所有人</option>
-            <option value="friendsOnly" ${settings.privacy.allowDirectMessages === "friendsOnly" ? "selected" : ""}>仅好友</option>
-            <option value="none" ${settings.privacy.allowDirectMessages === "none" ? "selected" : ""}>不允许</option>
+            <option value="everyone" ${settings.privacy.allowDirectMessages === "everyone" ? "selected" : ""}>${escapeHtml(settingsText("privateChatEveryone", "所有人"))}</option>
+            <option value="friendsOnly" ${settings.privacy.allowDirectMessages === "friendsOnly" ? "selected" : ""}>${escapeHtml(settingsText("privateChatFriendsOnly", "仅好友"))}</option>
+            <option value="none" ${settings.privacy.allowDirectMessages === "none" ? "selected" : ""}>${escapeHtml(settingsText("privateChatDisabled", "不允许"))}</option>
           </select>
-          <small class="field-hint">私聊功能未开放，这里只是先保存你的偏好。</small>
+          <small class="field-hint">${escapeHtml(settingsText("privateChatReserved", "私聊功能未开放，这里只是先保存你的偏好。"))}</small>
         </div>
       </section>
       ${renderFriendSettingsSection()}
       ${renderNotificationSettingsSection()}
       <section class="settings-section">
         <div class="settings-section-heading">
-          <strong>内容偏好</strong>
-          <small>保存默认语言、货币和世界频道筛选偏好。</small>
+          <strong>${escapeHtml(settingsText("contentPreferences", "内容偏好"))}</strong>
+          <small>${escapeHtml(settingsText("contentPreferencesDescription", "保存默认语言、货币和世界频道筛选偏好。"))}</small>
         </div>
         <div class="settings-grid">
           <div class="field">
-            <label for="settingsLanguage">默认语言</label>
+            <label for="settingsLanguage">${escapeHtml(settingsText("defaultLanguage", "默认语言"))}</label>
             <select id="settingsLanguage" ${disabled}>
               ${SUPPORTED_LANGUAGES.map((language) => `<option value="${language}" ${settings.preferences.language === language ? "selected" : ""}>${LANGUAGE_LABELS[language]}</option>`).join("")}
             </select>
           </div>
           <div class="field">
-            <label for="settingsCurrency">默认货币</label>
+            <label for="settingsCurrency">${escapeHtml(settingsText("defaultCurrency", "默认货币"))}</label>
             <select id="settingsCurrency" ${disabled}>
               ${renderCurrencyOptions(settings.preferences.currency)}
             </select>
           </div>
           <div class="field">
-            <label for="settingsWorldRegion">世界频道地区</label>
+            <label for="settingsWorldRegion">${escapeHtml(settingsText("worldRegion", "世界频道地区"))}</label>
             <select id="settingsWorldRegion" ${disabled}>
               ${WORLD_REGION_OPTIONS.map((region) => `<option value="${region.value}" ${settings.preferences.worldRegion === region.value ? "selected" : ""}>${region.label}</option>`).join("")}
             </select>
           </div>
           <div class="field">
-            <label for="settingsWorldTopics">世界频道主题筛选</label>
+            <label for="settingsWorldTopics">${escapeHtml(settingsText("worldTopics", "世界频道主题筛选"))}</label>
             <input id="settingsWorldTopics" value="${escapeHtml(formatWorldTopics(settings.preferences.worldTopics))}" placeholder="general, food, travel" ${disabled} />
           </div>
         </div>
       </section>
       <section class="settings-section">
         <div class="settings-section-heading">
-          <strong>应用</strong>
-          <small>当前版本、更新内容、反馈和本机记录。</small>
+          <strong>${escapeHtml(settingsText("app", "应用"))}</strong>
+          <small>${escapeHtml(settingsText("appDescription", "当前版本、更新内容、反馈和本机记录。"))}</small>
         </div>
         <button class="settings-version-button" id="settingsVersionButton" type="button" aria-expanded="${isReleaseNotesPanelOpen}">
-          <span>当前版本</span>
+          <span>${escapeHtml(settingsText("currentVersion", "当前版本"))}</span>
           <strong>v${APP_VERSION}</strong>
-          <small id="settingsVersionHint">${isReleaseNotesPanelOpen ? "更新内容已展开" : "点击查看更新内容"}</small>
+          <small id="settingsVersionHint">${escapeHtml(isReleaseNotesPanelOpen ? settingsText("releaseNotesExpanded", "更新内容已展开") : settingsText("releaseNotesHint", "点击查看更新内容"))}</small>
         </button>
         <div class="settings-action-grid settings-utility-actions">
-          <button class="secondary-button settings-feedback-button" id="settingsFeedbackButton" type="button">反馈问题</button>
-          <button class="secondary-button settings-clear-button" id="settingsClearLocalButton" type="button">清除记录</button>
+          <button class="secondary-button settings-feedback-button" id="settingsFeedbackButton" type="button">${escapeHtml(settingsText("feedback", "反馈问题"))}</button>
+          <button class="secondary-button settings-clear-button" id="settingsClearLocalButton" type="button">${escapeHtml(settingsText("clearRecords", "清除记录"))}</button>
         </div>
       </section>
       ${renderHomeLayoutSettingsSection()}
@@ -3799,51 +4019,51 @@ function renderSettingsPanel() {
       <section class="settings-section">
         <div class="settings-section-heading connected-apps-heading">
           <div>
-            <strong>关联小应用</strong>
-            <small>未来可以把随心转盘和更多生活奇思妙想小工具连接到同一个账号，方便同步个人资料、设置和使用记录。</small>
+            <strong>${escapeHtml(settingsText("connectedApps", "关联小应用"))}</strong>
+            <small>${escapeHtml(settingsText("connectedAppsDescription", "未来可以把随心转盘和更多生活奇思妙想小工具连接到同一个账号，方便同步个人资料、设置和使用记录。"))}</small>
           </div>
-          <span class="connected-apps-badge">开发中</span>
+          <span class="connected-apps-badge">${escapeHtml(settingsText("connectedAppsBadge", "开发中"))}</span>
         </div>
-        <div class="connected-apps-row" aria-label="关联小应用示例">
+        <div class="connected-apps-row" aria-label="${escapeHtml(settingsText("connectedAppsAria", "关联小应用示例"))}">
           <article class="connected-app-card is-current">
             <span class="connected-app-icon connected-app-icon-image">
               <img src="./assets/icons/app-icon.png" alt="" loading="lazy" />
             </span>
             <div class="connected-app-copy">
-              <strong>随心转盘</strong>
-              <small>当前应用</small>
+              <strong>${escapeHtml(t("app.name", "随心转盘"))}</strong>
+              <small>${escapeHtml(settingsText("currentApp", "当前应用"))}</small>
             </div>
-            <span class="connected-app-status is-current">当前</span>
+            <span class="connected-app-status is-current">${escapeHtml(settingsText("current", "当前"))}</span>
           </article>
           <article class="connected-app-card is-disabled" aria-disabled="true">
             <span class="connected-app-icon">🧩</span>
             <div class="connected-app-copy">
-              <strong>奇思妙想工具</strong>
-              <small>计划中</small>
+              <strong>${escapeHtml(settingsText("ideaTool", "奇思妙想工具"))}</strong>
+              <small>${escapeHtml(settingsText("planned", "计划中"))}</small>
             </div>
-            <span class="connected-app-status">计划中</span>
+            <span class="connected-app-status">${escapeHtml(settingsText("planned", "计划中"))}</span>
           </article>
           <article class="connected-app-card is-disabled" aria-disabled="true">
             <span class="connected-app-icon">🧩</span>
             <div class="connected-app-copy">
-              <strong>生活记录工具</strong>
-              <small>计划中</small>
+              <strong>${escapeHtml(settingsText("lifeLogTool", "生活记录工具"))}</strong>
+              <small>${escapeHtml(settingsText("planned", "计划中"))}</small>
             </div>
-            <span class="connected-app-status">计划中</span>
+            <span class="connected-app-status">${escapeHtml(settingsText("planned", "计划中"))}</span>
           </article>
           <article class="connected-app-card is-disabled" aria-disabled="true">
             <span class="connected-app-icon">🧩</span>
             <div class="connected-app-copy">
-              <strong>更多小工具</strong>
-              <small>计划中</small>
+              <strong>${escapeHtml(settingsText("moreTools", "更多小工具"))}</strong>
+              <small>${escapeHtml(settingsText("planned", "计划中"))}</small>
             </div>
-            <span class="connected-app-status">计划中</span>
+            <span class="connected-app-status">${escapeHtml(settingsText("planned", "计划中"))}</span>
           </article>
         </div>
-        <p class="settings-footnote">当前只是占位展示：不会跳转外部应用，不会读取其他应用数据，也不会启动真实授权。</p>
+        <p class="settings-footnote">${escapeHtml(settingsText("connectedAppsFootnote", "当前只是占位展示：不会跳转外部应用，不会读取其他应用数据，也不会启动真实授权。"))}</p>
       </section>
       <div class="settings-form-actions">
-        <button class="primary-button compact-primary" id="settingsSubmitButton" type="submit" ${disabled}>保存设置</button>
+        <button class="primary-button compact-primary" id="settingsSubmitButton" type="submit" ${disabled}>${escapeHtml(settingsText("saveSettings", "保存设置"))}</button>
       </div>
     </form>
   `;
@@ -3866,7 +4086,7 @@ function renderSettingsPanel() {
 
 function bindSettingsPlaceholderControls() {
   document.querySelectorAll("[data-coming-soon]").forEach((button) => {
-    button.addEventListener("click", () => showComingSoonToast(button.dataset.comingSoon || "功能即将开放"));
+    button.addEventListener("click", () => showComingSoonToast(button.dataset.comingSoon || commonText("comingSoon", "功能即将开放")));
   });
 }
 
@@ -4185,7 +4405,7 @@ function resetHomeLayout() {
   ensureVisibleHomeMode();
   saveState();
   refreshHomeLayoutUi();
-  showToast("\u9996\u9875\u5e03\u5c40\u5df2\u6062\u590d\u9ed8\u8ba4\u3002");
+  showToast(settingsText("homeLayoutRestored", "首页布局已恢复默认。"));
 }
 
 function getSettingsFormPayload() {
@@ -4215,7 +4435,7 @@ async function saveSettingsCenter(event) {
   const submitButton = document.querySelector("#settingsSubmitButton");
 
   if (!currentUser) {
-    showToast("请先登入后再保存设置。");
+    showToast(settingsText("loginToSave", "请先登入后再保存设置。"));
     return;
   }
 
@@ -4224,7 +4444,7 @@ async function saveSettingsCenter(event) {
   try {
     if (submitButton) {
       submitButton.disabled = true;
-      submitButton.textContent = "正在保存…";
+      submitButton.textContent = settingsText("saving", "正在保存…");
     }
 
     const payload = await authRequest("update-settings", { settings });
@@ -4236,19 +4456,19 @@ async function saveSettingsCenter(event) {
     state.currency = preferences.currency;
     saveState();
     render();
-    showToast("设置已保存。");
+    showToast(settingsText("savedToast", "设置已保存。"));
   } catch (error) {
     reportClientError(error, {
       type: "auth-settings-update-failed",
       source: AUTH_ENDPOINT,
     });
-    showToast("设置暂时保存失败，请稍后再试");
+    showToast(settingsText("saveFailedToast", "设置暂时保存失败，请稍后再试。"));
   } finally {
     const currentSubmitButton = document.querySelector("#settingsSubmitButton");
 
     if (currentSubmitButton) {
       currentSubmitButton.disabled = false;
-      currentSubmitButton.textContent = "保存设置";
+      currentSubmitButton.textContent = settingsText("saveSettings", "保存设置");
     }
   }
 }
@@ -4319,8 +4539,8 @@ function renderModeStage() {
 
   if (!state.currentResult || state.currentResult.mode !== state.mode) {
     elements.resultStage.classList.remove("is-gift-result");
-    elements.resultValue.textContent = "按下按钮，让今天轻一点";
-    elements.resultMeta.textContent = "你可以先选模式，也可以直接随机。";
+    elements.resultValue.textContent = resultText("pressButtonPrompt", "按下按钮，让今天轻一点");
+    elements.resultMeta.textContent = resultText("pressButtonHint", "你可以先选模式，也可以直接随机。");
     elements.numberDigits.classList.remove("is-lottery");
     elements.numberDigits.classList.remove("is-gift-result");
     elements.numberDigits.hidden = true;
@@ -4379,26 +4599,26 @@ function renderFoodControls() {
 
   elements.modeControls.innerHTML = `
     <div class="field">
-      <label for="countrySelect">国家</label>
+      <label for="countrySelect">${escapeHtml(filterText("country", "国家"))}</label>
       <select id="countrySelect">
-        ${countries.map((country) => `<option value="${country}" ${country === currentCountry ? "selected" : ""}>${country}</option>`).join("")}
+        ${countries.map((country) => `<option value="${country}" ${country === currentCountry ? "selected" : ""}>${escapeHtml(fixedLabelText(country))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="regionSelect">地区</label>
+      <label for="regionSelect">${escapeHtml(filterText("region", "地区"))}</label>
       <select id="regionSelect">
-        ${regions.map((region) => `<option value="${region}" ${region === currentRegion ? "selected" : ""}>${region}</option>`).join("")}
+        ${regions.map((region) => `<option value="${region}" ${region === currentRegion ? "selected" : ""}>${escapeHtml(fixedLabelText(region))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="foodCategory">食物种类</label>
+      <label for="foodCategory">${escapeHtml(filterText("foodCategory", "食物种类"))}</label>
       <select id="foodCategory">
-        ${FOOD_CATEGORIES.map((category) => `<option value="${category}" ${category === currentCategory ? "selected" : ""}>${category}</option>`).join("")}
+        ${FOOD_CATEGORIES.map((category) => `<option value="${category}" ${category === currentCategory ? "selected" : ""}>${escapeHtml(fixedLabelText(category))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="foodNote">锁定用法</label>
-      <input id="foodNote" value="Mamak / 快餐 / 外卖已放入食物种类" readonly />
+      <label for="foodNote">${escapeHtml(filterText("lockedUsage", "锁定用法"))}</label>
+      <input id="foodNote" value="${escapeHtml(filterText("foodLockNote", "Mamak / 快餐 / 外卖已放入食物种类"))}" readonly />
     </div>
   `;
 
@@ -4436,26 +4656,26 @@ function renderDrinkControls() {
 
   elements.modeControls.innerHTML = `
     <div class="field">
-      <label for="drinkCountry">国家</label>
+      <label for="drinkCountry">${escapeHtml(filterText("country", "国家"))}</label>
       <select id="drinkCountry">
-        ${countries.map((country) => `<option value="${country}" ${country === currentCountry ? "selected" : ""}>${country}</option>`).join("")}
+        ${countries.map((country) => `<option value="${country}" ${country === currentCountry ? "selected" : ""}>${escapeHtml(fixedLabelText(country))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="drinkBrand">品牌 / 店铺</label>
+      <label for="drinkBrand">${escapeHtml(filterText("brand", "品牌 / 店铺"))}</label>
       <select id="drinkBrand">
         ${brands.map((brand) => `<option value="${brand}" ${brand === currentBrand ? "selected" : ""}>${brand}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="drinkCategory">饮料类型</label>
+      <label for="drinkCategory">${escapeHtml(filterText("drinkCategory", "饮料类型"))}</label>
       <select id="drinkCategory">
-        ${DRINK_CATEGORIES.map((category) => `<option value="${category}" ${category === currentCategory ? "selected" : ""}>${category}</option>`).join("")}
+        ${DRINK_CATEGORIES.map((category) => `<option value="${category}" ${category === currentCategory ? "selected" : ""}>${escapeHtml(fixedLabelText(category))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="drinkNote">菜单说明</label>
-      <input id="drinkNote" value="参考外卖平台常见店铺，点候选可锁定" readonly />
+      <label for="drinkNote">${escapeHtml(filterText("menuNote", "菜单说明"))}</label>
+      <input id="drinkNote" value="${escapeHtml(filterText("drinkMenuNote", "参考外卖平台常见店铺，点候选可锁定"))}" readonly />
     </div>
   `;
 
@@ -4488,50 +4708,50 @@ function renderWorldControls() {
     elements.worldAuthPanel.innerHTML = `
       <form class="world-panel auth-panel" id="authForm">
         <div class="world-panel-header">
-          <strong>${isRegisterMode ? "注册新账号" : "登入世界频道"}</strong>
-          <small>登录后可发送</small>
+          <strong>${escapeHtml(isRegisterMode ? worldText("registerTitle", "注册新账号") : worldText("signInTitle", "登入世界频道"))}</strong>
+          <small>${escapeHtml(worldText("signInToPost", "登录后可以发文字和图片；图片会先预览，点发送才发出。"))}</small>
         </div>
-        <div class="auth-mode-tabs" role="tablist" aria-label="登入注册切换">
-          <button class="auth-mode-tab${!isRegisterMode ? " is-active" : ""}" type="button" data-auth-mode="login" aria-pressed="${!isRegisterMode}">登入</button>
-          <button class="auth-mode-tab${isRegisterMode ? " is-active" : ""}" type="button" data-auth-mode="register" aria-pressed="${isRegisterMode}">注册</button>
-        </div>
-        <div class="field">
-          <label for="authUsername">用户名</label>
-          <input id="authUsername" autocomplete="username" maxlength="20" placeholder="2-20 字，例如 xiaoming" />
-          <small class="field-hint">可用中文、英文、数字、_ 和 -。</small>
+        <div class="auth-mode-tabs" role="tablist" aria-label="${escapeHtml(worldText("authTabs", "登录注册切换"))}">
+          <button class="auth-mode-tab${!isRegisterMode ? " is-active" : ""}" type="button" data-auth-mode="login" aria-pressed="${!isRegisterMode}">${escapeHtml(worldText("login", "登录"))}</button>
+          <button class="auth-mode-tab${isRegisterMode ? " is-active" : ""}" type="button" data-auth-mode="register" aria-pressed="${isRegisterMode}">${escapeHtml(worldText("register", "注册"))}</button>
         </div>
         <div class="field">
-          <label for="authPassword">密码</label>
-          <input id="authPassword" type="password" autocomplete="${isRegisterMode ? "new-password" : "current-password"}" maxlength="80" placeholder="至少 6 个字符" />
-          <small class="field-hint">账号会保存在云端；请不要使用银行卡、邮箱等重要密码。</small>
+          <label for="authUsername">${escapeHtml(worldText("username", "用户名"))}</label>
+          <input id="authUsername" autocomplete="username" maxlength="20" placeholder="${escapeHtml(worldText("usernamePlaceholder", "2-20 字，例如 xiaoming"))}" />
+          <small class="field-hint">${escapeHtml(worldText("usernameHint", "可用中文、英文、数字、_ 和 -。"))}</small>
+        </div>
+        <div class="field">
+          <label for="authPassword">${escapeHtml(worldText("password", "密码"))}</label>
+          <input id="authPassword" type="password" autocomplete="${isRegisterMode ? "new-password" : "current-password"}" maxlength="80" placeholder="${escapeHtml(worldText("passwordPlaceholder", "至少 6 个字符"))}" />
+          <small class="field-hint">${escapeHtml(worldText("accountSavedCloud", "账号会保存在云端；请不要使用银行卡、邮箱等重要密码。"))}</small>
         </div>
         ${isRegisterMode ? `
           <div class="field">
-            <label for="authConfirmPassword">确认密码</label>
-            <input id="authConfirmPassword" type="password" autocomplete="new-password" maxlength="40" placeholder="再输入一次密码" />
+            <label for="authConfirmPassword">${escapeHtml(worldText("confirmPassword", "确认密码"))}</label>
+            <input id="authConfirmPassword" type="password" autocomplete="new-password" maxlength="40" placeholder="${escapeHtml(worldText("confirmPasswordPlaceholder", "再输入一次密码"))}" />
           </div>
         ` : ""}
         <div class="custom-actions">
-          <button class="primary-button compact-primary" id="authSubmitButton" type="submit">${isRegisterMode ? "创建账号" : "登入"}</button>
-          <button class="secondary-button" id="authSwitchButton" type="button">${isRegisterMode ? "已有账号？去登入" : "没有账号？去注册"}</button>
+          <button class="primary-button compact-primary" id="authSubmitButton" type="submit">${escapeHtml(isRegisterMode ? worldText("createAccount", "创建账号") : worldText("login", "登录"))}</button>
+          <button class="secondary-button" id="authSwitchButton" type="button">${escapeHtml(isRegisterMode ? worldText("goLogin", "已有账号？去登录") : worldText("goRegister", "没有账号？去注册"))}</button>
         </div>
         <ul class="auth-hint-list">
-          <li>登入后可以发文字和图片；图片会先预览，点发送才发出。</li>
-          <li>账号、头像、名字和世界频道会同步到云端。</li>
+          <li>${escapeHtml(worldText("signInToPost", "登录后可以发文字和图片；图片会先预览，点发送才发出。"))}</li>
+          <li>${escapeHtml(worldText("accountWorldCloud", "账号、头像、名字和世界频道会同步到云端。"))}</li>
         </ul>
       </form>
       <div class="world-panel gcs-panel is-ready">
         <div class="world-panel-header">
-          <strong>图片和记录</strong>
-          <small>已准备好</small>
+          <strong>${escapeHtml(worldText("imageAndRecords", "图片和记录"))}</strong>
+          <small>${escapeHtml(worldText("ready", "已准备好"))}</small>
         </div>
         <div class="cloud-status-list">
-          <span class="status-pill">✅ 图片可以发送</span>
-          <span class="status-pill">✅ 世界频道已接到云端</span>
+          <span class="status-pill">✅ ${escapeHtml(worldText("imageReady", "图片可以发送"))}</span>
+          <span class="status-pill">✅ ${escapeHtml(worldText("worldConnectedCloud", "世界频道已接到云端"))}</span>
           <span class="status-pill" data-cloud-sync-status>${escapeHtml(getCloudSyncLabel())}</span>
-          <span class="status-pill">🔒 重要钥匙不会显示给别人</span>
+          <span class="status-pill">🔒 ${escapeHtml(worldText("secretNotShown", "重要钥匙不会显示给别人"))}</span>
         </div>
-        <p>这个版本先测试图片、记录和通知；好友和私聊会放在之后做。</p>
+        <p>${escapeHtml(worldText("cloudTestNote", "这个版本先测试图片、记录和通知；好友和私聊会放在之后做。"))}</p>
       </div>
     `;
 
@@ -4568,34 +4788,34 @@ function renderWorldControls() {
           </span>
           <div class="world-composer-copy">
             <strong>${escapeHtml(displayName)}</strong>
-            <small><span class="world-online-dot" aria-hidden="true"></span>在线</small>
+            <small><span class="world-online-dot" aria-hidden="true"></span>${escapeHtml(worldText("online", "在线"))}</small>
           </div>
         </div>
       </div>
       <div class="field world-message-field">
-        <label for="worldMessageInput">发一句到世界频道</label>
+        <label for="worldMessageInput">${escapeHtml(worldText("inputLabel", "发一句到世界频道"))}</label>
         <div class="world-textarea-wrap">
           <textarea id="worldMessageInput" maxlength="${WORLD_MESSAGE_MAX_LENGTH}" rows="2" placeholder="${escapeHtml(worldPlaceholder)}"></textarea>
           <small class="world-character-hint" id="worldCharacterHint" aria-live="polite" hidden></small>
         </div>
       </div>
       <div class="world-composer-actions">
-        <button class="primary-button compact-primary" id="worldSendButton" type="submit">发送</button>
+        <button class="primary-button compact-primary" id="worldSendButton" type="submit">${escapeHtml(worldText("send", "发送"))}</button>
         <div class="world-image-action">
           <label class="image-upload-button">
             <input id="worldImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
-            图片
+            ${escapeHtml(worldText("image", "图片"))}
           </label>
-          <small class="upload-status" id="worldUploadStatus">先预览再发送</small>
+          <small class="upload-status" id="worldUploadStatus">${escapeHtml(worldText("previewBeforeSend", "先预览再发送"))}</small>
         </div>
       </div>
       <div class="pending-image-preview" id="worldPendingImage" hidden>
-        <img id="worldPendingImageThumb" alt="待发送图片缩略图" />
+        <img id="worldPendingImageThumb" alt="${escapeHtml(worldText("pendingImageAlt", "待发送图片缩略图"))}" />
         <div class="world-crop-copy">
           <strong id="worldPendingImageName"></strong>
-          <small id="worldPendingImageMeta">图片已准备，点「发送」才上传。</small>
+          <small id="worldPendingImageMeta">${escapeHtml(worldText("pendingImageReady", "图片已准备，点「发送」才上传。"))}</small>
         </div>
-        <button class="ghost-button compact-ghost" id="clearWorldImageButton" type="button">移除</button>
+        <button class="ghost-button compact-ghost" id="clearWorldImageButton" type="button">${escapeHtml(commonText("remove", "移除"))}</button>
       </div>
     </form>
   `;
@@ -4620,24 +4840,26 @@ function pickWorldPlaceholder() {
 }
 
 function getWorldPlaceholder() {
-  return typeof currentWorldPlaceholder === "string" && currentWorldPlaceholder.trim()
+  const placeholder = typeof currentWorldPlaceholder === "string" && currentWorldPlaceholder.trim()
     ? currentWorldPlaceholder
     : pickWorldPlaceholder();
+
+  return worldText("inputPlaceholder", placeholder);
 }
 
 function getWorldCharacterHint(length) {
   const remaining = Math.max(WORLD_MESSAGE_MAX_LENGTH - length, 0);
 
   if (length >= WORLD_MESSAGE_MAX_LENGTH) {
-    return "字数满了，先发出去吧";
+    return worldText("characterFull", "字数满了，先发出去吧");
   }
 
   if (length >= 215) {
-    return `快满了，还剩 ${remaining} 字`;
+    return worldText("characterAlmostFull", "快满了，还剩 {count} 字", { count: remaining });
   }
 
   if (length >= 200) {
-    return `还可以输入 ${remaining} 字`;
+    return worldText("characterRemaining", "还可以输入 {count} 字", { count: remaining });
   }
 
   return "";
@@ -4676,41 +4898,41 @@ function renderTravelControls() {
 
   elements.modeControls.innerHTML = `
     <div class="field travel-country-field">
-      <label for="travelCountry">想去国家</label>
+      <label for="travelCountry">${escapeHtml(t("travelFilter.countryIntent", "想去国家"))}</label>
       <select id="travelCountry">
-        ${countryOptions.map((country) => `<option value="${country}" ${country === currentCountry ? "selected" : ""}>${country}</option>`).join("")}
+        ${countryOptions.map((country) => `<option value="${country}" ${country === currentCountry ? "selected" : ""}>${escapeHtml(fixedLabelText(country))}</option>`).join("")}
       </select>
-      <div class="travel-chip-row" aria-label="热门国家快捷按钮">
-        ${countryOptions.slice(0, 18).map((country) => `<button class="travel-filter-chip${country === currentCountry ? " is-active" : ""}" type="button" data-travel-country="${country}">${country}</button>`).join("")}
+      <div class="travel-chip-row" aria-label="${escapeHtml(t("travelFilter.popularCountries", "热门国家快捷按钮"))}">
+        ${countryOptions.slice(0, 18).map((country) => `<button class="travel-filter-chip${country === currentCountry ? " is-active" : ""}" type="button" data-travel-country="${country}">${escapeHtml(fixedLabelText(country))}</button>`).join("")}
       </div>
     </div>
     <div class="field">
-      <label for="travelMood">旅行心情</label>
+      <label for="travelMood">${escapeHtml(t("travelFilter.mood", "旅行心情"))}</label>
       <select id="travelMood">
-        ${TRAVEL_MOODS.map((mood) => `<option value="${mood}" ${mood === state.travel.mood ? "selected" : ""}>${mood}</option>`).join("")}
+        ${TRAVEL_MOODS.map((mood) => `<option value="${mood}" ${mood === state.travel.mood ? "selected" : ""}>${escapeHtml(fixedLabelText(mood))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="travelActivity">想要活动</label>
+      <label for="travelActivity">${escapeHtml(t("travelFilter.activity", "想要活动"))}</label>
       <select id="travelActivity">
-        ${TRAVEL_ACTIVITIES.map((activity) => `<option value="${activity}" ${activity === currentActivity ? "selected" : ""}>${activity}</option>`).join("")}
+        ${TRAVEL_ACTIVITIES.map((activity) => `<option value="${activity}" ${activity === currentActivity ? "selected" : ""}>${escapeHtml(fixedLabelText(activity))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="travelLevel">消费等级</label>
+      <label for="travelLevel">${escapeHtml(t("travelFilter.budget", "消费等级"))}</label>
       <select id="travelLevel">
-        ${TRAVEL_LEVELS.map((level) => `<option value="${level}" ${level === state.travel.level ? "selected" : ""}>${level}</option>`).join("")}
+        ${TRAVEL_LEVELS.map((level) => `<option value="${level}" ${level === state.travel.level ? "selected" : ""}>${escapeHtml(fixedLabelText(level))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="travelTransport">出行方式</label>
+      <label for="travelTransport">${escapeHtml(t("travelFilter.transport", "出行方式"))}</label>
       <select id="travelTransport">
-        ${TRAVEL_TRANSPORTS.map((transport) => `<option value="${transport}" ${transport === state.travel.transport ? "selected" : ""}>${transport}</option>`).join("")}
+        ${TRAVEL_TRANSPORTS.map((transport) => `<option value="${transport}" ${transport === state.travel.transport ? "selected" : ""}>${escapeHtml(fixedLabelText(transport))}</option>`).join("")}
       </select>
     </div>
     <div class="field">
-      <label for="travelNote">朋友提案</label>
-      <input id="travelNote" value="全球精选地点 + 国家/活动筛选；点候选可锁定朋友提案" readonly />
+      <label for="travelNote">${escapeHtml(t("travelFilter.friendSuggestion", "朋友提案"))}</label>
+      <input id="travelNote" value="${escapeHtml(t("travelFilter.friendSuggestionNote", "全球精选地点 + 国家/活动筛选；点候选可锁定朋友提案"))}" readonly />
     </div>
   `;
 
@@ -4974,27 +5196,27 @@ function renderShoppingControls() {
 
   elements.modeControls.innerHTML = `
     <div class="field shopping-filter-field">
-      <label for="shoppingRootCategory">一级分类</label>
+      <label for="shoppingRootCategory">${escapeHtml(filterText("shoppingCategory", "购物类型"))}</label>
       <select id="shoppingRootCategory">
-        ${SHOPPING_CATEGORY_TREE.map((category) => `<option value="${escapeHtml(category.id)}" ${category.id === currentRoot.id ? "selected" : ""}>${escapeHtml(category.label)}</option>`).join("")}
+        ${SHOPPING_CATEGORY_TREE.map((category) => `<option value="${escapeHtml(category.id)}" ${category.id === currentRoot.id ? "selected" : ""}>${escapeHtml(fixedLabelText(category.label))}</option>`).join("")}
       </select>
     </div>
     <div class="field shopping-filter-field">
-      <label for="shoppingSubcategory">二级分类</label>
+      <label for="shoppingSubcategory">${escapeHtml(filterText("subcategory", "二级分类"))}</label>
       <select id="shoppingSubcategory" ${currentRoot.id === "all" ? "disabled" : ""}>
-        ${children.map((child) => `<option value="${escapeHtml(child.id)}" ${child.id === currentChild.id ? "selected" : ""}>${escapeHtml(child.label)}</option>`).join("")}
+        ${children.map((child) => `<option value="${escapeHtml(child.id)}" ${child.id === currentChild.id ? "selected" : ""}>${escapeHtml(fixedLabelText(child.label))}</option>`).join("")}
       </select>
     </div>
     <div class="field shopping-filter-field">
-      <label for="shoppingLevel">消费等级</label>
+      <label for="shoppingLevel">${escapeHtml(filterText("budget", "消费等级"))}</label>
       <select id="shoppingLevel">
-        ${SHOPPING_LEVELS.map((level) => `<option value="${level}" ${level === currentLevel ? "selected" : ""}>${level}</option>`).join("")}
+        ${SHOPPING_LEVELS.map((level) => `<option value="${level}" ${level === currentLevel ? "selected" : ""}>${escapeHtml(fixedLabelText(level))}</option>`).join("")}
       </select>
     </div>
     <div class="field shopping-filter-field">
-      <label for="shoppingMindset">购买心态</label>
+      <label for="shoppingMindset">${escapeHtml(filterText("scene", "使用场景"))}</label>
       <select id="shoppingMindset">
-        ${SHOPPING_MINDSETS.map((mindset) => `<option value="${mindset}" ${mindset === currentMindset ? "selected" : ""}>${mindset}</option>`).join("")}
+        ${SHOPPING_MINDSETS.map((mindset) => `<option value="${mindset}" ${mindset === currentMindset ? "selected" : ""}>${escapeHtml(fixedLabelText(mindset))}</option>`).join("")}
       </select>
     </div>
   `;
@@ -5703,14 +5925,18 @@ function renderPreview() {
   const totalLocked = getLockedTitles().length;
 
   if (LOCKABLE_MODES.has(state.mode)) {
-    const lockedText = lockedOptions.length ? ` · 本轮锁定 ${lockedOptions.length} 个` : totalLocked ? ` · 已锁定 ${totalLocked} 个` : "";
-    elements.previewCount.textContent = `${options.length} 个选择${lockedText}`;
+    const lockedText = lockedOptions.length
+      ? ` · ${candidateText("lockedThisRound", "本轮锁定 {count} 个", { count: lockedOptions.length })}`
+      : totalLocked
+        ? ` · ${candidateText("lockedTotal", "已锁定 {count} 个", { count: totalLocked })}`
+        : "";
+    elements.previewCount.textContent = `${candidateText("count", "{count} 个选择", { count: options.length })}${lockedText}`;
   } else {
-    elements.previewCount.textContent = `${options.length} 个选择`;
+    elements.previewCount.textContent = candidateText("count", "{count} 个选择", { count: options.length });
   }
 
   if (!options.length) {
-    elements.optionPreview.innerHTML = `<span class="chip is-muted">当前筛选没有候选项，换个条件试试</span>`;
+    elements.optionPreview.innerHTML = `<span class="chip is-muted">${escapeHtml(candidateText("empty", "当前筛选没有候选项，换个条件试试"))}</span>`;
     return;
   }
 
@@ -5721,13 +5947,13 @@ function renderPreview() {
     .map((item) => renderOptionChip(item))
     .join("");
   const overflowHint = hiddenCount
-    ? `<span class="chip preview-overflow-chip">还有 ${hiddenCount} 个候选未显示</span>`
+    ? `<span class="chip preview-overflow-chip">${escapeHtml(candidateText("overflow", "还有 {count} 个候选未显示", { count: hiddenCount }))}</span>`
     : "";
   const lockHint = LOCKABLE_MODES.has(state.mode)
-    ? `<span class="chip lock-note">${lockedOptions.length ? "已启用锁定随机" : "点候选可锁定"}</span>`
+    ? `<span class="chip lock-note">${escapeHtml(lockedOptions.length ? candidateText("lockEnabled", "已启用锁定随机") : candidateText("clickToLock", "点候选可锁定"))}</span>`
     : "";
   const clearLockButton = LOCKABLE_MODES.has(state.mode) && totalLocked
-    ? `<button class="chip clear-locks-chip" type="button" data-clear-locks="true">清除锁定</button>`
+    ? `<button class="chip clear-locks-chip" type="button" data-clear-locks="true">${escapeHtml(candidateText("clearLocks", "清除锁定"))}</button>`
     : "";
 
   elements.optionPreview.innerHTML = `${optionMarkup}${overflowHint}${lockHint}${clearLockButton}`;
@@ -5758,7 +5984,7 @@ function renderGiftPreview() {
 function renderWorldChannel() {
   const visibleMessages = state.worldMessages.filter((message) => !isDeletedWorldMessageClient(message));
 
-  elements.worldChatCount.textContent = `${visibleMessages.length} 条消息`;
+  elements.worldChatCount.textContent = worldText("messageCount", "{count} 条消息", { count: visibleMessages.length });
   elements.worldChatList.innerHTML = `
     <div class="world-chat">
       ${visibleMessages
@@ -5800,9 +6026,9 @@ function renderWorldLikeButton(message) {
   const likeCount = Math.max(Number(message.likeCount) || 0, 0);
   const label = currentAccount
     ? isLiked
-      ? "取消爱心"
-      : "点爱心"
-    : "登录后可以点爱心";
+      ? worldText("unlike", "取消爱心")
+      : worldText("like", "点爱心")
+    : worldText("loginToLike", "登录后可以点爱心");
 
   return `
     <button class="world-like-button${isLiked ? " is-liked" : ""}${isPending ? " is-loading" : ""}" type="button" data-world-like="${escapeHtml(message.id)}" aria-pressed="${isLiked}" aria-label="${label}" ${isPending ? "disabled" : ""}>
@@ -5823,11 +6049,11 @@ function renderWorldAttachment(attachment, message = null) {
     return "";
   }
 
-  const imageAlt = attachment.alt || attachment.name || "世界频道图片";
+  const imageAlt = attachment.alt || attachment.name || worldText("imageAlt", "世界频道图片");
   const caption = message ? getWorldMessageText(message) : "";
 
   return `
-    <button class="world-image-link" type="button" data-world-image-url="${escapeHtml(attachment.url)}" data-world-image-alt="${escapeHtml(imageAlt)}" data-world-image-caption="${escapeHtml(caption)}" aria-label="打开世界频道图片预览">
+    <button class="world-image-link" type="button" data-world-image-url="${escapeHtml(attachment.url)}" data-world-image-alt="${escapeHtml(imageAlt)}" data-world-image-caption="${escapeHtml(caption)}" aria-label="${escapeHtml(worldText("openImagePreview", "打开世界频道图片预览"))}">
       <img src="${escapeHtml(attachment.url)}" alt="${escapeHtml(imageAlt)}" loading="lazy" />
     </button>
   `;
@@ -6117,9 +6343,10 @@ function applyWorldImageViewerTransform() {
 
 function renderOptionChip(item) {
   const details = getOptionDetails(item);
+  const displayTitle = getOptionDisplayTitle(item);
 
   if (!LOCKABLE_MODES.has(state.mode)) {
-    return `<span class="chip">${escapeHtml(item.title)}</span>`;
+    return `<span class="chip">${escapeHtml(displayTitle)}</span>`;
   }
 
   const locked = isLocked(item.title);
@@ -6130,10 +6357,18 @@ function renderOptionChip(item) {
   return `
     <button class="chip option-chip${shoppingClass}${lockedClass}" type="button" data-lock-title="${escapeHtml(item.title)}" aria-pressed="${locked}">
       <span class="chip-pin">${lockedIcon}</span>
-      <span class="chip-title">${escapeHtml(item.title)}</span>
+      <span class="chip-title">${escapeHtml(displayTitle)}</span>
       ${renderOptionChipDetail(item, details)}
     </button>
   `;
+}
+
+function getOptionDisplayTitle(item) {
+  if (state.mode === "custom") {
+    return item.title;
+  }
+
+  return fixedLabelText(item.title, item.title);
 }
 
 function renderOptionChipDetail(item, details) {
@@ -6145,8 +6380,8 @@ function renderOptionChipDetail(item, details) {
     return `<small class="chip-detail">${escapeHtml(details)}</small>`;
   }
 
-  const budgetText = formatBudget(item.budget);
-  const tagText = item.tags.length ? item.tags.slice(0, 3).join(" / ") : "暂无标签";
+  const budgetText = formatBudgetLabel(item.budget);
+  const tagText = item.tags.length ? joinFixedLabels(item.tags.slice(0, 3), " / ") : candidateText("noTags", "暂无标签");
 
   return `
     <small class="chip-detail shopping-chip-detail">
@@ -6158,21 +6393,21 @@ function renderOptionChipDetail(item, details) {
 
 function getOptionDetails(item) {
   if (state.mode === "food") {
-    return `${item.tags.slice(0, 2).join(" · ")} · ${formatBudget(item.budget)}`;
+    return `${joinFixedLabels(item.tags.slice(0, 2), " · ")} · ${formatBudgetLabel(item.budget)}`;
   }
 
   if (state.mode === "drink") {
-    return `${item.brand} · ${item.tags.slice(0, 2).join(" · ")} · ${formatBudget(item.budget)}`;
+    return `${item.brand} · ${joinFixedLabels(item.tags.slice(0, 2), " · ")} · ${formatBudgetLabel(item.budget)}`;
   }
 
   if (state.mode === "travel") {
-    const activities = getDestinationActivities(item).slice(0, 3).join(" · ");
-    return `${item.country} · ${activities} · ${getBudgetText(item)}`;
+    const activities = joinFixedLabels(getDestinationActivities(item).slice(0, 3), " · ");
+    return `${fixedLabelText(item.country)} · ${activities} · ${formatBudgetLabel(getBudgetText(item, false))}`;
   }
 
   if (state.mode === "shopping") {
-    const tagText = item.tags.length ? ` · ${item.tags.slice(0, 3).join(" / ")}` : " · 暂无标签";
-    return `${formatBudget(item.budget)}${tagText}`;
+    const tagText = item.tags.length ? ` · ${joinFixedLabels(item.tags.slice(0, 3), " / ")}` : ` · ${candidateText("noTags", "暂无标签")}`;
+    return `${formatBudgetLabel(item.budget)}${tagText}`;
   }
 
   if (state.mode === "custom") {
@@ -6305,7 +6540,8 @@ function getResult() {
     return {
       mode: state.mode,
       title: dishResult.title,
-      meta: `${sourceLabel} · ${dishResult.tags.join(" / ")} · 预算约 ${dishResult.budget}${poolNote}`,
+      rawTitle: dishResult.title,
+      meta: `${sourceLabel} · ${joinFixedLabels(dishResult.tags, " / ")} · ${formatRawBudgetLabel(dishResult.budget)}${poolNote}`,
     };
   }
 
@@ -6315,19 +6551,20 @@ function getResult() {
     return {
       mode: state.mode,
       title: drinkResult.title,
-      meta: `${state.drink.country} · ${drinkResult.brand} · ${drinkResult.tags.join(" / ")} · 预算约 ${drinkResult.budget}${poolNote}`,
+      rawTitle: drinkResult.title,
+      meta: `${fixedLabelText(state.drink.country)} · ${drinkResult.brand} · ${joinFixedLabels(drinkResult.tags, " / ")} · ${formatRawBudgetLabel(drinkResult.budget)}${poolNote}`,
     };
   }
 
   if (state.mode === "travel") {
     const travelResult = choose(pool);
     const budgetText = getBudgetText(travelResult, false);
-    const activityText = getDestinationActivities(travelResult).slice(0, 3).join(" / ");
 
     return {
       mode: state.mode,
       title: travelResult.title,
-      meta: `${travelResult.country} · ${travelResult.days} 天 · ${activityText} · ${state.travel.transport === "全部" ? travelResult.transports[0] : state.travel.transport} · 预算约 ${budgetText}/人${poolNote}。${travelResult.note}`,
+      rawTitle: travelResult.title,
+      meta: `${fixedLabelText(travelResult.country)} · ${formatLocaleText(t("travel.days", "{count} 天"), { count: travelResult.days })} · ${joinFixedLabels(getDestinationActivities(travelResult).slice(0, 3), " / ")} · ${fixedLabelText(state.travel.transport === "全部" ? travelResult.transports[0] : state.travel.transport)} · ${formatRawBudgetLabel(budgetText, { perPerson: true })}${poolNote}。${fixedLabelText(travelResult.note, travelResult.note)}`,
     };
   }
 
@@ -6350,6 +6587,7 @@ function getResult() {
     return {
       mode: state.mode,
       title: shoppingResult.title,
+      rawTitle: shoppingResult.title,
       meta: buildShoppingResultMeta(shoppingResult, poolNote),
       shopping: buildShoppingResultDetails(shoppingResult),
     };
@@ -6360,7 +6598,8 @@ function getResult() {
   return {
     mode: state.mode,
     title: customResult.title,
-    meta: `来自你的 ${options.length} 个自定义选项${poolNote}`,
+    rawTitle: customResult.title,
+    meta: resultText("customOptionMeta", "来自你的 {count} 个自定义选项", { count: options.length }) + poolNote,
   };
 }
 
@@ -6375,10 +6614,10 @@ function normalizeSentence(text) {
 
 function buildShoppingResultMeta(item, poolNote = "") {
   const parts = [
-    item.category,
-    item.subcategory,
-    item.level,
-    `预算约 ${item.budget}`,
+    fixedLabelText(item.category),
+    fixedLabelText(item.subcategory),
+    fixedLabelText(item.level),
+    formatRawBudgetLabel(item.budget),
   ].filter(Boolean);
 
   return `${parts.join(" · ")}${poolNote}`;
@@ -6414,18 +6653,18 @@ function getShoppingResultDetails(item) {
 
 function getShoppingReminderText(priority) {
   const sentence = trimSentenceEnding(String(priority || "").replace(/^提醒[:：]\s*/u, ""));
-  return sentence ? `提醒：${sentence}。` : "";
+  return sentence ? resultText("reminderLine", "提醒：{text}。", { text: sentence }) : "";
 }
 
 function getShoppingContextLine(details) {
   const parts = [];
 
   if (details.mindset && details.mindset !== "全部") {
-    parts.push(`心态：${details.mindset}`);
+    parts.push(resultText("mindsetLine", "心态：{text}", { text: fixedLabelText(details.mindset) }));
   }
 
   if (details.tags.length) {
-    parts.push(`标签：${details.tags.slice(0, 4).join(" / ")}`);
+    parts.push(resultText("tagsLine", "标签：{text}", { text: joinFixedLabels(details.tags.slice(0, 4), " / ") }));
   }
 
   return parts.join(" · ");
@@ -6433,10 +6672,10 @@ function getShoppingContextLine(details) {
 
 function getFoodSourceLabel() {
   if (SPECIAL_FOOD_CATEGORIES.has(state.food.category)) {
-    return `${state.food.country} · ${state.food.category}`;
+    return `${fixedLabelText(state.food.country)} · ${fixedLabelText(state.food.category)}`;
   }
 
-  return `${state.food.country} · ${state.food.region}`;
+  return `${fixedLabelText(state.food.country)} · ${fixedLabelText(state.food.region)}`;
 }
 
 function getBudgetText(item, shouldFormat = true) {
@@ -6448,7 +6687,7 @@ function getBudgetText(item, shouldFormat = true) {
   }
 
   const firstLevel = TRAVEL_LEVELS.find((level) => level !== "全部" && item.budgets[level]);
-  budgetText = firstLevel ? item.budgets[firstLevel] : "需按机票和住宿另估";
+  budgetText = firstLevel ? item.budgets[firstLevel] : t("travel.budgetNeedEstimate", "需按机票和住宿另估");
   return shouldFormat ? formatBudget(budgetText) : budgetText;
 }
 
@@ -6469,7 +6708,9 @@ function getRandomPool(options) {
 
 function getPoolNote(options) {
   const activeLockedOptions = getActiveLockedOptions(options);
-  return activeLockedOptions.length ? ` · 从 ${activeLockedOptions.length} 个锁定候选中抽出` : "";
+  return activeLockedOptions.length
+    ? ` · ${resultText("lockedPoolNote", "从 {count} 个锁定候选中抽出", { count: activeLockedOptions.length })}`
+    : "";
 }
 
 function isLocked(title) {
@@ -6759,18 +7000,18 @@ function getCurrentUser() {
 
 function getCloudSyncLabel() {
   if (state.cloudSync.loading) {
-    return "正在同步记录";
+    return worldText("sync.loading", "正在同步记录");
   }
 
   if (state.cloudSync.available) {
-    return "记录已同步";
+    return worldText("sync.synced", "记录已同步");
   }
 
   if (state.cloudSync.lastError) {
-    return "暂时同步不了，先存在这台设备";
+    return worldText("syncPausedLocalOnly", "暂时同步不了，先存在这台设备");
   }
 
-  return "记录会先存在这台设备";
+  return worldText("sync.localOnly", "记录会先存在这台设备");
 }
 
 function getShortUserId() {
@@ -6784,10 +7025,10 @@ function getShortUserId() {
 function getCloudIdentityText() {
   if (getCurrentUser()) {
     if (state.worldSync.available) {
-      return "账号已登入，世界频道已连接";
+      return worldText("identity.connected", "账号已登入，世界频道已连接");
     }
 
-    return "账号已登入，世界频道正在连接";
+    return worldText("identity.connecting", "账号已登入，世界频道正在连接");
   }
 
   return getCloudSyncLabel();
@@ -6825,21 +7066,33 @@ function getMessageAvatarUrl(message) {
   return String(message.avatarUrl || "").trim();
 }
 
+function isDefaultWorldImageCaption(text) {
+  const normalizedText = String(text || "").trim();
+
+  if (!normalizedText) {
+    return true;
+  }
+
+  return WORLD_DEFAULT_IMAGE_CAPTION_VALUES.some((caption) => normalizedText === caption);
+}
+
 function getWorldMessageText(message) {
-  const text = String(message.text || "");
+  const text = String(message.text || "").trim();
+  const sharedPhotoText = worldText("sharedPhoto", "分享了一张图片");
 
   if (message.attachment?.type !== "image") {
     return text;
   }
 
+  if (isDefaultWorldImageCaption(text)) {
+    return sharedPhotoText;
+  }
+
   const attachmentName = String(message.attachment.name || "");
 
   if (attachmentName && text.includes(attachmentName)) {
-    return text.split(attachmentName).join("").replace(/[：:\-\s]+$/g, "").trim() || "上传了一张图片";
-  }
-
-  if (text.startsWith("上传了一张图片")) {
-    return "上传了一张图片";
+    const captionText = text.split(attachmentName).join("").replace(/[：:\-\s]+$/g, "").trim();
+    return isDefaultWorldImageCaption(captionText) ? sharedPhotoText : captionText;
   }
 
   return text;
@@ -6943,7 +7196,7 @@ function markAllNotificationsRead() {
   state.notificationReadIds = [...new Set([...state.notificationReadIds, ...visibleIds])];
   saveState();
   renderTopUserTools();
-  showToast("通知已全部标为已读");
+  showToast(notificationText("markedRead", "通知已全部标为已读"));
 }
 
 function clearLocalNotifications() {
@@ -6952,7 +7205,7 @@ function clearLocalNotifications() {
   state.notificationReadIds = [...new Set([...state.notificationReadIds, ...visibleIds])];
   saveState();
   renderTopUserTools();
-  showToast("本机通知已清空");
+  showToast(notificationText("cleared", "本机通知已清空"));
 }
 
 function toggleMoreMenu() {
@@ -6994,7 +7247,7 @@ function closeSettingsPanel() {
 
 function openProfileFromSettings(target = "profile") {
   if (!getCurrentUser()) {
-    showToast("请先登入再编辑账号。");
+    showToast(settingsText("loginToEdit", "请先登入再编辑账号。"));
     return;
   }
 
@@ -8589,10 +8842,10 @@ async function sendWorldMessage() {
         throw new Error("图片还没准备好，请重新选择一次。");
       }
 
-      setUploadStatus("正在上传图片并发送到世界频道…");
+      setUploadStatus(worldText("uploadingImage", "正在上传图片并发送到世界频道…"));
       attachment = await uploadImageThroughServer(processedImage.file);
       rememberUpload(attachment, processedImage.file);
-      messageText = messageText || "上传了一张图片";
+      messageText = messageText || worldText("sharedPhoto", "分享了一张图片");
       attachment = {
         type: "image",
         contentType: processedImage.file.type,
@@ -8610,8 +8863,8 @@ async function sendWorldMessage() {
 
     input.value = "";
     updateWorldCharacterHint();
-    setUploadStatus(imageToSend ? "图片已发送成功。" : "先预览再发送");
-    showToast(imageToSend ? "图片已发送到世界频道。" : "消息已发送到世界频道。");
+    setUploadStatus(imageToSend ? worldText("imageSent", "图片已发送成功。") : worldText("previewBeforeSend", "先预览再发送"));
+    showToast(imageToSend ? worldText("imageSentToWorld", "图片已发送到世界频道。") : worldText("messageSentToWorld", "消息已发送到世界频道。"));
   } catch (error) {
     console.warn("World image send failed.", error);
     reportClientError(error, {
@@ -9784,11 +10037,17 @@ function updateResultActionButtons(result) {
   const isNumberResult = result?.mode === "number";
 
   elements.copyResultButton.disabled = !hasResult;
-  elements.copyResultButton.textContent = result?.mode === "gift" ? giftText("button.copyResult", "复制结果") : isNumberResult ? "复制号码" : "复制结果";
+  elements.copyResultButton.textContent = result?.mode === "gift"
+    ? giftText("button.copyResult", "复制结果")
+    : isNumberResult
+      ? resultText("copyNumber", "复制号码")
+      : resultText("copyResult", "复制结果");
   elements.favoriteButton.disabled = !hasResult || result?.mode === "gift";
   elements.favoriteButton.title = result?.mode === "gift" ? giftText("favorite.disabledTitle", "礼物交换结果只保存在本机，可直接复制。") : "";
   elements.shareResultButton.hidden = typeof navigator.share !== "function";
   elements.shareResultButton.disabled = !hasResult || elements.shareResultButton.hidden;
+  elements.shareResultButton.textContent = resultText("share", "分享");
+  elements.favoriteButton.textContent = hasResult && isFavoriteResult(result) ? resultText("savedResult", "已收藏") : resultText("saveResult", "收藏结果");
 }
 
 function getResultShareTitle(result = state.currentResult) {
@@ -9854,7 +10113,7 @@ function getResultCopyText(result = state.currentResult) {
   const lines = [
     getModeTitle(result.mode),
     "",
-    result.title,
+    getResultDisplayTitle(result),
     ...getResultMetaLines(result),
   ];
 
@@ -9890,7 +10149,7 @@ async function writeClipboardText(text) {
 
 async function copyCurrentResult() {
   if (!state.currentResult) {
-    showToast("先随机一次，再复制结果。");
+    showToast(resultText("copyFirst", "先随机一次，再复制结果。"));
     return;
   }
 
@@ -9901,15 +10160,15 @@ async function copyCurrentResult() {
 
   try {
     await writeClipboardText(getResultCopyText());
-    showToast(state.currentResult.mode === "number" ? "号码已复制。" : "结果已复制。");
+    showToast(state.currentResult.mode === "number" ? resultText("numberCopySuccess", "号码已复制。") : resultText("copySuccess", "结果已复制。"));
   } catch (error) {
-    showToast("复制失败，请手动长按结果复制。");
+    showToast(resultText("copyFailure", "复制失败，请手动长按结果复制。"));
   }
 }
 
 async function shareCurrentResult() {
   if (!state.currentResult) {
-    showToast("先随机一次，再分享结果。");
+    showToast(resultText("shareFirst", "先随机一次，再分享结果。"));
     return;
   }
 
@@ -9932,7 +10191,7 @@ async function shareCurrentResult() {
     });
   } catch (error) {
     if (error?.name !== "AbortError") {
-      showToast("分享失败，可以先复制结果。");
+      showToast(resultText("shareFailure", "分享失败，可以先复制结果。"));
     }
   }
 }
@@ -9946,7 +10205,7 @@ function drawResult() {
   const result = getResult();
 
   if (!result) {
-    showToast("当前筛选没有候选项，换个条件或输入候选后再随机。");
+    showToast(resultText("emptyOptions", "当前筛选没有候选项，换个条件或输入候选后再随机。"));
     return;
   }
 
@@ -9967,7 +10226,7 @@ function drawResult() {
 function renderResult(result) {
   elements.resultStage.classList.toggle("is-gift-result", result.mode === "gift");
   elements.resultLabel.textContent = getModeText(result.mode, "label");
-  elements.resultValue.textContent = result.mode === "number" ? result.title : result.title;
+  elements.resultValue.textContent = result.mode === "number" ? result.title : getResultDisplayTitle(result);
   elements.resultMeta.innerHTML = renderResultMeta(result);
   updateResultActionButtons(result);
 
@@ -10082,7 +10341,7 @@ function addHistory(result) {
 
 function favoriteCurrent() {
   if (!state.currentResult) {
-    showToast("先随机一次，再收藏结果。");
+    showToast(resultText("favoriteFirst", "先随机一次，再收藏结果。"));
     return;
   }
 
@@ -10091,12 +10350,10 @@ function favoriteCurrent() {
     return;
   }
 
-  const exists = state.favorites.some(
-    (item) => item.title === state.currentResult.title && item.mode === state.currentResult.mode,
-  );
+  const exists = isFavoriteResult(state.currentResult);
 
   if (exists) {
-    showToast("这个结果已经在收藏里啦。");
+    showToast(resultText("alreadyFavorite", "这个结果已经在收藏里啦。"));
     return;
   }
 
@@ -10111,22 +10368,32 @@ function favoriteCurrent() {
   saveState();
   renderFavorites();
   syncCloudItem("favorites", favoriteEntry);
-  showToast("已加入收藏。");
+  updateResultActionButtons(state.currentResult);
+  showToast(resultText("favoriteSuccess", "已加入收藏。"));
+}
+
+function isFavoriteResult(result = state.currentResult) {
+  if (!result) {
+    return false;
+  }
+
+  const resultKey = getResultStableKey(result);
+  return state.favorites.some((item) => item.mode === result.mode && getResultStableKey(item) === resultKey);
 }
 
 function renderHistory() {
-  elements.historyCount.textContent = `${state.history.length} 条`;
-  elements.historyList.innerHTML = renderStackItems(state.history, "还没有决定记录。按下随机按钮试试。");
+  elements.historyCount.textContent = homeText("recentCount", "{count} 条", { count: state.history.length });
+  elements.historyList.innerHTML = renderStackItems(state.history, homeText("noRecent", "还没有决定记录。按下随机按钮试试。"));
 }
 
 function renderFavorites() {
-  elements.favoriteCount.textContent = `${state.favorites.length} 个`;
-  elements.favoritesList.innerHTML = renderStackItems(state.favorites, "收藏喜欢的结果，下次就不用重新纠结。");
+  elements.favoriteCount.textContent = homeText("favoriteCount", "{count} 个", { count: state.favorites.length });
+  elements.favoritesList.innerHTML = renderStackItems(state.favorites, homeText("noFavorites", "收藏喜欢的结果，下次就不用重新纠结。"));
 }
 
 function renderStackItems(items, emptyText) {
   if (!items.length) {
-    return `<p class="empty-state">${emptyText}</p>`;
+    return `<p class="empty-state">${escapeHtml(emptyText)}</p>`;
   }
 
   return items
@@ -10134,7 +10401,7 @@ function renderStackItems(items, emptyText) {
       const timeText = item.time ? ` · ${item.time}` : "";
       return `
         <article class="stack-item">
-          <strong>${escapeHtml(item.title)}</strong>
+          <strong>${escapeHtml(getResultDisplayTitle(item))}</strong>
           <small>${renderStackItemMeta(item, timeText)}</small>
         </article>
       `;
@@ -10175,10 +10442,11 @@ function renderDailyInspiration() {
   const today = new Date();
   const seed = today.getFullYear() + today.getMonth() * 31 + today.getDate();
   const tip = DAILY_TIPS[seed % DAILY_TIPS.length];
+  const key = tip.key || "smallFirst";
 
   elements.dailyInspiration.innerHTML = `
-    <strong>${tip.title}</strong>
-    <p>${tip.text}</p>
+    <strong>${escapeHtml(t(`inspiration.${key}.title`, tip.title))}</strong>
+    <p>${escapeHtml(t(`inspiration.${key}.text`, tip.text))}</p>
   `;
 }
 
@@ -10189,7 +10457,7 @@ function clearHistory() {
   renderHistory();
   renderFavorites();
   syncCloudClear(["history", "favorites"]);
-  showToast("记录和收藏已清空。");
+  showToast(resultText("recordsCleared", "记录和收藏已清空。"));
 }
 
 function surpriseMode() {
