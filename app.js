@@ -87,6 +87,8 @@ const GIFT_REVEAL_MODES = {
   all: "全部一起生成",
 };
 const GIFT_PARTICIPANT_LIMIT = 80;
+const GIFT_NAME_MAX_LENGTH = 40;
+const GIFT_PARTICIPANTS_TEXT_LIMIT = 5000;
 const DEFAULT_PREVIEW_LIMIT = 24;
 const SHOPPING_PREVIEW_LIMIT = 30;
 const LOCKABLE_MODES = new Set(["food", "drink", "travel", "shopping", "custom"]);
@@ -1828,6 +1830,9 @@ const RELEASE_NOTES = [
       "Enforced the participant limit before generating gift exchange pairs.",
       "Restored the current random button state after stale gift shuffle cleanup.",
       "Reordered gift exchange input controls for mobile-first entry.",
+      "Increased gift participant text persistence capacity.",
+      "Added English and Malay locale entries for gift exchange mode.",
+      "Normalized gift participant name limits to match the 80-person cap.",
       "Separated world channel entry from random mode cards.",
       "Preserved existing auth, world channel, notifications, home layout, image, and like flows.",
     ],
@@ -2458,14 +2463,28 @@ function createDefaultGiftExchangeState() {
   };
 }
 
+function truncateGiftParticipantsText(text) {
+  const value = String(text || "");
+
+  if (value.length <= GIFT_PARTICIPANTS_TEXT_LIMIT) {
+    return value;
+  }
+
+  const sliced = value.slice(0, GIFT_PARTICIPANTS_TEXT_LIMIT);
+  const separatorIndexes = ["\n", ",", "，", "、", ";", "；"].map((separator) => sliced.lastIndexOf(separator));
+  const lastSeparatorIndex = Math.max(...separatorIndexes);
+
+  return (lastSeparatorIndex > 0 ? sliced.slice(0, lastSeparatorIndex) : sliced).trimEnd();
+}
+
 function normalizeGiftExchangeState(gift) {
   const source = gift && typeof gift === "object" ? gift : {};
   const hasTooManySavedPairs = Array.isArray(source.pairs) && source.pairs.length > GIFT_PARTICIPANT_LIMIT;
   const normalizedPairs = Array.isArray(source.pairs)
     ? source.pairs
       .map((pair) => ({
-        giver: String(pair?.giver || "").trim().slice(0, 40),
-        receiver: String(pair?.receiver || "").trim().slice(0, 40),
+        giver: String(pair?.giver || "").trim().slice(0, GIFT_NAME_MAX_LENGTH),
+        receiver: String(pair?.receiver || "").trim().slice(0, GIFT_NAME_MAX_LENGTH),
       }))
       .filter((pair) => pair.giver && pair.receiver && pair.giver !== pair.receiver)
     : [];
@@ -2478,7 +2497,7 @@ function normalizeGiftExchangeState(gift) {
     : 0;
 
   return {
-    participantsText: String(source.participantsText || "").slice(0, 2000),
+    participantsText: truncateGiftParticipantsText(source.participantsText),
     revealMode: GIFT_REVEAL_MODES[source.revealMode] ? source.revealMode : "single",
     pairs,
     revealedIndexes,
@@ -2494,7 +2513,7 @@ function parseGiftParticipants(text = state.gift.participantsText) {
     .split(/[\n,，、;；]+/)
     .map((name) => name.trim())
     .filter(Boolean)
-    .map((name) => name.slice(0, 40));
+    .map((name) => name.slice(0, GIFT_NAME_MAX_LENGTH));
 }
 
 function getGiftParticipantValidation(text = state.gift.participantsText) {
@@ -2559,7 +2578,7 @@ function isGiftFullyRevealed(gift = state.gift) {
 }
 
 function syncRandomButtonState() {
-  const giftButtonLabel = state.gift.pairs.length ? "重新洗牌" : "开始配对";
+  const giftButtonLabel = state.gift.pairs.length ? giftText("button.shuffleAgain", "重新洗牌") : giftText("button.startPairing", "开始配对");
 
   elements.randomButton.disabled = false;
   elements.randomButtonLabel.textContent = state.mode === "gift" ? giftButtonLabel : t("actions.random", "随机决定");
@@ -2586,7 +2605,7 @@ function cancelGiftShuffle(options = {}) {
     cleanupGiftShuffleUi();
 
     if (!silent && state.mode === "gift") {
-      showToast("已取消本次洗牌");
+      showToast(giftText("toast.shuffleCancelled", "已取消本次洗牌"));
     }
   }
 
@@ -2602,8 +2621,8 @@ function buildGiftCurrentResult() {
 
   return {
     mode: "gift",
-    title: "礼物交换配对已生成",
-    meta: `${pairCount} 位参与者 · ${GIFT_REVEAL_MODES[state.gift.revealMode] || GIFT_REVEAL_MODES.single} · 结果只保存在本机`,
+    title: giftText("result.generatedTitle", "礼物交换配对已生成"),
+    meta: `${pairCount} ${giftText("meta.participants", "位参与者")} · ${getGiftRevealModeLabel(state.gift.revealMode)} · ${giftText("meta.localOnly", "结果只保存在本机")}`,
     giftPairs: state.gift.pairs,
     giftRevealMode: state.gift.revealMode,
   };
@@ -2628,6 +2647,20 @@ function getModeText(modeKey, field) {
 
 function getModeTitle(modeKey) {
   return getModeText(modeKey, "title");
+}
+
+function giftText(key, fallback = "", replacements = {}) {
+  let value = t(`gift.${key}`, fallback);
+
+  Object.entries(replacements).forEach(([placeholder, replacement]) => {
+    value = value.replaceAll(`{${placeholder}}`, String(replacement));
+  });
+
+  return value;
+}
+
+function getGiftRevealModeLabel(mode) {
+  return giftText(`revealMode.${mode}`, GIFT_REVEAL_MODES[mode] || GIFT_REVEAL_MODES.single);
 }
 
 function getLotteryDisclaimer() {
@@ -5001,18 +5034,18 @@ function renderGiftParticipantChips(participants, duplicateNames) {
   if (!participants.length) {
     return `
       <div class="gift-empty-note">
-        <strong>还没有参与者</strong>
-        <small>可以一行一个名字，也可以用逗号分开。</small>
+        <strong>${giftText("empty.participantsTitle", "还没有参与者")}</strong>
+        <small>${giftText("empty.participantsHint", "可以一行一个名字，也可以用逗号分开。")}</small>
       </div>
     `;
   }
 
   return `
-    <div class="gift-participant-list" aria-label="礼物交换参与者">
+    <div class="gift-participant-list" aria-label="${giftText("aria.participants", "礼物交换参与者")}">
       ${participants.map((name) => `
         <span class="gift-participant-chip${duplicateNames.includes(name) ? " is-duplicate" : ""}">
           <span>${escapeHtml(name)}</span>
-          <button type="button" data-gift-remove="${escapeHtml(name)}" aria-label="删除 ${escapeHtml(name)}">×</button>
+          <button type="button" data-gift-remove="${escapeHtml(name)}" aria-label="${escapeHtml(giftText("aria.deleteName", "删除 {name}", { name }))}">×</button>
         </span>
       `).join("")}
     </div>
@@ -5034,12 +5067,12 @@ function renderGiftSingleReveal() {
     return `
       <article class="gift-reveal-card is-complete gift-main-card">
         <span class="gift-party-icon" aria-hidden="true">🎉</span>
-        <strong>全部抽完啦</strong>
-        <small>${pairs.length} 位参与者都已经安排好了。</small>
+        <strong>${giftText("result.completeTitle", "全部抽完啦")}</strong>
+        <small>${giftText("result.completeBody", "{count} 位参与者都已经安排好了。", { count: pairs.length })}</small>
         <div class="gift-result-actions">
-          <button class="secondary-button" type="button" data-gift-view-full-list>查看完整结果</button>
-          <button class="secondary-button" type="button" data-gift-copy>复制结果</button>
-          <button class="primary-button compact-primary" type="button" data-gift-reshuffle>重新洗牌</button>
+          <button class="secondary-button" type="button" data-gift-view-full-list>${giftText("button.viewFull", "查看完整结果")}</button>
+          <button class="secondary-button" type="button" data-gift-copy>${giftText("button.copyResult", "复制结果")}</button>
+          <button class="primary-button compact-primary" type="button" data-gift-reshuffle>${giftText("button.shuffleAgain", "重新洗牌")}</button>
         </div>
       </article>
     `;
@@ -5049,19 +5082,19 @@ function renderGiftSingleReveal() {
 
   return `
     <article class="gift-reveal-card gift-main-card">
-      <small>正在揭晓 · ${gift.currentIndex + 1} / ${pairs.length}</small>
+      <small>${giftText("result.revealing", "正在揭晓")} · ${gift.currentIndex + 1} / ${pairs.length}</small>
       <strong>${escapeHtml(currentPair.giver)}</strong>
       <div class="gift-reveal-result${isRevealed ? " is-revealed" : ""}">
         ${isRevealed
-          ? `<span>${escapeHtml(currentPair.giver)} 要送礼物给 ${escapeHtml(currentPair.receiver)}</span>`
+          ? `<span>${escapeHtml(giftText("result.pairSentence", "{giver} 要送礼物给 {receiver}", { giver: currentPair.giver, receiver: currentPair.receiver }))}</span>`
           : "<span>？？？</span>"}
       </div>
       <div class="gift-result-actions">
         ${isRevealed
-          ? '<button class="primary-button compact-primary" type="button" data-gift-next>下一个</button>'
-          : '<button class="primary-button compact-primary" type="button" data-gift-reveal-current>点击揭晓</button>'}
-        <button class="secondary-button" type="button" data-gift-copy>复制结果</button>
-        <button class="secondary-button" type="button" data-gift-reshuffle>重新洗牌</button>
+          ? `<button class="primary-button compact-primary" type="button" data-gift-next>${giftText("button.next", "下一个")}</button>`
+          : `<button class="primary-button compact-primary" type="button" data-gift-reveal-current>${giftText("button.revealCurrent", "点击揭晓")}</button>`}
+        <button class="secondary-button" type="button" data-gift-copy>${giftText("button.copyResult", "复制结果")}</button>
+        <button class="secondary-button" type="button" data-gift-reshuffle>${giftText("button.shuffleAgain", "重新洗牌")}</button>
       </div>
     </article>
   `;
@@ -5077,7 +5110,7 @@ function renderGiftAllReveal() {
   }
 
   return `
-    <div class="gift-main-list" aria-label="礼物交换结果">
+    <div class="gift-main-list" aria-label="${giftText("aria.result", "礼物交换结果")}">
       ${gift.pairs.map((pair, index) => {
         const isRevealed = revealedSet.has(index);
 
@@ -5087,17 +5120,17 @@ function renderGiftAllReveal() {
             <span aria-hidden="true">→</span>
             <b>${isRevealed ? escapeHtml(pair.receiver) : "？？？"}</b>
             <button class="secondary-button" type="button" data-gift-reveal-index="${index}" ${isRevealed ? "disabled" : ""}>
-              ${isRevealed ? "已揭晓" : "揭晓"}
+              ${isRevealed ? giftText("button.revealed", "已揭晓") : giftText("button.reveal", "揭晓")}
             </button>
           </article>
         `;
       }).join("")}
     </div>
     <div class="gift-result-actions">
-      <button class="secondary-button" type="button" data-gift-reveal-all ${fullyRevealed ? "disabled" : ""}>全部揭晓</button>
-      ${fullyRevealed ? '<button class="secondary-button" type="button" data-gift-view-full-list>查看完整结果</button>' : ""}
-      <button class="secondary-button" type="button" data-gift-copy>复制结果</button>
-      <button class="primary-button compact-primary" type="button" data-gift-reshuffle>重新洗牌</button>
+      <button class="secondary-button" type="button" data-gift-reveal-all ${fullyRevealed ? "disabled" : ""}>${giftText("button.revealAll", "全部揭晓")}</button>
+      ${fullyRevealed ? `<button class="secondary-button" type="button" data-gift-view-full-list>${giftText("button.viewFull", "查看完整结果")}</button>` : ""}
+      <button class="secondary-button" type="button" data-gift-copy>${giftText("button.copyResult", "复制结果")}</button>
+      <button class="primary-button compact-primary" type="button" data-gift-reshuffle>${giftText("button.shuffleAgain", "重新洗牌")}</button>
     </div>
   `;
 }
@@ -5125,8 +5158,8 @@ function renderGiftResultSection() {
     return `
       <section class="gift-result-panel" id="giftExchangeResult" aria-live="polite">
         <div class="gift-empty-note">
-          <strong>准备好名单后按「开始配对」</strong>
-          <small>结果只保存在本机，不会上传到世界频道、好友或云端房间。</small>
+          <strong>${giftText("empty.resultTitle", "准备好名单后按「开始配对」")}</strong>
+          <small>${giftText("empty.resultHint", "结果只保存在本机，不会上传到世界频道、好友或云端房间。")}</small>
         </div>
       </section>
     `;
@@ -5142,11 +5175,11 @@ function renderGiftResultSection() {
     <section class="gift-result-panel" id="giftExchangeResult" aria-live="polite">
       <div class="gift-result-heading">
         <div>
-          <strong>完整结果列表 · ${state.gift.pairs.length} 条</strong>
-          <small>${isExpanded ? "展开后可以检查和复制完整配对。" : "默认收起，上方先看揭晓结果。"}</small>
+          <strong>${giftText("fullList.title", "完整结果列表")} · ${state.gift.pairs.length} ${giftText("fullList.countUnit", "条")}</strong>
+          <small>${isExpanded ? giftText("fullList.expandedHint", "展开后可以检查和复制完整配对。") : giftText("fullList.collapsedHint", "默认收起，上方先看揭晓结果。")}</small>
         </div>
         <button class="ghost-button compact-ghost" type="button" data-gift-toggle-full-list>
-          ${isExpanded ? "收起完整结果" : "查看完整结果"}
+          ${isExpanded ? giftText("button.collapseFull", "收起完整结果") : giftText("button.viewFull", "查看完整结果")}
         </button>
       </div>
       ${isExpanded ? `
@@ -5154,8 +5187,8 @@ function renderGiftResultSection() {
           ${renderGiftFullResultRows()}
         </div>
         <div class="gift-result-actions">
-          <button class="secondary-button" type="button" data-gift-copy>复制结果</button>
-          <button class="secondary-button settings-clear-button" type="button" data-gift-clear-result>清除本次礼物交换数据</button>
+          <button class="secondary-button" type="button" data-gift-copy>${giftText("button.copyResult", "复制结果")}</button>
+          <button class="secondary-button settings-clear-button" type="button" data-gift-clear-result>${giftText("button.clearData", "清除本次礼物交换数据")}</button>
         </div>
       ` : ""}
     </section>
@@ -5166,49 +5199,49 @@ function renderGiftControls() {
   state.gift = normalizeGiftExchangeState(state.gift);
   const { participants, uniqueParticipants, duplicateNames } = getGiftParticipantValidation();
   const isOverParticipantLimit = participants.length > GIFT_PARTICIPANT_LIMIT;
-  const duplicateHint = duplicateNames.length ? '<small class="field-hint is-danger">名字重复了，请改一下。</small>' : "";
+  const duplicateHint = duplicateNames.length ? `<small class="field-hint is-danger">${giftText("error.duplicateName", "名字重复了，请改一下。")}</small>` : "";
   const limitHint = isOverParticipantLimit
-    ? `<small class="field-hint is-danger">礼物交换目前最多支持 ${GIFT_PARTICIPANT_LIMIT} 位参与者。请先减少名单后再生成配对。</small>`
+    ? `<small class="field-hint is-danger">${giftText("error.overLimitWithAction", "礼物交换目前最多支持 {limit} 位参与者。请先减少名单后再生成配对。", { limit: GIFT_PARTICIPANT_LIMIT })}</small>`
     : "";
 
-  elements.randomButtonLabel.textContent = state.gift.pairs.length ? "重新洗牌" : "开始配对";
+  elements.randomButtonLabel.textContent = state.gift.pairs.length ? giftText("button.shuffleAgain", "重新洗牌") : giftText("button.startPairing", "开始配对");
   elements.modeControls.innerHTML = `
     <section class="gift-exchange-panel">
       <div class="gift-setup-heading">
         <div>
-          <strong>礼物交换随机</strong>
-          <small>输入参与者名字，系统会随机安排每个人要送礼物给谁。</small>
+          <strong>${getModeTitle("gift")}</strong>
+          <small>${giftText("setup.description", "输入参与者名字，系统会随机安排每个人要送礼物给谁。")}</small>
         </div>
-        <span>${uniqueParticipants.length} / ${GIFT_PARTICIPANT_LIMIT} 人</span>
+        <span>${uniqueParticipants.length} / ${GIFT_PARTICIPANT_LIMIT} ${giftText("meta.people", "人")}</span>
       </div>
       <div class="gift-input-grid">
         <div class="gift-side-controls">
           <div class="field">
-            <label for="giftNameInput">添加名字</label>
-            <input id="giftNameInput" maxlength="40" placeholder="输入一个名字" />
+            <label for="giftNameInput">${giftText("field.addName", "添加名字")}</label>
+            <input id="giftNameInput" maxlength="${GIFT_NAME_MAX_LENGTH}" placeholder="${escapeHtml(giftText("field.addNamePlaceholder", "输入一个名字"))}" />
           </div>
           <div class="field">
-            <label for="giftRevealMode">揭晓方式</label>
+            <label for="giftRevealMode">${giftText("field.revealMode", "揭晓方式")}</label>
             <select id="giftRevealMode">
-              ${Object.entries(GIFT_REVEAL_MODES).map(([value, label]) => `<option value="${value}" ${state.gift.revealMode === value ? "selected" : ""}>${label}</option>`).join("")}
+              ${Object.keys(GIFT_REVEAL_MODES).map((value) => `<option value="${value}" ${state.gift.revealMode === value ? "selected" : ""}>${escapeHtml(getGiftRevealModeLabel(value))}</option>`).join("")}
             </select>
           </div>
           <div class="custom-actions gift-setup-actions">
-            <button class="secondary-button" id="giftAddNameButton" type="button" ${uniqueParticipants.length >= GIFT_PARTICIPANT_LIMIT ? "disabled" : ""}>添加名字</button>
-            <button class="secondary-button" id="giftClearNamesButton" type="button">清空名单</button>
+            <button class="secondary-button" id="giftAddNameButton" type="button" ${uniqueParticipants.length >= GIFT_PARTICIPANT_LIMIT ? "disabled" : ""}>${giftText("button.addName", "添加名字")}</button>
+            <button class="secondary-button" id="giftClearNamesButton" type="button">${giftText("button.clearNames", "清空名单")}</button>
           </div>
         </div>
         <div class="field gift-name-list-field">
-          <label for="giftParticipantsText">名字列表</label>
-          <textarea id="giftParticipantsText" rows="6" placeholder="阿明&#10;小美&#10;John&#10;Amy">${escapeHtml(state.gift.participantsText)}</textarea>
-          <small class="field-hint">至少 3 人；最多 ${GIFT_PARTICIPANT_LIMIT} 位参与者；可一行一个名字，也可用逗号分开。</small>
+          <label for="giftParticipantsText">${giftText("field.nameList", "名字列表")}</label>
+          <textarea id="giftParticipantsText" rows="6" maxlength="${GIFT_PARTICIPANTS_TEXT_LIMIT}" placeholder="${escapeHtml(giftText("field.nameListPlaceholder", "阿明\n小美\nJohn\nAmy"))}">${escapeHtml(state.gift.participantsText)}</textarea>
+          <small class="field-hint">${giftText("field.nameListHint", "至少 3 人；最多 {limit} 位参与者；可一行一个名字，也可用逗号分开。", { limit: GIFT_PARTICIPANT_LIMIT })}</small>
           ${duplicateHint}
           ${limitHint}
         </div>
       </div>
       ${renderGiftParticipantChips(uniqueParticipants, duplicateNames)}
       <div class="custom-actions gift-secondary-actions">
-        <button class="secondary-button settings-clear-button" id="giftClearAllButton" type="button">清除本次礼物交换数据</button>
+        <button class="secondary-button settings-clear-button" id="giftClearAllButton" type="button">${giftText("button.clearData", "清除本次礼物交换数据")}</button>
       </div>
     </section>
     ${renderGiftResultSection()}
@@ -5221,7 +5254,13 @@ function renderGiftControls() {
 function bindGiftControls() {
   document.querySelector("#giftParticipantsText")?.addEventListener("input", (event) => {
     cancelGiftShuffle({ silent: true });
-    state.gift.participantsText = event.target.value;
+    const nextText = truncateGiftParticipantsText(event.target.value);
+
+    if (event.target.value !== nextText) {
+      event.target.value = nextText;
+    }
+
+    state.gift.participantsText = nextText;
     resetGiftExchangeResult();
     saveState();
     renderPreview();
@@ -5254,10 +5293,20 @@ function bindGiftControls() {
 function addGiftParticipantFromInput() {
   cancelGiftShuffle({ silent: true });
   const input = document.querySelector("#giftNameInput");
-  const name = input?.value.trim() || "";
+  const rawName = input?.value.trim() || "";
+  const name = rawName.slice(0, GIFT_NAME_MAX_LENGTH);
 
-  if (!name) {
-    showToast("名字不能为空。");
+  if (!rawName) {
+    showToast(giftText("toast.nameEmpty", "名字不能为空。"));
+    return;
+  }
+
+  if (rawName.length > GIFT_NAME_MAX_LENGTH) {
+    if (input) {
+      input.value = name;
+    }
+
+    showToast(giftText("toast.nameTooLong", "名字最多 {limit} 个字。", { limit: GIFT_NAME_MAX_LENGTH }));
     return;
   }
 
@@ -5265,12 +5314,12 @@ function addGiftParticipantFromInput() {
   const exists = participants.some((participant) => participant.toLocaleLowerCase() === name.toLocaleLowerCase());
 
   if (exists) {
-    showToast("名字重复了，请改一下。");
+    showToast(giftText("error.duplicateName", "名字重复了，请改一下。"));
     return;
   }
 
   if (participants.length >= GIFT_PARTICIPANT_LIMIT) {
-    showToast(`已达到 ${GIFT_PARTICIPANT_LIMIT} 人上限。`);
+    showToast(giftText("toast.limitReached", "已达到 {limit} 人上限。", { limit: GIFT_PARTICIPANT_LIMIT }));
     return;
   }
 
@@ -5279,7 +5328,7 @@ function addGiftParticipantFromInput() {
   saveState();
   renderControls();
   renderPreview();
-  showToast("已添加名字。");
+  showToast(giftText("toast.nameAdded", "已添加名字。"));
 }
 
 function removeGiftParticipant(name) {
@@ -5305,7 +5354,7 @@ function clearGiftParticipants() {
   saveState();
   renderControls();
   renderPreview();
-  showToast("名单已清空。");
+  showToast(giftText("toast.namesCleared", "名单已清空。"));
 }
 
 function clearGiftExchangeData() {
@@ -5316,7 +5365,7 @@ function clearGiftExchangeData() {
   renderControls();
   renderPreview();
   renderModeStage();
-  showToast("本次礼物交换数据已清除。");
+  showToast(giftText("toast.dataCleared", "本次礼物交换数据已清除。"));
 }
 
 function refreshGiftResultPanel() {
@@ -5438,22 +5487,22 @@ function startGiftExchange() {
   cancelGiftShuffle({ silent: true });
 
   if (!state.gift.participantsText.trim()) {
-    showToast("名字不能为空。");
+    showToast(giftText("toast.nameEmpty", "名字不能为空。"));
     return;
   }
 
   if (duplicateNames.length) {
-    showToast("名字重复了，请改一下。");
+    showToast(giftText("error.duplicateName", "名字重复了，请改一下。"));
     return;
   }
 
   if (participants.length < 3) {
-    showToast("至少需要 3 个人才能交换礼物。");
+    showToast(giftText("toast.minParticipants", "至少需要 3 个人才能交换礼物。"));
     return;
   }
 
   if (participants.length > GIFT_PARTICIPANT_LIMIT) {
-    showToast(`礼物交换目前最多支持 ${GIFT_PARTICIPANT_LIMIT} 位参与者。请先减少名单后再生成配对。`);
+    showToast(giftText("error.overLimitWithAction", "礼物交换目前最多支持 {limit} 位参与者。请先减少名单后再生成配对。", { limit: GIFT_PARTICIPANT_LIMIT }));
     return;
   }
 
@@ -5468,7 +5517,7 @@ function startGiftExchange() {
   elements.modeControls.classList.add("is-gift-shuffling");
   elements.resultStage.classList.add("is-spinning");
   elements.randomButton.disabled = true;
-  elements.randomButtonLabel.textContent = "洗牌中，请稍等";
+  elements.randomButtonLabel.textContent = giftText("button.shuffling", "洗牌中，请稍等");
 
   giftShuffleTimer = window.setTimeout(() => {
     giftShuffleTimer = null;
@@ -5485,7 +5534,7 @@ function startGiftExchange() {
         cleanupGiftShuffleUi();
 
         if (state.mode === "gift") {
-          showToast("名单已更新，请重新生成配对");
+          showToast(giftText("toast.listUpdated", "名单已更新，请重新生成配对"));
         }
       }
 
@@ -5504,7 +5553,7 @@ function startGiftExchange() {
     renderControls();
     renderPreview();
     cleanupGiftShuffleUi();
-    showToast(hadExistingPairs ? "已重新洗牌。" : "礼物交换结果已生成。");
+    showToast(hadExistingPairs ? giftText("toast.reshuffled", "已重新洗牌。") : giftText("toast.generated", "礼物交换结果已生成。"));
   }, duration);
 }
 
@@ -5512,21 +5561,21 @@ async function copyGiftExchangeResult(options = {}) {
   const { confirmHidden = false } = options;
 
   if (!state.gift.pairs.length) {
-    showToast("先生成礼物交换结果。");
+    showToast(giftText("toast.generateFirst", "先生成礼物交换结果。"));
     return;
   }
 
   const revealedCount = state.gift.revealedIndexes.length;
 
-  if (confirmHidden && revealedCount < state.gift.pairs.length && !window.confirm("这会显示全部结果，确定继续吗？")) {
+  if (confirmHidden && revealedCount < state.gift.pairs.length && !window.confirm(giftText("confirm.copyHidden", "这会显示全部结果，确定继续吗？"))) {
     return;
   }
 
   try {
-    await writeClipboardText(`🎁 礼物交换结果\n${getGiftPairsText()}`);
-    showToast("已复制礼物交换结果");
+    await writeClipboardText(`🎁 ${giftText("copy.title", "礼物交换结果")}\n${getGiftPairsText()}`);
+    showToast(giftText("toast.copySuccess", "已复制礼物交换结果"));
   } catch (error) {
-    showToast("复制失败，请手动截图");
+    showToast(giftText("toast.copyFailure", "复制失败，请手动截图"));
   }
 }
 
@@ -5687,10 +5736,10 @@ function renderPreview() {
 function renderGiftPreview() {
   const { participants, uniqueParticipants, duplicateNames } = getGiftParticipantValidation();
 
-  elements.previewCount.textContent = `${uniqueParticipants.length} 位参与者`;
+  elements.previewCount.textContent = `${uniqueParticipants.length} ${giftText("meta.participants", "位参与者")}`;
 
   if (!uniqueParticipants.length) {
-    elements.optionPreview.innerHTML = `<span class="chip is-muted">输入名字后会在这里预览参与者</span>`;
+    elements.optionPreview.innerHTML = `<span class="chip is-muted">${giftText("preview.empty", "输入名字后会在这里预览参与者")}</span>`;
     return;
   }
 
@@ -5699,9 +5748,9 @@ function renderGiftPreview() {
     .map((name) => `<span class="chip${duplicateNames.includes(name) ? " is-muted" : ""}">${escapeHtml(name)}</span>`)
     .join("");
   const overflowCount = Math.max(uniqueParticipants.length - DEFAULT_PREVIEW_LIMIT, 0);
-  const duplicateHint = duplicateNames.length ? `<span class="chip is-muted">名字重复了，请改一下</span>` : "";
-  const limitHint = participants.length > GIFT_PARTICIPANT_LIMIT ? `<span class="chip is-muted">最多支持 ${GIFT_PARTICIPANT_LIMIT} 位参与者</span>` : "";
-  const overflowHint = overflowCount ? `<span class="chip preview-overflow-chip">还有 ${overflowCount} 位未显示</span>` : "";
+  const duplicateHint = duplicateNames.length ? `<span class="chip is-muted">${giftText("error.duplicateNameShort", "名字重复了，请改一下")}</span>` : "";
+  const limitHint = participants.length > GIFT_PARTICIPANT_LIMIT ? `<span class="chip is-muted">${giftText("error.overLimit", "最多支持 {limit} 位参与者", { limit: GIFT_PARTICIPANT_LIMIT })}</span>` : "";
+  const overflowHint = overflowCount ? `<span class="chip preview-overflow-chip">${giftText("preview.overflow", "还有 {count} 位未显示", { count: overflowCount })}</span>` : "";
 
   elements.optionPreview.innerHTML = `${participantChips}${overflowHint}${duplicateHint}${limitHint}`;
 }
@@ -9735,9 +9784,9 @@ function updateResultActionButtons(result) {
   const isNumberResult = result?.mode === "number";
 
   elements.copyResultButton.disabled = !hasResult;
-  elements.copyResultButton.textContent = isNumberResult ? "复制号码" : "复制结果";
+  elements.copyResultButton.textContent = result?.mode === "gift" ? giftText("button.copyResult", "复制结果") : isNumberResult ? "复制号码" : "复制结果";
   elements.favoriteButton.disabled = !hasResult || result?.mode === "gift";
-  elements.favoriteButton.title = result?.mode === "gift" ? "礼物交换结果只保存在本机，可直接复制。" : "";
+  elements.favoriteButton.title = result?.mode === "gift" ? giftText("favorite.disabledTitle", "礼物交换结果只保存在本机，可直接复制。") : "";
   elements.shareResultButton.hidden = typeof navigator.share !== "function";
   elements.shareResultButton.disabled = !hasResult || elements.shareResultButton.hidden;
 }
@@ -9799,7 +9848,7 @@ function getResultCopyText(result = state.currentResult) {
 
   if (result.mode === "gift") {
     const pairs = Array.isArray(result.giftPairs) && result.giftPairs.length ? result.giftPairs : state.gift.pairs;
-    return `🎁 礼物交换结果\n${getGiftPairsText(pairs)}`;
+    return `🎁 ${giftText("copy.title", "礼物交换结果")}\n${getGiftPairsText(pairs)}`;
   }
 
   const lines = [
@@ -9871,7 +9920,7 @@ async function shareCurrentResult() {
   if (state.currentResult.mode === "gift") {
     const revealedCount = state.gift.revealedIndexes.length;
 
-    if (revealedCount < state.gift.pairs.length && !window.confirm("这会显示全部结果，确定继续吗？")) {
+    if (revealedCount < state.gift.pairs.length && !window.confirm(giftText("confirm.copyHidden", "这会显示全部结果，确定继续吗？"))) {
       return;
     }
   }
@@ -9925,9 +9974,9 @@ function renderResult(result) {
   if (result.mode === "gift") {
     const gift = normalizeGiftExchangeState(state.gift);
     const isFinished = gift.pairs.length > 0 && gift.currentIndex >= gift.pairs.length;
-    const resultTitle = gift.revealMode === "all" ? "礼物交换结果" : isFinished ? "全部抽完啦 🎉" : "正在揭晓";
+    const resultTitle = gift.revealMode === "all" ? giftText("result.label", "礼物交换结果") : isFinished ? `${giftText("result.completeTitle", "全部抽完啦")} 🎉` : giftText("result.revealing", "正在揭晓");
 
-    elements.resultLabel.textContent = "礼物交换结果";
+    elements.resultLabel.textContent = giftText("result.label", "礼物交换结果");
     elements.resultValue.textContent = resultTitle;
     elements.resultMeta.innerHTML = renderResultMeta(result);
     elements.numberDigits.hidden = false;
@@ -10038,7 +10087,7 @@ function favoriteCurrent() {
   }
 
   if (state.currentResult.mode === "gift") {
-    showToast("礼物交换结果只保存在本机，可直接复制结果。");
+    showToast(giftText("favorite.disabledTitle", "礼物交换结果只保存在本机，可直接复制结果。"));
     return;
   }
 
