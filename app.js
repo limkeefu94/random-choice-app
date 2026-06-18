@@ -1833,6 +1833,7 @@ const WORLD_PLACEHOLDERS = [
 const APP_VERSION = "0.7.4";
 const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
 const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
+const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const WORLD_SCROLL_BOTTOM_THRESHOLD = 140;
@@ -2438,6 +2439,7 @@ let editingWorldMessageId = "";
 let currentWorldPlaceholder = "";
 let activeWorldImageViewer = null;
 let pendingWorldLikeIds = new Set();
+let worldLikeToggleGuards = new Map();
 let myWorldMessages = [];
 let isMyWorldMessagesLoading = false;
 let myWorldMessagesError = "";
@@ -7163,6 +7165,7 @@ function applyAuthSession(payload) {
 
   if (previousIdentity && nextIdentity && previousIdentity !== nextIdentity) {
     pendingWorldLikeIds.clear();
+    worldLikeToggleGuards.clear();
     closeWorldImageViewer();
     clearPendingWorldImage({ updateStatus: false });
     myWorldMessages = [];
@@ -7184,6 +7187,7 @@ function clearAuthSession(options = {}) {
 
   cancelGiftShuffle({ silent: true });
   pendingWorldLikeIds.clear();
+  worldLikeToggleGuards.clear();
   closeAvatarCropModal({ resetInput: true, silent: true, restorePrevious: false });
   closeWorldImageViewer();
   clearPendingWorldImage({ updateStatus: false });
@@ -9086,6 +9090,42 @@ function triggerWorldLikePendingFeedback(messageId) {
   triggerWorldLikeButtonFeedback(messageId, "unlike");
 }
 
+function isWorldLikeToggleGuarded(messageId) {
+  const safeMessageId = String(messageId || "");
+  const guardUntil = worldLikeToggleGuards.get(safeMessageId) || 0;
+
+  if (!safeMessageId || guardUntil <= Date.now()) {
+    worldLikeToggleGuards.delete(safeMessageId);
+    return false;
+  }
+
+  return true;
+}
+
+function setWorldLikeToggleGuard(messageId) {
+  const safeMessageId = String(messageId || "");
+
+  if (!safeMessageId) {
+    return;
+  }
+
+  const guardUntil = Date.now() + WORLD_LIKE_TOGGLE_GUARD_MS;
+  worldLikeToggleGuards.set(safeMessageId, guardUntil);
+  window.setTimeout(() => {
+    if ((worldLikeToggleGuards.get(safeMessageId) || 0) <= Date.now()) {
+      worldLikeToggleGuards.delete(safeMessageId);
+    }
+  }, WORLD_LIKE_TOGGLE_GUARD_MS + 80);
+}
+
+function clearWorldLikeToggleGuard(messageId) {
+  const safeMessageId = String(messageId || "");
+
+  if (safeMessageId) {
+    worldLikeToggleGuards.delete(safeMessageId);
+  }
+}
+
 function updateWorldMessageCaches(message) {
   state.worldMessages = mergeWorldMessages(state.worldMessages, [message]);
   myWorldMessages = mergeMyWorldMessageCache(myWorldMessages, message);
@@ -9151,6 +9191,7 @@ async function toggleWorldMessageLike(messageId) {
   }
 
   if (pendingWorldLikeIds.has(safeMessageId)) {
+    setWorldLikeToggleGuard(safeMessageId);
     triggerWorldLikePendingFeedback(safeMessageId);
     return;
   }
@@ -9162,6 +9203,12 @@ async function toggleWorldMessageLike(messageId) {
     return;
   }
 
+  if (isWorldLikeToggleGuarded(safeMessageId)) {
+    setWorldLikeToggleGuard(safeMessageId);
+    triggerWorldLikePendingFeedback(safeMessageId);
+    return;
+  }
+
   const nextLiked = !previousMessage.likedByCurrentUser;
   const optimisticMessage = {
     ...previousMessage,
@@ -9170,6 +9217,7 @@ async function toggleWorldMessageLike(messageId) {
   };
 
   pendingWorldLikeIds.add(safeMessageId);
+  setWorldLikeToggleGuard(safeMessageId);
   updateWorldMessageCaches(optimisticMessage);
   saveState();
   refreshWorldLikeButtons(safeMessageId);
@@ -9192,6 +9240,7 @@ async function toggleWorldMessageLike(messageId) {
     saveState();
   } catch (error) {
     shouldPreservePop = false;
+    clearWorldLikeToggleGuard(safeMessageId);
     updateWorldMessageCaches(previousMessage);
     saveState();
     reportClientError(error, {
