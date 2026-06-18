@@ -1798,10 +1798,32 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.7.2";
+const APP_VERSION = "0.7.3";
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
+const WORLD_SCROLL_BOTTOM_THRESHOLD = 140;
 const RELEASE_NOTES = [
+  {
+    version: "0.7.3",
+    title: "世界频道媒体和滚动体验修复",
+    date: "2026-06-19",
+    summary: "这次修复世界频道旧图片显示、消息日期和自动刷新滚动行为。用户查看旧消息时不会再被新消息刷新强制跳到底部。",
+    userChanges: [
+      "旧的世界频道图片消息可以正常显示。",
+      "世界频道消息会显示更清楚的日期。",
+      "个人主页日期会显示年份。",
+      "查看旧消息时，新消息刷新不会强制跳到最底部。",
+      "有新消息时会显示提示，点击后可跳到最新。",
+    ],
+    technicalChanges: [
+      "Added compatibility helper for legacy world message image fields.",
+      "Added compact world message date formatting.",
+      "Added full profile date formatting.",
+      "Improved world channel auto-scroll behavior.",
+      "Added new message indicator for world channel refreshes.",
+      "Ran i18n audit and fixed high-risk UI locale issues.",
+    ],
+  },
   {
     version: "0.7.2",
     title: "自动 PR 检查流程",
@@ -2324,6 +2346,7 @@ const elements = {
   worldChatPanel: document.querySelector("#worldChatPanel"),
   worldChatList: document.querySelector("#worldChatList"),
   worldChatCount: document.querySelector("#worldChatCount"),
+  worldNewMessagesButton: document.querySelector("#worldNewMessagesButton"),
   worldAuthPanel: document.querySelector("#worldAuthPanel"),
   resultStage: document.querySelector("#resultStage"),
   resultLabel: document.querySelector("#resultLabel"),
@@ -2366,6 +2389,8 @@ let pendingWorldLikeIds = new Set();
 let myWorldMessages = [];
 let isMyWorldMessagesLoading = false;
 let myWorldMessagesError = "";
+let hasUnreadWorldMessages = false;
+let shouldScrollWorldToBottomAfterRender = false;
 let isProfilePanelOpen = false;
 let isNotificationPanelOpen = false;
 let isMoreMenuOpen = false;
@@ -3385,7 +3410,7 @@ function render() {
   renderModeStage();
   renderControls();
   renderPreview();
-  renderWorldChannel();
+  renderWorldChannel({ preserveScroll: state.worldOpen && !shouldScrollWorldToBottomAfterRender });
   renderWorldControls();
   renderHistory();
   renderFavorites();
@@ -3548,6 +3573,7 @@ function renderMyProfilePanel(currentUser) {
   `;
 
   bindMyProfilePanelEvents();
+  bindWorldAttachmentImageFallbacks(elements.profilePanel);
 }
 
 function renderProfileEditorPanel(currentUser) {
@@ -3640,6 +3666,8 @@ function bindMyProfilePanelEvents() {
   document.querySelector("#myProfileOpenWorldButton")?.addEventListener("click", () => {
     closeProfilePanel();
     state.worldOpen = true;
+    shouldScrollWorldToBottomAfterRender = true;
+    hasUnreadWorldMessages = false;
     saveState();
     render();
   });
@@ -3775,18 +3803,13 @@ function isDeletedWorldMessageClient(message) {
 }
 
 function formatProfileMessageTime(message) {
-  const date = message?.createdAt ? new Date(message.createdAt) : null;
+  const formattedDate = formatProfileFullDate(message?.createdAt);
 
-  if (!date || Number.isNaN(date.getTime())) {
+  if (!formattedDate) {
     return message?.time || "刚刚";
   }
 
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+  return formattedDate;
 }
 
 function renderMoreMenuPanel() {
@@ -6021,7 +6044,9 @@ function renderGiftPreview() {
   elements.optionPreview.innerHTML = `${participantChips}${overflowHint}${duplicateHint}${limitHint}`;
 }
 
-function renderWorldChannel() {
+function renderWorldChannel(options = {}) {
+  const { preserveScroll = false } = options;
+  const previousScrollTop = elements.worldChatList?.scrollTop || 0;
   const visibleMessages = state.worldMessages.filter((message) => !isDeletedWorldMessageClient(message));
 
   elements.worldChatCount.textContent = worldText("messageCount", "{count} 条消息", { count: visibleMessages.length });
@@ -6043,7 +6068,7 @@ function renderWorldChannel() {
               <div class="world-message-main">
                 <div class="world-message-header">
                   <strong>${escapeHtml(message.user)}</strong>
-                  <small>${escapeHtml(message.time)}</small>
+                  <small class="world-message-stamp">${escapeHtml(formatWorldMessageDate(message.createdAt))}${formatWorldMessageDate(message.createdAt) && message.time ? " · " : ""}${escapeHtml(message.time || "")}</small>
                 </div>
                 ${getWorldMessageText(message) ? `<p>${escapeHtml(getWorldMessageText(message))}</p>` : ""}
                 ${renderWorldAttachment(message.attachment, message)}
@@ -6057,6 +6082,21 @@ function renderWorldChannel() {
         .join("")}
     </div>
   `;
+  bindWorldAttachmentImageFallbacks(elements.worldChatList);
+  if (shouldScrollWorldToBottomAfterRender) {
+    window.requestAnimationFrame(() => {
+      scrollWorldChatToBottom();
+      shouldScrollWorldToBottomAfterRender = false;
+      hasUnreadWorldMessages = false;
+      syncWorldNewMessagesButton();
+    });
+  } else if (preserveScroll && elements.worldChatList) {
+    elements.worldChatList.scrollTop = Math.min(
+      previousScrollTop,
+      Math.max(elements.worldChatList.scrollHeight - elements.worldChatList.clientHeight, 0),
+    );
+  }
+  syncWorldNewMessagesButton();
 }
 
 function renderWorldLikeButton(message) {
@@ -6082,21 +6122,76 @@ function scrollWorldChatToBottom() {
   if (elements.worldChatList) {
     elements.worldChatList.scrollTop = elements.worldChatList.scrollHeight;
   }
+  hasUnreadWorldMessages = false;
+  syncWorldNewMessagesButton();
 }
 
 function renderWorldAttachment(attachment, message = null) {
-  if (!attachment || attachment.type !== "image" || !attachment.url) {
+  const imageUrl = getWorldMessageImageUrl(message || { attachment });
+
+  if (!imageUrl) {
     return "";
   }
 
-  const imageAlt = attachment.alt || attachment.name || worldText("imageAlt", "世界频道图片");
+  const safeAttachment = attachment || {};
+  const imageAlt = safeAttachment.alt || safeAttachment.name || worldText("imageAlt", "世界频道图片");
   const caption = message ? getWorldMessageText(message) : "";
+  const fallback = worldText("imageLoadFailed", "图片无法显示");
 
   return `
-    <button class="world-image-link" type="button" data-world-image-url="${escapeHtml(attachment.url)}" data-world-image-alt="${escapeHtml(imageAlt)}" data-world-image-caption="${escapeHtml(caption)}" aria-label="${escapeHtml(worldText("openImagePreview", "打开世界频道图片预览"))}">
-      <img src="${escapeHtml(attachment.url)}" alt="${escapeHtml(imageAlt)}" loading="lazy" />
+    <button class="world-image-link" type="button" data-world-image-url="${escapeHtml(imageUrl)}" data-world-image-alt="${escapeHtml(imageAlt)}" data-world-image-caption="${escapeHtml(caption)}" aria-label="${escapeHtml(worldText("openImagePreview", "打开世界频道图片预览"))}">
+      <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(imageAlt)}" loading="lazy" data-world-image-preview />
+      <span class="world-image-fallback" hidden>${escapeHtml(fallback)}</span>
     </button>
   `;
+}
+
+function bindWorldAttachmentImageFallbacks(root = document) {
+  root.querySelectorAll("[data-world-image-preview]").forEach((image) => {
+    image.addEventListener("error", () => {
+      image.hidden = true;
+      const fallback = image.closest(".world-image-link")?.querySelector(".world-image-fallback");
+
+      if (fallback) {
+        fallback.hidden = false;
+      }
+    }, { once: true });
+  });
+}
+
+function isWorldChatNearBottom(threshold = WORLD_SCROLL_BOTTOM_THRESHOLD) {
+  if (!elements.worldChatList) {
+    return true;
+  }
+
+  return elements.worldChatList.scrollHeight - elements.worldChatList.scrollTop - elements.worldChatList.clientHeight <= threshold;
+}
+
+function getLatestWorldMessageKey(messages = []) {
+  const visibleMessages = messages.filter((message) => !isDeletedWorldMessageClient(message));
+  const latest = visibleMessages[visibleMessages.length - 1];
+
+  if (!latest) {
+    return "";
+  }
+
+  return `${latest.id || ""}:${latest.updatedAt || latest.createdAt || latest.time || ""}`;
+}
+
+function syncWorldNewMessagesButton() {
+  if (!elements.worldNewMessagesButton) {
+    return;
+  }
+
+  elements.worldNewMessagesButton.textContent = worldText("newMessages", "有新消息");
+  elements.worldNewMessagesButton.hidden = !state.worldOpen || !hasUnreadWorldMessages;
+}
+
+function handleWorldChatScroll() {
+  if (isWorldChatNearBottom()) {
+    hasUnreadWorldMessages = false;
+    syncWorldNewMessagesButton();
+  }
 }
 
 function handleWorldChatClick(event) {
@@ -7116,11 +7211,143 @@ function isDefaultWorldImageCaption(text) {
   return WORLD_DEFAULT_IMAGE_CAPTION_VALUES.some((caption) => normalizedText === caption);
 }
 
+function getCurrentDateLocale() {
+  if (state.language === "en") {
+    return "en-US";
+  }
+
+  if (state.language === "ms") {
+    return "ms-MY";
+  }
+
+  return "zh-CN";
+}
+
+function getValidDate(value) {
+  const date = value ? new Date(value) : null;
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date;
+}
+
+function isCurrentYear(date) {
+  return date instanceof Date && date.getFullYear() === new Date().getFullYear();
+}
+
+function formatWorldMessageDate(value) {
+  const date = getValidDate(value);
+
+  if (!date) {
+    return "";
+  }
+
+  const includeYear = !isCurrentYear(date);
+  const locale = getCurrentDateLocale();
+  const options = state.language === "zh-CN"
+    ? {
+      ...(includeYear ? { year: "numeric" } : {}),
+      month: "2-digit",
+      day: "2-digit",
+    }
+    : state.language === "ms"
+      ? {
+        day: "numeric",
+        month: "short",
+        ...(includeYear ? { year: "numeric" } : {}),
+      }
+      : {
+        month: "short",
+        day: "numeric",
+        ...(includeYear ? { year: "numeric" } : {}),
+      };
+
+  return new Intl.DateTimeFormat(locale, options).format(date);
+}
+
+function formatProfileFullDate(value) {
+  const date = getValidDate(value);
+
+  if (!date) {
+    return "";
+  }
+
+  const locale = getCurrentDateLocale();
+  const dateOptions = state.language === "zh-CN"
+    ? { year: "numeric", month: "2-digit", day: "2-digit" }
+    : state.language === "ms"
+      ? { day: "numeric", month: "short", year: "numeric" }
+      : { month: "short", day: "numeric", year: "numeric" };
+  const timeText = new Intl.DateTimeFormat(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+
+  return `${new Intl.DateTimeFormat(locale, dateOptions).format(date)} ${timeText}`;
+}
+
+function getWorldMessageImageUrl(message = {}) {
+  const attachment = message?.attachment && typeof message.attachment === "object" ? message.attachment : {};
+  const attachments = Array.isArray(message?.attachments) ? message.attachments : [];
+  const firstAttachment = attachments.find((item) => item && typeof item === "object") || {};
+  const candidates = [
+    attachment.url,
+    attachment.publicUrl,
+    attachment.imageUrl,
+    attachment.image,
+    attachment.imageSrc,
+    attachment.mediaUrl,
+    attachment.attachmentUrl,
+    attachment.photoUrl,
+    firstAttachment.url,
+    firstAttachment.publicUrl,
+    firstAttachment.imageUrl,
+    firstAttachment.image,
+    firstAttachment.imageSrc,
+    firstAttachment.mediaUrl,
+    firstAttachment.attachmentUrl,
+    firstAttachment.photoUrl,
+    message.imageUrl,
+    message.image,
+    message.imageSrc,
+    message.mediaUrl,
+    message.attachmentUrl,
+    message.photoUrl,
+  ];
+
+  return candidates
+    .map((value) => String(value || "").trim())
+    .find(Boolean) || "";
+}
+
+function normalizeWorldMessageAttachment(message = {}) {
+  const imageUrl = getWorldMessageImageUrl(message);
+  const attachment = message?.attachment && typeof message.attachment === "object" ? message.attachment : {};
+  const attachments = Array.isArray(message?.attachments) ? message.attachments : [];
+  const firstAttachment = attachments.find((item) => item && typeof item === "object") || {};
+
+  if (!imageUrl) {
+    return attachment.type ? attachment : null;
+  }
+
+  return {
+    ...firstAttachment,
+    ...attachment,
+    type: "image",
+    url: imageUrl,
+    publicUrl: attachment.publicUrl || firstAttachment.publicUrl || imageUrl,
+    name: attachment.name || firstAttachment.name || message.fileName || message.imageName || "",
+    alt: attachment.alt || firstAttachment.alt || worldText("imageAlt", "世界频道图片"),
+  };
+}
+
 function getWorldMessageText(message) {
   const text = String(message.text || "").trim();
   const sharedPhotoText = worldText("sharedPhoto", "分享了一张图片");
 
-  if (message.attachment?.type !== "image") {
+  if (!getWorldMessageImageUrl(message)) {
     return text;
   }
 
@@ -7128,7 +7355,7 @@ function getWorldMessageText(message) {
     return sharedPhotoText;
   }
 
-  const attachmentName = String(message.attachment.name || "");
+  const attachmentName = String(message.attachment?.name || message.imageName || message.fileName || "");
 
   if (attachmentName && text.includes(attachmentName)) {
     const captionText = text.split(attachmentName).join("").replace(/[：:\-\s]+$/g, "").trim();
@@ -7146,7 +7373,10 @@ function toggleWorldChat() {
   state.worldOpen = !state.worldOpen;
   if (state.worldOpen) {
     pickWorldPlaceholder();
+    shouldScrollWorldToBottomAfterRender = true;
+    hasUnreadWorldMessages = false;
   } else {
+    hasUnreadWorldMessages = false;
     closeWorldChannelTransientModals();
   }
   elements.sidebar.classList.remove("is-menu-open");
@@ -7158,6 +7388,7 @@ function toggleWorldChat() {
 
 function closeWorldChat() {
   state.worldOpen = false;
+  hasUnreadWorldMessages = false;
   closeWorldChannelTransientModals();
   saveState();
   render();
@@ -8346,6 +8577,8 @@ async function registerUser() {
     });
     applyAuthSession(payload);
     state.worldOpen = true;
+    shouldScrollWorldToBottomAfterRender = true;
+    hasUnreadWorldMessages = false;
     saveState();
     await syncFromCloud();
     await syncWorldMessages();
@@ -8396,6 +8629,8 @@ async function loginUser() {
     });
     const user = applyAuthSession(payload);
     state.worldOpen = true;
+    shouldScrollWorldToBottomAfterRender = true;
+    hasUnreadWorldMessages = false;
     saveState();
     await syncFromCloud();
     await syncWorldMessages();
@@ -8435,6 +8670,12 @@ function formatWorldTime(createdAt) {
 }
 
 function normalizeWorldMessage(message) {
+  const createdAt = message.createdAt || new Date().toISOString();
+  const normalizedMessage = {
+    ...message,
+    createdAt,
+  };
+
   return {
     id: message.id || `${Date.now()}-${randomInt(1000)}`,
     channelId: message.channelId || "world",
@@ -8448,10 +8689,10 @@ function normalizeWorldMessage(message) {
     avatar: normalizeAvatar(message.avatar, message.user),
     avatarUrl: message.avatarUrl || "",
     text: message.text || "",
-    attachment: message.attachment || null,
-    createdAt: message.createdAt || new Date().toISOString(),
+    attachment: normalizeWorldMessageAttachment(normalizedMessage),
+    createdAt,
     updatedAt: message.updatedAt || "",
-    time: message.time || formatWorldTime(message.createdAt),
+    time: message.time || formatWorldTime(createdAt),
     likeCount: Math.max(Number(message.likeCount) || 0, 0),
     likedByCurrentUser: message.likedByCurrentUser === true,
     isDeleted: message.isDeleted === true,
@@ -8494,6 +8735,8 @@ function setWorldSyncState(nextState) {
 }
 
 async function syncWorldMessages() {
+  const wasNearBottom = isWorldChatNearBottom();
+  const previousLatestKey = getLatestWorldMessageKey(state.worldMessages);
   setWorldSyncState({ loading: true, lastError: "" });
 
   try {
@@ -8510,10 +8753,18 @@ async function syncWorldMessages() {
     state.worldMessages = Array.isArray(payload.messages) && payload.messages.length
       ? mergeWorldMessages([], payload.messages)
       : [...DEFAULT_WORLD_MESSAGES];
+    const nextLatestKey = getLatestWorldMessageKey(state.worldMessages);
+    const hasNewMessages = Boolean(previousLatestKey && nextLatestKey && previousLatestKey !== nextLatestKey);
     setWorldSyncState({ loading: false, available: true, lastError: "" });
     saveState();
-    renderWorldChannel();
-    window.requestAnimationFrame(scrollWorldChatToBottom);
+    if (state.worldOpen && (wasNearBottom || shouldScrollWorldToBottomAfterRender)) {
+      shouldScrollWorldToBottomAfterRender = true;
+      hasUnreadWorldMessages = false;
+      renderWorldChannel();
+    } else {
+      hasUnreadWorldMessages = state.worldOpen && hasNewMessages ? true : hasUnreadWorldMessages;
+      renderWorldChannel({ preserveScroll: state.worldOpen });
+    }
   } catch (error) {
     setWorldSyncState({ loading: false, available: false, lastError: error.message });
     reportClientError(error, {
@@ -8833,6 +9084,8 @@ function addWorldMessage(message) {
   state.worldMessages = mergeWorldMessages(state.worldMessages, [message]);
   myWorldMessages = mergeMyWorldMessageCache(myWorldMessages, message);
   state.worldOpen = true;
+  shouldScrollWorldToBottomAfterRender = true;
+  hasUnreadWorldMessages = false;
   saveState();
   render();
   window.requestAnimationFrame(scrollWorldChatToBottom);
@@ -10586,6 +10839,8 @@ elements.modeMenuToggle.addEventListener("click", () => {
   elements.modeMenuToggle.setAttribute("aria-expanded", String(expanded));
 });
 elements.worldCloseButton.addEventListener("click", closeWorldChat);
+elements.worldChatList.addEventListener("scroll", handleWorldChatScroll);
+elements.worldNewMessagesButton.addEventListener("click", scrollWorldChatToBottom);
 elements.currencySelect.addEventListener("change", (event) => changeCurrency(event.target.value));
 elements.optionPreview.addEventListener("click", (event) => {
   const clearButton = event.target.closest("[data-clear-locks]");
