@@ -1,6 +1,6 @@
 {
   "name": "random-choice-app",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "private": true,
   "scripts": {
     "check": "node --check data/shopping-data.js && node --check app.js && node --check locales/zh-CN.js && node --check locales/en.js && node --check locales/ms.js && node --check scripts/check-locales.js && node --check scripts/audit-i18n.js && node scripts/check-locales.js && node scripts/audit-i18n.js && node --check api/auth.js && node --check api/block-user.js && node --check api/client-error.js && node --check api/feedback.js && node --check api/friend-request.js && node --check api/friends.js && node --check api/gcs-signed-url.js && node --check api/gcs-upload.js && node --check api/report-message.js && node --check api/user-data.js && node --check api/world-channel.js && node --check server/auth-utils.js && node --check server/cors-utils.js && node --check server/firestore-client.js && node --check server/google-service-account.js && node --check server/rate-limit.js",
