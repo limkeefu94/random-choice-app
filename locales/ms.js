@@ -670,6 +670,8 @@
     "world.send": "Hantar",
     "world.secretNotShown": "Kunci penting tidak akan ditunjukkan kepada orang lain",
     "world.sharedPhoto": "Berkongsi satu gambar",
+    "world.emptyTitle": "Belum ada mesej di Saluran Dunia",
+    "world.emptyHint": "Tulis sesuatu atau kongsi gambar untuk meriahkan ruang ini.",
     "world.signInTitle": "Log masuk ke Saluran Dunia",
     "world.signInToPost": "Log masuk untuk hantar teks dan gambar. Gambar akan dipratonton dahulu dan hanya dihantar selepas tekan Hantar.",
     "world.short": "Saluran awam",

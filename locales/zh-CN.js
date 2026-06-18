@@ -670,6 +670,8 @@
     "world.send": "发送",
     "world.secretNotShown": "重要钥匙不会显示给别人",
     "world.sharedPhoto": "分享了一张图片",
+    "world.emptyTitle": "世界频道还没有消息",
+    "world.emptyHint": "发一句话，或者分享一张图片，让这里热起来。",
     "world.signInTitle": "登入世界频道",
     "world.signInToPost": "登录后可以发文字和图片；图片会先预览，点发送才发出。",
     "world.short": "公开频道",

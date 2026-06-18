@@ -60,6 +60,38 @@ const MODES = {
 const MODE_DISPLAY_ORDER = ["food", "shopping", "custom", "gift", "drink", "travel", "number"];
 const HOME_FEATURE_MODE_PREFIX = "mode:";
 const HOME_WORLD_FEATURE_ID = "world";
+const APP_ASSETS = Object.freeze({
+  modes: {
+    food: "./assets/modes/mode-food.png",
+    drink: "./assets/modes/mode-drink.png",
+    travel: "./assets/modes/mode-travel.png",
+    number: "./assets/modes/mode-number.png",
+    shopping: "./assets/modes/mode-shopping.png",
+    gift: "./assets/modes/mode-gift.png",
+    custom: "./assets/modes/mode-custom.png",
+    world: "./assets/modes/mode-world.png",
+  },
+  empty: {
+    favorites: "./assets/empty/empty-favorites.png",
+    history: "./assets/empty/empty-history.png",
+    notification: "./assets/empty/empty-notification.png",
+    options: "./assets/empty/empty-options.png",
+    world: "./assets/empty/empty-world.png",
+  },
+  gift: {
+    box: "./assets/gift/gift-box.png",
+    nameCard: "./assets/gift/name-card.png",
+  },
+  social: {
+    defaultAvatar: "./assets/social/default-avatar.png",
+    uploadImage: "./assets/social/upload-image.png",
+  },
+  ui: {
+    leafAccent: "./assets/ui/leaf-accent.png",
+    notificationBell: "./assets/ui/notification-bell.png",
+    wheelPointer: "./assets/ui/wheel-pointer.png",
+  },
+});
 const FOOD_CATEGORIES = ["全部", "Mamak", "快餐连锁", "外卖平台热门", "油炸类", "素食类", "低卡类", "快餐", "嘴馋零嘴类", "高热量", "健康类"];
 const SPECIAL_FOOD_CATEGORIES = new Set(["Mamak", "快餐连锁", "外卖平台热门"]);
 const SPECIAL_REGION_KEYS = new Set(["全国 Mamak", "快餐连锁", "外卖平台热门"]);
@@ -1798,11 +1830,32 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.7.3";
+const APP_VERSION = "0.7.4";
+const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
+const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
+const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const WORLD_SCROLL_BOTTOM_THRESHOLD = 140;
 const RELEASE_NOTES = [
+  {
+    version: "0.7.4",
+    title: "世界频道爱心动画",
+    date: "2026-06-19",
+    summary: "这次为世界频道点赞加入爱心弹出动画，让点赞反馈更明显、更有趣，同时保持原有点赞逻辑稳定。",
+    userChanges: [
+      "世界频道点赞时会出现轻量爱心弹出动画。",
+      "点赞按钮反馈更明显。",
+      "减少动画设置下会自动弱化动画。",
+    ],
+    technicalChanges: [
+      "Added heart pop animation for world channel likes.",
+      "Used assets/social/heart-pop-sprite.png when available.",
+      "Added CSS fallback for reduced motion or missing sprite asset.",
+      "Preserved existing like API and pending-state behavior.",
+      "Verified i18n audit and project checks.",
+    ],
+  },
   {
     version: "0.7.3",
     title: "世界频道媒体和滚动体验修复",
@@ -2386,6 +2439,7 @@ let editingWorldMessageId = "";
 let currentWorldPlaceholder = "";
 let activeWorldImageViewer = null;
 let pendingWorldLikeIds = new Set();
+let worldLikeToggleGuards = new Map();
 let myWorldMessages = [];
 let isMyWorldMessagesLoading = false;
 let myWorldMessagesError = "";
@@ -3010,6 +3064,7 @@ function getHomeFeatureMeta(featureId) {
     return {
       id: HOME_WORLD_FEATURE_ID,
       type: "world",
+      asset: APP_ASSETS.modes.world,
       icon: "🌍",
       title: worldText("title", "世界频道"),
       description: worldText("subtitle", "公开频道 · 私聊和群聊之后会放这里"),
@@ -3027,6 +3082,7 @@ function getHomeFeatureMeta(featureId) {
     id: featureId,
     type: "mode",
     modeKey,
+    asset: APP_ASSETS.modes[modeKey],
     icon: mode.icon,
     title: getModeText(modeKey, "title"),
     description: getModeText(modeKey, "short"),
@@ -3114,6 +3170,58 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function renderAssetImage(src, alt = "", className = "", attributes = "") {
+  if (!src) {
+    return "";
+  }
+
+  const classAttribute = className ? ` class="${escapeHtml(className)}"` : "";
+  const extraAttributes = attributes ? ` ${attributes}` : "";
+  return `<img${classAttribute} src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"${extraAttributes}>`;
+}
+
+function renderModeFeatureIcon(feature) {
+  const asset = feature.asset || "";
+
+  if (!asset) {
+    return `<span class="mode-icon">${feature.icon}</span>`;
+  }
+
+  return `
+    <span class="mode-icon has-image">
+      ${renderAssetImage(asset, "", "mode-icon-image", 'aria-hidden="true" loading="lazy"')}
+    </span>
+  `;
+}
+
+function renderModeActivePointer(isActive) {
+  if (!isActive || isHomeLayoutEditing) {
+    return "";
+  }
+
+  return `
+    <span class="mode-active-pointer" aria-hidden="true">
+      ${renderAssetImage(APP_ASSETS.ui.wheelPointer, "", "mode-active-pointer-image")}
+    </span>
+  `;
+}
+
+function renderIllustratedEmptyState(type, text, className = "") {
+  const asset = APP_ASSETS.empty[type];
+  const classNames = ["empty-state", asset ? "is-illustrated" : "", className].filter(Boolean).join(" ");
+
+  if (!asset) {
+    return `<p class="${escapeHtml(classNames)}">${escapeHtml(text)}</p>`;
+  }
+
+  return `
+    <div class="${escapeHtml(classNames)}">
+      ${renderAssetImage(asset, "", "empty-state-illustration", 'aria-hidden="true" loading="lazy"')}
+      <span>${escapeHtml(text)}</span>
+    </div>
+  `;
 }
 
 function formatBudget(budget) {
@@ -3253,11 +3361,12 @@ function renderHomeFeatureCard(feature, options = {}) {
     <div class="home-feature-card${hiddenClass}${editClass}${lockedClass}" data-home-feature-card="${escapeHtml(feature.id)}">
       ${editControl}
       <button class="mode-button${activeClass}${isWorldFeature ? " world-entry-button" : ""}" type="button" ${buttonAttributes}>
-        <span class="mode-icon">${feature.icon}</span>
+        ${renderModeFeatureIcon(feature)}
         <span class="mode-copy">
           <strong>${escapeHtml(feature.title)}</strong>
           <small>${escapeHtml(feature.description)}</small>
         </span>
+        ${renderModeActivePointer(isActive)}
       </button>
       ${orderControls}
     </div>
@@ -3474,6 +3583,7 @@ function renderNotificationPanel() {
       `).join("")
     : `
         <div class="notification-empty">
+          ${renderAssetImage(APP_ASSETS.empty.notification, "", "notification-empty-image", 'aria-hidden="true" loading="lazy"')}
           <strong>${escapeHtml(notificationText("empty", "暂时没有通知"))}</strong>
           <small>${escapeHtml(notificationText("emptyHint", "系统公告、版本更新和互动提醒会出现在这里。"))}</small>
         </div>
@@ -4867,7 +4977,8 @@ function renderWorldControls() {
         <div class="world-image-action">
           <label class="image-upload-button">
             <input id="worldImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
-            ${escapeHtml(worldText("image", "图片"))}
+            ${renderAssetImage(APP_ASSETS.social.uploadImage, "", "image-upload-icon", 'aria-hidden="true" loading="lazy"')}
+            <span>${escapeHtml(worldText("image", "图片"))}</span>
           </label>
           <small class="upload-status" id="worldUploadStatus">${escapeHtml(worldText("previewBeforeSend", "先预览再发送"))}</small>
         </div>
@@ -5319,6 +5430,7 @@ function renderGiftParticipantChips(participants, duplicateNames) {
   if (!participants.length) {
     return `
       <div class="gift-empty-note">
+        ${renderAssetImage(APP_ASSETS.gift.nameCard, "", "gift-empty-illustration", 'aria-hidden="true" loading="lazy"')}
         <strong>${giftText("empty.participantsTitle", "还没有参与者")}</strong>
         <small>${giftText("empty.participantsHint", "可以一行一个名字，也可以用逗号分开。")}</small>
       </div>
@@ -5443,6 +5555,7 @@ function renderGiftResultSection() {
     return `
       <section class="gift-result-panel" id="giftExchangeResult" aria-live="polite">
         <div class="gift-empty-note">
+          ${renderAssetImage(APP_ASSETS.gift.box, "", "gift-empty-illustration", 'aria-hidden="true" loading="lazy"')}
           <strong>${giftText("empty.resultTitle", "准备好名单后按「开始配对」")}</strong>
           <small>${giftText("empty.resultHint", "结果只保存在本机，不会上传到世界频道、好友或云端房间。")}</small>
         </div>
@@ -5493,6 +5606,7 @@ function renderGiftControls() {
   elements.modeControls.innerHTML = `
     <section class="gift-exchange-panel">
       <div class="gift-setup-heading">
+        ${renderAssetImage(APP_ASSETS.gift.box, "", "gift-heading-image", 'aria-hidden="true" loading="lazy"')}
         <div>
           <strong>${getModeTitle("gift")}</strong>
           <small>${giftText("setup.description", "输入参与者名字，系统会随机安排每个人要送礼物给谁。")}</small>
@@ -5999,7 +6113,7 @@ function renderPreview() {
   }
 
   if (!options.length) {
-    elements.optionPreview.innerHTML = `<span class="chip is-muted">${escapeHtml(candidateText("empty", "当前筛选没有候选项，换个条件试试"))}</span>`;
+    elements.optionPreview.innerHTML = renderIllustratedEmptyState("options", candidateText("empty", "当前筛选没有候选项，换个条件试试"), "candidate-empty-state");
     return;
   }
 
@@ -6028,7 +6142,7 @@ function renderGiftPreview() {
   elements.previewCount.textContent = `${uniqueParticipants.length} ${giftText("meta.participants", "位参与者")}`;
 
   if (!uniqueParticipants.length) {
-    elements.optionPreview.innerHTML = `<span class="chip is-muted">${giftText("preview.empty", "输入名字后会在这里预览参与者")}</span>`;
+    elements.optionPreview.innerHTML = renderIllustratedEmptyState("options", giftText("preview.empty", "输入名字后会在这里预览参与者"), "candidate-empty-state");
     return;
   }
 
@@ -6052,7 +6166,8 @@ function renderWorldChannel(options = {}) {
   elements.worldChatCount.textContent = worldText("messageCount", "{count} 条消息", { count: visibleMessages.length });
   elements.worldChatList.innerHTML = `
     <div class="world-chat">
-      ${visibleMessages
+      ${visibleMessages.length
+        ? visibleMessages
         .slice(-16)
         .map(
           (message) => `
@@ -6079,7 +6194,14 @@ function renderWorldChannel(options = {}) {
             </article>
           `,
         )
-        .join("")}
+        .join("")
+        : `
+          <div class="world-empty-state">
+            ${renderAssetImage(APP_ASSETS.empty.world, "", "world-empty-image", 'aria-hidden="true" loading="lazy"')}
+            <strong>${escapeHtml(worldText("emptyTitle", "世界频道还没有消息"))}</strong>
+            <small>${escapeHtml(worldText("emptyHint", "发一句话，或者分享一张图片，让这里热起来。"))}</small>
+          </div>
+        `}
     </div>
   `;
   bindWorldAttachmentImageFallbacks(elements.worldChatList);
@@ -6111,7 +6233,7 @@ function renderWorldLikeButton(message) {
     : worldText("loginToLike", "登录后可以点爱心");
 
   return `
-    <button class="world-like-button${isLiked ? " is-liked" : ""}${isPending ? " is-loading" : ""}" type="button" data-world-like="${escapeHtml(message.id)}" aria-pressed="${isLiked}" aria-label="${label}" ${isPending ? "disabled" : ""}>
+    <button class="world-like-button${isLiked ? " is-liked" : ""}${isPending ? " is-syncing" : ""}" type="button" data-world-like="${escapeHtml(message.id)}" aria-pressed="${isLiked}" aria-label="${label}" aria-busy="${isPending}">
       <span aria-hidden="true">${isLiked ? "❤️" : "♡"}</span>
       <strong>${likeCount}</strong>
     </button>
@@ -7043,6 +7165,7 @@ function applyAuthSession(payload) {
 
   if (previousIdentity && nextIdentity && previousIdentity !== nextIdentity) {
     pendingWorldLikeIds.clear();
+    worldLikeToggleGuards.clear();
     closeWorldImageViewer();
     clearPendingWorldImage({ updateStatus: false });
     myWorldMessages = [];
@@ -7064,6 +7187,7 @@ function clearAuthSession(options = {}) {
 
   cancelGiftShuffle({ silent: true });
   pendingWorldLikeIds.clear();
+  worldLikeToggleGuards.clear();
   closeAvatarCropModal({ resetInput: true, silent: true, restorePrevious: false });
   closeWorldImageViewer();
   clearPendingWorldImage({ updateStatus: false });
@@ -8869,7 +8993,7 @@ async function deleteOwnWorldMessage(messageId) {
   return payload;
 }
 
-function refreshWorldLikeButtons(messageId) {
+function refreshWorldLikeButtons(messageId, options = {}) {
   const message = getWorldMessageSnapshot(messageId);
 
   if (!message) {
@@ -8878,9 +9002,128 @@ function refreshWorldLikeButtons(messageId) {
 
   document.querySelectorAll("[data-world-like]").forEach((button) => {
     if (button.dataset.worldLike === messageId) {
-      button.outerHTML = renderWorldLikeButton(message);
+      const template = document.createElement("template");
+      template.innerHTML = renderWorldLikeButton(message).trim();
+      const replacement = template.content.firstElementChild;
+
+      if (!replacement) {
+        return;
+      }
+
+      if (options.preservePop) {
+        button.querySelectorAll(".world-like-pop").forEach((pop) => {
+          replacement.append(pop);
+        });
+      }
+
+      button.replaceWith(replacement);
     }
   });
+}
+
+function findWorldLikeButton(messageId) {
+  const safeMessageId = String(messageId || "");
+
+  if (!safeMessageId) {
+    return null;
+  }
+
+  return Array.from(document.querySelectorAll("[data-world-like]"))
+    .find((button) => button.dataset.worldLike === safeMessageId) || null;
+}
+
+function clearWorldLikeButtonFeedback(button) {
+  if (!button) {
+    return;
+  }
+
+  button.classList.remove("is-pop-feedback", "is-unlike-feedback");
+  button.querySelectorAll(".world-like-pop").forEach((pop) => pop.remove());
+}
+
+function triggerWorldLikeButtonFeedback(messageId, type = "like") {
+  const button = findWorldLikeButton(messageId);
+
+  if (!button) {
+    return null;
+  }
+
+  const feedbackClass = type === "unlike" ? "is-unlike-feedback" : "is-pop-feedback";
+  clearWorldLikeButtonFeedback(button);
+  window.requestAnimationFrame(() => {
+    button.classList.add(feedbackClass);
+  });
+  window.setTimeout(() => {
+    button.classList.remove(feedbackClass);
+  }, WORLD_LIKE_POP_TIMEOUT_MS);
+
+  return button;
+}
+
+function triggerWorldLikeAnimation(messageId) {
+  const button = triggerWorldLikeButtonFeedback(messageId, "like");
+
+  if (!button || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+    return;
+  }
+
+  button.querySelectorAll(".world-like-pop").forEach((pop) => pop.remove());
+
+  const pop = document.createElement("span");
+  pop.className = "world-like-pop is-playing";
+  pop.setAttribute("aria-hidden", "true");
+  button.append(pop);
+
+  window.setTimeout(() => {
+    pop.remove();
+  }, WORLD_LIKE_POP_TIMEOUT_MS);
+}
+
+function triggerWorldLikePendingFeedback(messageId) {
+  const message = getWorldMessageSnapshot(messageId);
+
+  if (message?.likedByCurrentUser) {
+    triggerWorldLikeAnimation(messageId);
+    return;
+  }
+
+  triggerWorldLikeButtonFeedback(messageId, "unlike");
+}
+
+function isWorldLikeToggleGuarded(messageId) {
+  const safeMessageId = String(messageId || "");
+  const guardUntil = worldLikeToggleGuards.get(safeMessageId) || 0;
+
+  if (!safeMessageId || guardUntil <= Date.now()) {
+    worldLikeToggleGuards.delete(safeMessageId);
+    return false;
+  }
+
+  return true;
+}
+
+function setWorldLikeToggleGuard(messageId) {
+  const safeMessageId = String(messageId || "");
+
+  if (!safeMessageId) {
+    return;
+  }
+
+  const guardUntil = Date.now() + WORLD_LIKE_TOGGLE_GUARD_MS;
+  worldLikeToggleGuards.set(safeMessageId, guardUntil);
+  window.setTimeout(() => {
+    if ((worldLikeToggleGuards.get(safeMessageId) || 0) <= Date.now()) {
+      worldLikeToggleGuards.delete(safeMessageId);
+    }
+  }, WORLD_LIKE_TOGGLE_GUARD_MS + 80);
+}
+
+function clearWorldLikeToggleGuard(messageId) {
+  const safeMessageId = String(messageId || "");
+
+  if (safeMessageId) {
+    worldLikeToggleGuards.delete(safeMessageId);
+  }
 }
 
 function updateWorldMessageCaches(message) {
@@ -8896,24 +9139,42 @@ function getWorldMessageSnapshot(messageId) {
 }
 
 async function requestToggleWorldMessageLike(messageId) {
-  const response = await fetch(WORLD_CHANNEL_ENDPOINT, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify({
-      action: "toggleLike",
-      id: messageId,
-    }),
-  });
-  const payload = await readJsonResponse(response);
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = controller
+    ? window.setTimeout(() => controller.abort(), WORLD_LIKE_SYNC_TIMEOUT_MS)
+    : null;
 
-  if (!response.ok || !payload.ok) {
-    throw new Error(payload.error || "爱心暂时点不了");
+  try {
+    const response = await fetch(WORLD_CHANNEL_ENDPOINT, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({
+        action: "toggleLike",
+        id: messageId,
+      }),
+      signal: controller?.signal,
+    });
+    const payload = await readJsonResponse(response);
+
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.error || "爱心暂时点不了");
+    }
+
+    return payload.message;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("爱心同步太久了，请稍后再试。");
+    }
+
+    throw error;
+  } finally {
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+    }
   }
-
-  return payload.message;
 }
 
 async function toggleWorldMessageLike(messageId) {
@@ -8930,6 +9191,8 @@ async function toggleWorldMessageLike(messageId) {
   }
 
   if (pendingWorldLikeIds.has(safeMessageId)) {
+    setWorldLikeToggleGuard(safeMessageId);
+    triggerWorldLikePendingFeedback(safeMessageId);
     return;
   }
 
@@ -8937,6 +9200,12 @@ async function toggleWorldMessageLike(messageId) {
 
   if (!previousMessage) {
     showToast("这条内容暂时找不到。");
+    return;
+  }
+
+  if (isWorldLikeToggleGuarded(safeMessageId)) {
+    setWorldLikeToggleGuard(safeMessageId);
+    triggerWorldLikePendingFeedback(safeMessageId);
     return;
   }
 
@@ -8948,9 +9217,18 @@ async function toggleWorldMessageLike(messageId) {
   };
 
   pendingWorldLikeIds.add(safeMessageId);
+  setWorldLikeToggleGuard(safeMessageId);
   updateWorldMessageCaches(optimisticMessage);
   saveState();
   refreshWorldLikeButtons(safeMessageId);
+  const optimisticAnimationType = nextLiked ? "like" : "unlike";
+  let shouldPreservePop = nextLiked;
+
+  if (optimisticAnimationType === "like") {
+    triggerWorldLikeAnimation(safeMessageId);
+  } else {
+    triggerWorldLikeButtonFeedback(safeMessageId, "unlike");
+  }
 
   if (isProfilePanelOpen && profilePanelView === "home") {
     renderProfilePanel();
@@ -8960,8 +9238,9 @@ async function toggleWorldMessageLike(messageId) {
     const message = await requestToggleWorldMessageLike(safeMessageId);
     updateWorldMessageCaches(message);
     saveState();
-    showToast(message.likedByCurrentUser ? "已点爱心。" : "已取消爱心。");
   } catch (error) {
+    shouldPreservePop = false;
+    clearWorldLikeToggleGuard(safeMessageId);
     updateWorldMessageCaches(previousMessage);
     saveState();
     reportClientError(error, {
@@ -8972,7 +9251,7 @@ async function toggleWorldMessageLike(messageId) {
     syncWorldMessages();
   } finally {
     pendingWorldLikeIds.delete(safeMessageId);
-    refreshWorldLikeButtons(safeMessageId);
+    refreshWorldLikeButtons(safeMessageId, { preservePop: shouldPreservePop });
 
     if (isProfilePanelOpen && profilePanelView === "home") {
       renderProfilePanel();
@@ -10676,17 +10955,17 @@ function isFavoriteResult(result = state.currentResult) {
 
 function renderHistory() {
   elements.historyCount.textContent = homeText("recentCount", "{count} 条", { count: state.history.length });
-  elements.historyList.innerHTML = renderStackItems(state.history, homeText("noRecent", "还没有决定记录。按下随机按钮试试。"));
+  elements.historyList.innerHTML = renderStackItems(state.history, homeText("noRecent", "还没有决定记录。按下随机按钮试试。"), "history");
 }
 
 function renderFavorites() {
   elements.favoriteCount.textContent = homeText("favoriteCount", "{count} 个", { count: state.favorites.length });
-  elements.favoritesList.innerHTML = renderStackItems(state.favorites, homeText("noFavorites", "收藏喜欢的结果，下次就不用重新纠结。"));
+  elements.favoritesList.innerHTML = renderStackItems(state.favorites, homeText("noFavorites", "收藏喜欢的结果，下次就不用重新纠结。"), "favorites");
 }
 
-function renderStackItems(items, emptyText) {
+function renderStackItems(items, emptyText, emptyType = "options") {
   if (!items.length) {
-    return `<p class="empty-state">${escapeHtml(emptyText)}</p>`;
+    return renderIllustratedEmptyState(emptyType, emptyText);
   }
 
   return items

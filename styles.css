@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   color-scheme: light;
   --bg: #fff8ef;
   --bg-strong: #fff1dd;
@@ -250,6 +250,21 @@ button {
 
 .notification-button > span {
   line-height: 1;
+}
+
+.notification-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+}
+
+.notification-icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(106, 57, 26, 0.14));
 }
 
 .profile-avatar-button {
@@ -588,10 +603,11 @@ body.is-home-layout-dragging * {
 }
 
 .mode-menu-toggle {
+  position: relative;
   display: none;
   width: 100%;
   min-height: 58px;
-  padding: 10px 14px;
+  padding: 10px 52px 10px 14px;
   cursor: pointer;
   text-align: left;
   border-radius: 20px;
@@ -630,7 +646,7 @@ body.is-home-layout-dragging * {
 }
 
 .mode-menu-hint::before {
-  content: "👆 ";
+  content: "馃憜 ";
 }
 
 .sidebar-world {
@@ -657,8 +673,9 @@ body.is-home-layout-dragging * {
 
 .mode-button {
   display: grid;
-  grid-template-columns: 42px 1fr;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
   gap: 12px;
+  align-items: center;
   width: 100%;
   min-width: 0;
   padding: 12px;
@@ -695,8 +712,129 @@ body.is-home-layout-dragging * {
   background: #fff4e8;
 }
 
+.mode-menu-toggle::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  top: calc(50% - 17px);
+  width: 34px;
+  height: 34px;
+  pointer-events: none;
+  background: url("./assets/ui/wheel-pointer.png") center / contain no-repeat;
+  filter: drop-shadow(0 8px 12px rgba(255, 122, 61, 0.18));
+  animation: modePointerDrop 1.35s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.mode-menu-toggle::before {
+  content: "";
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 36% 28%, rgba(255, 255, 255, 0.9), transparent 42%),
+    linear-gradient(135deg, rgba(255, 122, 61, 0.26), rgba(96, 199, 160, 0.18));
+  transform: translateY(-50%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.46);
+}
+
+.mode-icon.has-image {
+  overflow: hidden;
+  padding: 4px;
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.94), transparent 38%),
+    linear-gradient(135deg, rgba(255, 248, 239, 0.95), rgba(236, 251, 244, 0.9));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.58),
+    0 8px 18px rgba(106, 57, 26, 0.08);
+}
+
+.mode-icon-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 10px rgba(106, 57, 26, 0.12));
+}
+
 .mode-copy {
   min-width: 0;
+}
+
+.mode-active-pointer {
+  position: relative;
+  display: grid;
+  width: 34px;
+  height: 38px;
+  place-items: center;
+  justify-self: end;
+  margin-left: 2px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 36% 28%, rgba(255, 255, 255, 0.92), transparent 42%),
+    linear-gradient(135deg, rgba(255, 122, 61, 0.28), rgba(96, 199, 160, 0.18));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.48);
+  animation: modePointerDrop 1.35s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  transform-origin: 50% 90%;
+}
+
+.mode-active-pointer::after {
+  content: "";
+  position: absolute;
+  right: 7px;
+  bottom: 1px;
+  width: 18px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(106, 57, 26, 0.18);
+  filter: blur(1px);
+  animation: modePointerShadow 1.35s ease-in-out infinite;
+}
+
+.mode-active-pointer-image {
+  position: relative;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 12px rgba(255, 122, 61, 0.2));
+}
+
+@keyframes modePointerDrop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+
+  42% {
+    transform: translateY(-8px) scale(1.04);
+  }
+
+  62% {
+    transform: translateY(0) scale(0.98);
+  }
+}
+
+@keyframes modePointerShadow {
+  0%,
+  100% {
+    opacity: 0.52;
+    transform: scaleX(1);
+  }
+
+  42% {
+    opacity: 0.22;
+    transform: scaleX(0.72);
+  }
+
+  62% {
+    opacity: 0.62;
+    transform: scaleX(1.08);
+  }
 }
 
 .mode-copy strong,
@@ -719,8 +857,28 @@ body.is-home-layout-dragging * {
 }
 
 .decision-card {
+  position: relative;
   overflow: hidden;
   padding: 28px;
+}
+
+.decision-card::after {
+  content: "";
+  position: absolute;
+  right: -36px;
+  bottom: -40px;
+  z-index: 0;
+  width: 190px;
+  height: 150px;
+  pointer-events: none;
+  background: url("./assets/ui/leaf-accent.png") center / contain no-repeat;
+  opacity: 0.16;
+  transform: rotate(-10deg);
+}
+
+.decision-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .decision-copy {
@@ -1140,6 +1298,20 @@ body.is-home-layout-dragging * {
   gap: 12px;
 }
 
+.gift-setup-heading > div,
+.gift-result-heading > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.gift-heading-image {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 16px rgba(255, 122, 61, 0.14));
+}
+
 .gift-setup-heading strong,
 .gift-result-heading strong {
   display: block;
@@ -1249,6 +1421,7 @@ body.is-home-layout-dragging * {
 .gift-empty-note {
   display: grid;
   gap: 4px;
+  justify-items: start;
   padding: 14px;
   border: 1px dashed rgba(80, 45, 24, 0.14);
   border-radius: 18px;
@@ -1623,6 +1796,7 @@ body.is-home-layout-dragging * {
 .image-upload-button {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   min-height: 46px;
   padding: 0 14px;
   border: 1px dashed rgba(80, 45, 24, 0.16);
@@ -1652,6 +1826,14 @@ body.is-home-layout-dragging * {
 
 .image-upload-button input {
   display: none;
+}
+
+.image-upload-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 7px rgba(96, 199, 160, 0.16));
 }
 
 .profile-image-picker {
@@ -2017,7 +2199,7 @@ body.is-home-layout-dragging * {
 }
 
 .world-window-header small::before {
-  content: "· ";
+  content: "路 ";
 }
 
 .world-auth-panel {
@@ -2197,6 +2379,35 @@ body.is-home-layout-dragging * {
   gap: 10px;
 }
 
+.world-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 18px 12px;
+  border: 1px dashed rgba(96, 199, 160, 0.22);
+  border-radius: 18px;
+  color: #6f4d36;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.world-empty-image {
+  width: 96px;
+  height: 74px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 14px rgba(106, 57, 26, 0.08));
+}
+
+.world-empty-state strong {
+  color: #4d3025;
+  font-size: 0.94rem;
+}
+
+.world-empty-state small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .world-chat-shell {
   margin-top: 14px;
   overflow: auto;
@@ -2259,6 +2470,7 @@ body.is-home-layout-dragging * {
 }
 
 .world-like-button {
+  position: relative;
   display: inline-flex;
   min-width: 58px;
   min-height: 32px;
@@ -2270,6 +2482,7 @@ body.is-home-layout-dragging * {
   border-radius: 999px;
   color: #7b5a49;
   cursor: pointer;
+  overflow: visible;
   background: rgba(255, 255, 255, 0.66);
   transition:
     transform 160ms ease,
@@ -2290,9 +2503,20 @@ body.is-home-layout-dragging * {
   background: rgba(255, 122, 61, 0.12);
 }
 
-.world-like-button.is-loading,
+.world-like-button.is-pop-feedback {
+  animation: worldLikeButtonPop 420ms cubic-bezier(0.2, 0.85, 0.25, 1.24);
+}
+
+.world-like-button.is-unlike-feedback {
+  animation: worldLikeButtonUnpop 260ms ease-out;
+}
+
+.world-like-button.is-syncing {
+  cursor: pointer;
+}
+
 .world-like-button:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.68;
 }
 
@@ -2307,6 +2531,132 @@ body.is-home-layout-dragging * {
   line-height: 1;
   font-variant-numeric: tabular-nums;
   text-align: center;
+}
+
+.world-like-pop {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  display: block;
+  width: 180px;
+  height: 160px;
+  --world-like-pop-scale: 0.42;
+  --world-like-pop-start-y: -58%;
+  --world-like-pop-end-y: -146%;
+  pointer-events: none;
+  background-image: url("./assets/social/heart-pop-sprite.png");
+  background-repeat: no-repeat;
+  background-size: 1440px 800px;
+  background-position: 0 0;
+  transform: translate(-50%, var(--world-like-pop-start-y)) scale(var(--world-like-pop-scale));
+  transform-origin: center;
+  opacity: 1;
+  filter: drop-shadow(0 10px 18px rgba(217, 79, 67, 0.22));
+  animation:
+    worldLikeHeartPopFrames 1.2s steps(1) forwards,
+    worldLikeHeartPopFloat 1.2s cubic-bezier(0.16, 0.84, 0.22, 1) forwards;
+}
+
+@keyframes worldLikeButtonPop {
+  0% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(1.16) translateY(-1px);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes worldLikeButtonUnpop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(0.94);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes worldLikeHeartPopFloat {
+  0% {
+    transform: translate(-50%, var(--world-like-pop-start-y)) scale(var(--world-like-pop-scale));
+  }
+  18% {
+    transform: translate(-50%, -82%) scale(var(--world-like-pop-scale));
+  }
+  72% {
+    transform: translate(-50%, -128%) scale(var(--world-like-pop-scale));
+  }
+  100% {
+    transform: translate(-50%, var(--world-like-pop-end-y)) scale(var(--world-like-pop-scale));
+  }
+}
+
+@keyframes worldLikeHeartPopFrames {
+  0% { background-position: 0 0; }
+  2.78% { background-position: -180px 0; }
+  5.56% { background-position: -360px 0; }
+  8.33% { background-position: -540px 0; }
+  11.11% { background-position: -720px 0; }
+  13.89% { background-position: -900px 0; }
+  16.67% { background-position: -1080px 0; }
+  19.44% { background-position: -1260px 0; }
+  22.22% { background-position: 0 -160px; }
+  25% { background-position: -180px -160px; }
+  27.78% { background-position: -360px -160px; }
+  30.56% { background-position: -540px -160px; }
+  33.33% { background-position: -720px -160px; }
+  36.11% { background-position: -900px -160px; }
+  38.89% { background-position: -1080px -160px; }
+  41.67% { background-position: -1260px -160px; }
+  44.44% { background-position: 0 -320px; }
+  47.22% { background-position: -180px -320px; }
+  50% { background-position: -360px -320px; }
+  52.78% { background-position: -540px -320px; }
+  55.56% { background-position: -720px -320px; }
+  58.33% { background-position: -900px -320px; }
+  61.11% { background-position: -1080px -320px; }
+  63.89% { background-position: -1260px -320px; }
+  66.67% { background-position: 0 -480px; }
+  69.44% { background-position: -180px -480px; }
+  72.22% { background-position: -360px -480px; }
+  75% { background-position: -540px -480px; }
+  77.78% { background-position: -720px -480px; }
+  80.56% { background-position: -900px -480px; }
+  83.33% { background-position: -1080px -480px; }
+  86.11% { background-position: -1260px -480px; }
+  88.89% {
+    background-position: 0 -640px;
+    opacity: 0.8;
+  }
+  91.67% {
+    background-position: -180px -640px;
+    opacity: 0.6;
+  }
+  94.44% {
+    background-position: -360px -640px;
+    opacity: 0.4;
+  }
+  97.22% {
+    background-position: -540px -640px;
+    opacity: 0.2;
+  }
+  100% {
+    background-position: -720px -640px;
+    opacity: 0;
+  }
+}
+
+.gift-empty-illustration {
+  width: 76px;
+  height: 56px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 14px rgba(106, 57, 26, 0.1));
 }
 
 .world-image-link {
@@ -2722,6 +3072,31 @@ body.is-home-layout-dragging * {
   line-height: 1.5;
 }
 
+.empty-state.is-illustrated {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 10px;
+  border: 1px dashed rgba(80, 45, 24, 0.12);
+  border-radius: 18px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.46);
+}
+
+.empty-state-illustration {
+  width: min(96px, 42vw);
+  height: 76px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 16px rgba(106, 57, 26, 0.08));
+}
+
+.candidate-empty-state {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
 .floating-panel {
   position: fixed;
   top: 86px;
@@ -2947,13 +3322,21 @@ body.is-home-layout-dragging * {
 
 .notification-empty {
   display: grid;
-  gap: 4px;
+  justify-items: center;
+  gap: 6px;
   padding: 18px 12px;
   border: 1px dashed rgba(80, 45, 24, 0.14);
   border-radius: 18px;
   color: #6f4d36;
   text-align: center;
   background: rgba(255, 255, 255, 0.56);
+}
+
+.notification-empty-image {
+  width: 88px;
+  height: 64px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 14px rgba(106, 57, 26, 0.08));
 }
 
 .notification-empty strong {
@@ -4018,7 +4401,7 @@ body.is-home-layout-dragging * {
   }
 
   .sidebar.is-menu-open .mode-menu-hint::before {
-    content: "✅ ";
+    content: "鉁?";
   }
 
   .mode-list {
@@ -4239,8 +4622,15 @@ body.is-home-layout-dragging * {
   }
 
   .mode-menu-toggle {
-    padding: 8px 12px;
+    padding: 8px 48px 8px 12px;
     border-radius: 17px;
+  }
+
+  .mode-menu-toggle::after {
+    right: 12px;
+    top: calc(50% - 15px);
+    width: 30px;
+    height: 30px;
   }
 
   .mode-menu-hint {
@@ -4255,7 +4645,7 @@ body.is-home-layout-dragging * {
   }
 
   .world-entry-button {
-    grid-template-columns: 38px 1fr;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
     padding: 10px;
     border-color: rgba(96, 199, 160, 0.3);
     background:
@@ -4269,7 +4659,7 @@ body.is-home-layout-dragging * {
   }
 
   .mode-button {
-    grid-template-columns: 38px 1fr;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
     gap: 10px;
     padding: 10px;
     border-radius: 18px;
@@ -4280,6 +4670,21 @@ body.is-home-layout-dragging * {
     height: 38px;
     border-radius: 14px;
     font-size: 1.12rem;
+  }
+
+  .mode-active-pointer {
+    width: 30px;
+    height: 34px;
+  }
+
+  .mode-active-pointer-image {
+    width: 30px;
+    height: 30px;
+  }
+
+  .mode-active-pointer::after {
+    right: 6px;
+    width: 16px;
   }
 
   .decision-card,
@@ -4521,6 +4926,14 @@ body.is-home-layout-dragging * {
     min-height: 30px;
     padding: 0 8px;
     font-size: 0.82rem;
+  }
+
+  .world-like-pop {
+    width: 180px;
+    height: 160px;
+    --world-like-pop-scale: 0.34;
+    --world-like-pop-start-y: -60%;
+    --world-like-pop-end-y: -138%;
   }
 
   .world-image-link {
@@ -4811,4 +5224,30 @@ body.is-home-layout-dragging * {
   .controls-grid.is-gift-shuffling .gift-participant-chip {
     animation: none;
   }
+
+  .world-like-button.is-pop-feedback,
+  .world-like-button.is-unlike-feedback {
+    animation: none;
+  }
+
+  .world-like-pop {
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    background: rgba(217, 79, 67, 0.16);
+    transform: translate(-50%, -58%) scale(0.86);
+    animation: worldLikeReducedPop 180ms ease-out forwards;
+  }
 }
+
+@keyframes worldLikeReducedPop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -58%) scale(0.86);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -72%) scale(1);
+  }
+}
+

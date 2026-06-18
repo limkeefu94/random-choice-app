@@ -670,6 +670,8 @@
     "world.send": "Send",
     "world.secretNotShown": "Important keys are not shown to others",
     "world.sharedPhoto": "Shared a photo",
+    "world.emptyTitle": "No messages in the World Channel yet",
+    "world.emptyHint": "Say something or share a photo to warm things up.",
     "world.signInTitle": "Sign in to World Channel",
     "world.signInToPost": "Sign in to post text and images. Images are previewed first and sent only after you tap Send.",
     "world.short": "Public channel",
