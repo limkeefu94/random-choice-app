@@ -2542,38 +2542,19 @@ body.is-home-layout-dragging * {
   z-index: 2;
   left: 50%;
   top: 50%;
-  width: 54px;
-  height: 54px;
+  display: block;
+  width: 180px;
+  height: 160px;
   pointer-events: none;
-  transform: translate(-50%, -58%) scale(0.72);
+  background-image: url("./assets/social/heart-pop-sprite.png");
+  background-repeat: no-repeat;
+  background-size: 1440px 800px;
+  background-position: 0 0;
+  transform: translate(-50%, -72%) scale(0.42);
   transform-origin: center;
-  opacity: 0;
+  opacity: 1;
   filter: drop-shadow(0 10px 18px rgba(217, 79, 67, 0.22));
-  animation: worldLikePopFloat 680ms cubic-bezier(0.18, 0.86, 0.22, 1) forwards;
-}
-
-.world-like-pop::before,
-.world-like-pop::after {
-  position: absolute;
-  content: "";
-  pointer-events: none;
-}
-
-.world-like-pop::before {
-  inset: -14px;
-  background: url("./assets/social/heart-pop-sprite.png") center / contain no-repeat;
-  animation: worldLikeSpritePulse 680ms steps(8, end) forwards;
-}
-
-.world-like-pop::after {
-  inset: 11px;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.9) 0 18%, transparent 19%),
-    radial-gradient(circle at 48% 48%, rgba(255, 116, 96, 0.9) 0 42%, rgba(255, 122, 61, 0) 64%);
-  transform: scale(0.68);
-  opacity: 0.56;
-  animation: worldLikeFallbackPulse 680ms ease-out forwards;
+  animation: worldLikeHeartPopFrames 1.2s steps(1) forwards;
 }
 
 @keyframes worldLikeButtonPop {
@@ -2600,49 +2581,58 @@ body.is-home-layout-dragging * {
   }
 }
 
-@keyframes worldLikePopFloat {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -40%) scale(0.58);
+@keyframes worldLikeHeartPopFrames {
+  0% { background-position: 0 0; }
+  2.78% { background-position: -180px 0; }
+  5.56% { background-position: -360px 0; }
+  8.33% { background-position: -540px 0; }
+  11.11% { background-position: -720px 0; }
+  13.89% { background-position: -900px 0; }
+  16.67% { background-position: -1080px 0; }
+  19.44% { background-position: -1260px 0; }
+  22.22% { background-position: 0 -160px; }
+  25% { background-position: -180px -160px; }
+  27.78% { background-position: -360px -160px; }
+  30.56% { background-position: -540px -160px; }
+  33.33% { background-position: -720px -160px; }
+  36.11% { background-position: -900px -160px; }
+  38.89% { background-position: -1080px -160px; }
+  41.67% { background-position: -1260px -160px; }
+  44.44% { background-position: 0 -320px; }
+  47.22% { background-position: -180px -320px; }
+  50% { background-position: -360px -320px; }
+  52.78% { background-position: -540px -320px; }
+  55.56% { background-position: -720px -320px; }
+  58.33% { background-position: -900px -320px; }
+  61.11% { background-position: -1080px -320px; }
+  63.89% { background-position: -1260px -320px; }
+  66.67% { background-position: 0 -480px; }
+  69.44% { background-position: -180px -480px; }
+  72.22% { background-position: -360px -480px; }
+  75% { background-position: -540px -480px; }
+  77.78% { background-position: -720px -480px; }
+  80.56% { background-position: -900px -480px; }
+  83.33% { background-position: -1080px -480px; }
+  86.11% { background-position: -1260px -480px; }
+  88.89% {
+    background-position: 0 -640px;
+    opacity: 0.8;
   }
-  18% {
-    opacity: 1;
-    transform: translate(-50%, -74%) scale(1);
+  91.67% {
+    background-position: -180px -640px;
+    opacity: 0.6;
   }
-  72% {
-    opacity: 0.92;
-    transform: translate(-50%, -122%) scale(1.08);
+  94.44% {
+    background-position: -360px -640px;
+    opacity: 0.4;
+  }
+  97.22% {
+    background-position: -540px -640px;
+    opacity: 0.2;
   }
   100% {
+    background-position: -720px -640px;
     opacity: 0;
-    transform: translate(-50%, -150%) scale(0.82);
-  }
-}
-
-@keyframes worldLikeSpritePulse {
-  0% {
-    transform: scale(0.78) rotate(-8deg);
-  }
-  45% {
-    transform: scale(1.12) rotate(4deg);
-  }
-  100% {
-    transform: scale(0.98) rotate(0deg);
-  }
-}
-
-@keyframes worldLikeFallbackPulse {
-  0% {
-    opacity: 0;
-    transform: scale(0.42);
-  }
-  38% {
-    opacity: 0.76;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1.18);
   }
 }
 
@@ -4916,8 +4906,9 @@ body.is-home-layout-dragging * {
   }
 
   .world-like-pop {
-    width: 44px;
-    height: 44px;
+    width: 180px;
+    height: 160px;
+    transform: translate(-50%, -76%) scale(0.34);
   }
 
   .world-image-link {
@@ -5215,17 +5206,11 @@ body.is-home-layout-dragging * {
   }
 
   .world-like-pop {
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
     background: rgba(217, 79, 67, 0.16);
     animation: worldLikeReducedPop 180ms ease-out forwards;
-  }
-
-  .world-like-pop::before {
-    display: none;
-  }
-
-  .world-like-pop::after {
-    inset: 14px;
-    opacity: 0.4;
   }
 }
 
