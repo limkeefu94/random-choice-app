@@ -2259,7 +2259,6 @@ body.is-home-layout-dragging * {
 }
 
 .world-like-button {
-  position: relative;
   display: inline-flex;
   min-width: 58px;
   min-height: 32px;
@@ -2271,7 +2270,6 @@ body.is-home-layout-dragging * {
   border-radius: 999px;
   color: #7b5a49;
   cursor: pointer;
-  overflow: visible;
   background: rgba(255, 255, 255, 0.66);
   transition:
     transform 160ms ease,
@@ -2292,20 +2290,9 @@ body.is-home-layout-dragging * {
   background: rgba(255, 122, 61, 0.12);
 }
 
-.world-like-button.is-pop-feedback {
-  animation: worldLikeButtonPop 420ms cubic-bezier(0.2, 0.85, 0.25, 1.24);
-}
-
-.world-like-button.is-unlike-feedback {
-  animation: worldLikeButtonUnpop 260ms ease-out;
-}
-
-.world-like-button.is-syncing {
-  cursor: pointer;
-}
-
+.world-like-button.is-loading,
 .world-like-button:disabled {
-  cursor: not-allowed;
+  cursor: wait;
   opacity: 0.68;
 }
 
@@ -2320,125 +2307,6 @@ body.is-home-layout-dragging * {
   line-height: 1;
   font-variant-numeric: tabular-nums;
   text-align: center;
-}
-
-.world-like-pop {
-  position: absolute;
-  z-index: 2;
-  left: 50%;
-  top: 50%;
-  display: block;
-  width: 180px;
-  height: 160px;
-  --world-like-pop-scale: 0.42;
-  --world-like-pop-start-y: -58%;
-  --world-like-pop-end-y: -146%;
-  pointer-events: none;
-  background-image: url("./assets/social/heart-pop-sprite.png");
-  background-repeat: no-repeat;
-  background-size: 1440px 800px;
-  background-position: 0 0;
-  transform: translate(-50%, var(--world-like-pop-start-y)) scale(var(--world-like-pop-scale));
-  transform-origin: center;
-  opacity: 1;
-  filter: drop-shadow(0 10px 18px rgba(217, 79, 67, 0.22));
-  animation:
-    worldLikeHeartPopFrames 1.2s steps(1) forwards,
-    worldLikeHeartPopFloat 1.2s cubic-bezier(0.16, 0.84, 0.22, 1) forwards;
-}
-
-@keyframes worldLikeButtonPop {
-  0% {
-    transform: scale(1);
-  }
-  42% {
-    transform: scale(1.16) translateY(-1px);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-@keyframes worldLikeButtonUnpop {
-  0% {
-    transform: scale(1);
-  }
-  45% {
-    transform: scale(0.94);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-@keyframes worldLikeHeartPopFloat {
-  0% {
-    transform: translate(-50%, var(--world-like-pop-start-y)) scale(var(--world-like-pop-scale));
-  }
-  18% {
-    transform: translate(-50%, -82%) scale(var(--world-like-pop-scale));
-  }
-  72% {
-    transform: translate(-50%, -128%) scale(var(--world-like-pop-scale));
-  }
-  100% {
-    transform: translate(-50%, var(--world-like-pop-end-y)) scale(var(--world-like-pop-scale));
-  }
-}
-
-@keyframes worldLikeHeartPopFrames {
-  0% { background-position: 0 0; }
-  2.78% { background-position: -180px 0; }
-  5.56% { background-position: -360px 0; }
-  8.33% { background-position: -540px 0; }
-  11.11% { background-position: -720px 0; }
-  13.89% { background-position: -900px 0; }
-  16.67% { background-position: -1080px 0; }
-  19.44% { background-position: -1260px 0; }
-  22.22% { background-position: 0 -160px; }
-  25% { background-position: -180px -160px; }
-  27.78% { background-position: -360px -160px; }
-  30.56% { background-position: -540px -160px; }
-  33.33% { background-position: -720px -160px; }
-  36.11% { background-position: -900px -160px; }
-  38.89% { background-position: -1080px -160px; }
-  41.67% { background-position: -1260px -160px; }
-  44.44% { background-position: 0 -320px; }
-  47.22% { background-position: -180px -320px; }
-  50% { background-position: -360px -320px; }
-  52.78% { background-position: -540px -320px; }
-  55.56% { background-position: -720px -320px; }
-  58.33% { background-position: -900px -320px; }
-  61.11% { background-position: -1080px -320px; }
-  63.89% { background-position: -1260px -320px; }
-  66.67% { background-position: 0 -480px; }
-  69.44% { background-position: -180px -480px; }
-  72.22% { background-position: -360px -480px; }
-  75% { background-position: -540px -480px; }
-  77.78% { background-position: -720px -480px; }
-  80.56% { background-position: -900px -480px; }
-  83.33% { background-position: -1080px -480px; }
-  86.11% { background-position: -1260px -480px; }
-  88.89% {
-    background-position: 0 -640px;
-    opacity: 0.8;
-  }
-  91.67% {
-    background-position: -180px -640px;
-    opacity: 0.6;
-  }
-  94.44% {
-    background-position: -360px -640px;
-    opacity: 0.4;
-  }
-  97.22% {
-    background-position: -540px -640px;
-    opacity: 0.2;
-  }
-  100% {
-    background-position: -720px -640px;
-    opacity: 0;
-  }
 }
 
 .world-image-link {
@@ -4655,14 +4523,6 @@ body.is-home-layout-dragging * {
     font-size: 0.82rem;
   }
 
-  .world-like-pop {
-    width: 180px;
-    height: 160px;
-    --world-like-pop-scale: 0.34;
-    --world-like-pop-start-y: -60%;
-    --world-like-pop-end-y: -138%;
-  }
-
   .world-image-link {
     margin-top: 7px;
   }
@@ -4950,30 +4810,5 @@ body.is-home-layout-dragging * {
 
   .controls-grid.is-gift-shuffling .gift-participant-chip {
     animation: none;
-  }
-
-  .world-like-button.is-pop-feedback,
-  .world-like-button.is-unlike-feedback {
-    animation: none;
-  }
-
-  .world-like-pop {
-    width: 44px;
-    height: 44px;
-    border-radius: 999px;
-    background: rgba(217, 79, 67, 0.16);
-    transform: translate(-50%, -58%) scale(0.86);
-    animation: worldLikeReducedPop 180ms ease-out forwards;
-  }
-}
-
-@keyframes worldLikeReducedPop {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -58%) scale(0.86);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -72%) scale(1);
   }
 }
