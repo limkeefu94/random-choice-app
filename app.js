@@ -1830,11 +1830,30 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.7.3";
+const APP_VERSION = "0.7.4";
+const WORLD_LIKE_POP_TIMEOUT_MS = 760;
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const WORLD_SCROLL_BOTTOM_THRESHOLD = 140;
 const RELEASE_NOTES = [
+  {
+    version: "0.7.4",
+    title: "世界频道爱心动画",
+    date: "2026-06-19",
+    summary: "这次为世界频道点赞加入爱心弹出动画，让点赞反馈更明显、更有趣，同时保持原有点赞逻辑稳定。",
+    userChanges: [
+      "世界频道点赞时会出现轻量爱心弹出动画。",
+      "点赞按钮反馈更明显。",
+      "减少动画设置下会自动弱化动画。",
+    ],
+    technicalChanges: [
+      "Added heart pop animation for world channel likes.",
+      "Used assets/social/heart-pop-sprite.png when available.",
+      "Added CSS fallback for reduced motion or missing sprite asset.",
+      "Preserved existing like API and pending-state behavior.",
+      "Verified i18n audit and project checks.",
+    ],
+  },
   {
     version: "0.7.3",
     title: "世界频道媒体和滚动体验修复",
@@ -8983,6 +9002,64 @@ function refreshWorldLikeButtons(messageId) {
   });
 }
 
+function findWorldLikeButton(messageId) {
+  const safeMessageId = String(messageId || "");
+
+  if (!safeMessageId) {
+    return null;
+  }
+
+  return Array.from(document.querySelectorAll("[data-world-like]"))
+    .find((button) => button.dataset.worldLike === safeMessageId) || null;
+}
+
+function clearWorldLikeButtonFeedback(button) {
+  if (!button) {
+    return;
+  }
+
+  button.classList.remove("is-pop-feedback", "is-unlike-feedback");
+  button.querySelectorAll(".world-like-pop").forEach((pop) => pop.remove());
+}
+
+function triggerWorldLikeButtonFeedback(messageId, type = "like") {
+  const button = findWorldLikeButton(messageId);
+
+  if (!button) {
+    return null;
+  }
+
+  const feedbackClass = type === "unlike" ? "is-unlike-feedback" : "is-pop-feedback";
+  clearWorldLikeButtonFeedback(button);
+  window.requestAnimationFrame(() => {
+    button.classList.add(feedbackClass);
+  });
+  window.setTimeout(() => {
+    button.classList.remove(feedbackClass);
+  }, WORLD_LIKE_POP_TIMEOUT_MS);
+
+  return button;
+}
+
+function triggerWorldLikeAnimation(messageId) {
+  const button = triggerWorldLikeButtonFeedback(messageId, "like");
+
+  if (!button || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+    return;
+  }
+
+  button.querySelectorAll(".world-like-pop").forEach((pop) => pop.remove());
+
+  const pop = document.createElement("span");
+  pop.className = "world-like-pop is-playing";
+  pop.setAttribute("aria-hidden", "true");
+  button.append(pop);
+
+  window.setTimeout(() => {
+    pop.remove();
+  }, WORLD_LIKE_POP_TIMEOUT_MS);
+}
+
 function updateWorldMessageCaches(message) {
   state.worldMessages = mergeWorldMessages(state.worldMessages, [message]);
   myWorldMessages = mergeMyWorldMessageCache(myWorldMessages, message);
@@ -9051,6 +9128,7 @@ async function toggleWorldMessageLike(messageId) {
   updateWorldMessageCaches(optimisticMessage);
   saveState();
   refreshWorldLikeButtons(safeMessageId);
+  let likeAnimationType = null;
 
   if (isProfilePanelOpen && profilePanelView === "home") {
     renderProfilePanel();
@@ -9060,6 +9138,7 @@ async function toggleWorldMessageLike(messageId) {
     const message = await requestToggleWorldMessageLike(safeMessageId);
     updateWorldMessageCaches(message);
     saveState();
+    likeAnimationType = message.likedByCurrentUser ? "like" : "unlike";
     showToast(message.likedByCurrentUser ? "已点爱心。" : "已取消爱心。");
   } catch (error) {
     updateWorldMessageCaches(previousMessage);
@@ -9076,6 +9155,12 @@ async function toggleWorldMessageLike(messageId) {
 
     if (isProfilePanelOpen && profilePanelView === "home") {
       renderProfilePanel();
+    }
+
+    if (likeAnimationType === "like") {
+      triggerWorldLikeAnimation(safeMessageId);
+    } else if (likeAnimationType === "unlike") {
+      triggerWorldLikeButtonFeedback(safeMessageId, "unlike");
     }
   }
 }
