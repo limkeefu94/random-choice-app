@@ -1798,11 +1798,32 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.7.3";
+const APP_VERSION = "0.7.4";
+const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
+const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
+const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const WORLD_SCROLL_BOTTOM_THRESHOLD = 140;
 const RELEASE_NOTES = [
+  {
+    version: "0.7.4",
+    title: "世界频道爱心动画",
+    date: "2026-06-19",
+    summary: "这次为世界频道点赞加入爱心弹出动画，让点赞反馈更明显、更有趣，同时保持原有点赞逻辑稳定。",
+    userChanges: [
+      "世界频道点赞时会出现轻量爱心弹出动画。",
+      "点赞按钮反馈更明显。",
+      "减少动画设置下会自动弱化动画。",
+    ],
+    technicalChanges: [
+      "Added heart pop animation for world channel likes.",
+      "Used assets/social/heart-pop-sprite.png when available.",
+      "Added CSS fallback for reduced motion or missing sprite asset.",
+      "Preserved existing like API and pending-state behavior.",
+      "Verified i18n audit and project checks.",
+    ],
+  },
   {
     version: "0.7.3",
     title: "世界频道媒体和滚动体验修复",
@@ -2386,6 +2407,7 @@ let editingWorldMessageId = "";
 let currentWorldPlaceholder = "";
 let activeWorldImageViewer = null;
 let pendingWorldLikeIds = new Set();
+let worldLikeToggleGuards = new Map();
 let myWorldMessages = [];
 let isMyWorldMessagesLoading = false;
 let myWorldMessagesError = "";
@@ -6111,7 +6133,7 @@ function renderWorldLikeButton(message) {
     : worldText("loginToLike", "登录后可以点爱心");
 
   return `
-    <button class="world-like-button${isLiked ? " is-liked" : ""}${isPending ? " is-loading" : ""}" type="button" data-world-like="${escapeHtml(message.id)}" aria-pressed="${isLiked}" aria-label="${label}" ${isPending ? "disabled" : ""}>
+    <button class="world-like-button${isLiked ? " is-liked" : ""}${isPending ? " is-syncing" : ""}" type="button" data-world-like="${escapeHtml(message.id)}" aria-pressed="${isLiked}" aria-label="${label}" aria-busy="${isPending}">
       <span aria-hidden="true">${isLiked ? "❤️" : "♡"}</span>
       <strong>${likeCount}</strong>
     </button>
@@ -7043,6 +7065,7 @@ function applyAuthSession(payload) {
 
   if (previousIdentity && nextIdentity && previousIdentity !== nextIdentity) {
     pendingWorldLikeIds.clear();
+    worldLikeToggleGuards.clear();
     closeWorldImageViewer();
     clearPendingWorldImage({ updateStatus: false });
     myWorldMessages = [];
@@ -7064,6 +7087,7 @@ function clearAuthSession(options = {}) {
 
   cancelGiftShuffle({ silent: true });
   pendingWorldLikeIds.clear();
+  worldLikeToggleGuards.clear();
   closeAvatarCropModal({ resetInput: true, silent: true, restorePrevious: false });
   closeWorldImageViewer();
   clearPendingWorldImage({ updateStatus: false });
@@ -8869,7 +8893,7 @@ async function deleteOwnWorldMessage(messageId) {
   return payload;
 }
 
-function refreshWorldLikeButtons(messageId) {
+function refreshWorldLikeButtons(messageId, options = {}) {
   const message = getWorldMessageSnapshot(messageId);
 
   if (!message) {
@@ -8878,9 +8902,128 @@ function refreshWorldLikeButtons(messageId) {
 
   document.querySelectorAll("[data-world-like]").forEach((button) => {
     if (button.dataset.worldLike === messageId) {
-      button.outerHTML = renderWorldLikeButton(message);
+      const template = document.createElement("template");
+      template.innerHTML = renderWorldLikeButton(message).trim();
+      const replacement = template.content.firstElementChild;
+
+      if (!replacement) {
+        return;
+      }
+
+      if (options.preservePop) {
+        button.querySelectorAll(".world-like-pop").forEach((pop) => {
+          replacement.append(pop);
+        });
+      }
+
+      button.replaceWith(replacement);
     }
   });
+}
+
+function findWorldLikeButton(messageId) {
+  const safeMessageId = String(messageId || "");
+
+  if (!safeMessageId) {
+    return null;
+  }
+
+  return Array.from(document.querySelectorAll("[data-world-like]"))
+    .find((button) => button.dataset.worldLike === safeMessageId) || null;
+}
+
+function clearWorldLikeButtonFeedback(button) {
+  if (!button) {
+    return;
+  }
+
+  button.classList.remove("is-pop-feedback", "is-unlike-feedback");
+  button.querySelectorAll(".world-like-pop").forEach((pop) => pop.remove());
+}
+
+function triggerWorldLikeButtonFeedback(messageId, type = "like") {
+  const button = findWorldLikeButton(messageId);
+
+  if (!button) {
+    return null;
+  }
+
+  const feedbackClass = type === "unlike" ? "is-unlike-feedback" : "is-pop-feedback";
+  clearWorldLikeButtonFeedback(button);
+  window.requestAnimationFrame(() => {
+    button.classList.add(feedbackClass);
+  });
+  window.setTimeout(() => {
+    button.classList.remove(feedbackClass);
+  }, WORLD_LIKE_POP_TIMEOUT_MS);
+
+  return button;
+}
+
+function triggerWorldLikeAnimation(messageId) {
+  const button = triggerWorldLikeButtonFeedback(messageId, "like");
+
+  if (!button || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+    return;
+  }
+
+  button.querySelectorAll(".world-like-pop").forEach((pop) => pop.remove());
+
+  const pop = document.createElement("span");
+  pop.className = "world-like-pop is-playing";
+  pop.setAttribute("aria-hidden", "true");
+  button.append(pop);
+
+  window.setTimeout(() => {
+    pop.remove();
+  }, WORLD_LIKE_POP_TIMEOUT_MS);
+}
+
+function triggerWorldLikePendingFeedback(messageId) {
+  const message = getWorldMessageSnapshot(messageId);
+
+  if (message?.likedByCurrentUser) {
+    triggerWorldLikeAnimation(messageId);
+    return;
+  }
+
+  triggerWorldLikeButtonFeedback(messageId, "unlike");
+}
+
+function isWorldLikeToggleGuarded(messageId) {
+  const safeMessageId = String(messageId || "");
+  const guardUntil = worldLikeToggleGuards.get(safeMessageId) || 0;
+
+  if (!safeMessageId || guardUntil <= Date.now()) {
+    worldLikeToggleGuards.delete(safeMessageId);
+    return false;
+  }
+
+  return true;
+}
+
+function setWorldLikeToggleGuard(messageId) {
+  const safeMessageId = String(messageId || "");
+
+  if (!safeMessageId) {
+    return;
+  }
+
+  const guardUntil = Date.now() + WORLD_LIKE_TOGGLE_GUARD_MS;
+  worldLikeToggleGuards.set(safeMessageId, guardUntil);
+  window.setTimeout(() => {
+    if ((worldLikeToggleGuards.get(safeMessageId) || 0) <= Date.now()) {
+      worldLikeToggleGuards.delete(safeMessageId);
+    }
+  }, WORLD_LIKE_TOGGLE_GUARD_MS + 80);
+}
+
+function clearWorldLikeToggleGuard(messageId) {
+  const safeMessageId = String(messageId || "");
+
+  if (safeMessageId) {
+    worldLikeToggleGuards.delete(safeMessageId);
+  }
 }
 
 function updateWorldMessageCaches(message) {
@@ -8896,24 +9039,42 @@ function getWorldMessageSnapshot(messageId) {
 }
 
 async function requestToggleWorldMessageLike(messageId) {
-  const response = await fetch(WORLD_CHANNEL_ENDPOINT, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify({
-      action: "toggleLike",
-      id: messageId,
-    }),
-  });
-  const payload = await readJsonResponse(response);
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = controller
+    ? window.setTimeout(() => controller.abort(), WORLD_LIKE_SYNC_TIMEOUT_MS)
+    : null;
 
-  if (!response.ok || !payload.ok) {
-    throw new Error(payload.error || "爱心暂时点不了");
+  try {
+    const response = await fetch(WORLD_CHANNEL_ENDPOINT, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({
+        action: "toggleLike",
+        id: messageId,
+      }),
+      signal: controller?.signal,
+    });
+    const payload = await readJsonResponse(response);
+
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.error || "爱心暂时点不了");
+    }
+
+    return payload.message;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("爱心同步太久了，请稍后再试。");
+    }
+
+    throw error;
+  } finally {
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+    }
   }
-
-  return payload.message;
 }
 
 async function toggleWorldMessageLike(messageId) {
@@ -8930,6 +9091,8 @@ async function toggleWorldMessageLike(messageId) {
   }
 
   if (pendingWorldLikeIds.has(safeMessageId)) {
+    setWorldLikeToggleGuard(safeMessageId);
+    triggerWorldLikePendingFeedback(safeMessageId);
     return;
   }
 
@@ -8937,6 +9100,12 @@ async function toggleWorldMessageLike(messageId) {
 
   if (!previousMessage) {
     showToast("这条内容暂时找不到。");
+    return;
+  }
+
+  if (isWorldLikeToggleGuarded(safeMessageId)) {
+    setWorldLikeToggleGuard(safeMessageId);
+    triggerWorldLikePendingFeedback(safeMessageId);
     return;
   }
 
@@ -8948,9 +9117,18 @@ async function toggleWorldMessageLike(messageId) {
   };
 
   pendingWorldLikeIds.add(safeMessageId);
+  setWorldLikeToggleGuard(safeMessageId);
   updateWorldMessageCaches(optimisticMessage);
   saveState();
   refreshWorldLikeButtons(safeMessageId);
+  const optimisticAnimationType = nextLiked ? "like" : "unlike";
+  let shouldPreservePop = nextLiked;
+
+  if (optimisticAnimationType === "like") {
+    triggerWorldLikeAnimation(safeMessageId);
+  } else {
+    triggerWorldLikeButtonFeedback(safeMessageId, "unlike");
+  }
 
   if (isProfilePanelOpen && profilePanelView === "home") {
     renderProfilePanel();
@@ -8960,8 +9138,9 @@ async function toggleWorldMessageLike(messageId) {
     const message = await requestToggleWorldMessageLike(safeMessageId);
     updateWorldMessageCaches(message);
     saveState();
-    showToast(message.likedByCurrentUser ? "已点爱心。" : "已取消爱心。");
   } catch (error) {
+    shouldPreservePop = false;
+    clearWorldLikeToggleGuard(safeMessageId);
     updateWorldMessageCaches(previousMessage);
     saveState();
     reportClientError(error, {
@@ -8972,7 +9151,7 @@ async function toggleWorldMessageLike(messageId) {
     syncWorldMessages();
   } finally {
     pendingWorldLikeIds.delete(safeMessageId);
-    refreshWorldLikeButtons(safeMessageId);
+    refreshWorldLikeButtons(safeMessageId, { preservePop: shouldPreservePop });
 
     if (isProfilePanelOpen && profilePanelView === "home") {
       renderProfilePanel();
