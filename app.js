@@ -1798,10 +1798,30 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.7.1";
+const APP_VERSION = "0.7.2";
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const RELEASE_NOTES = [
+  {
+    version: "0.7.2",
+    title: "自动 PR 检查流程",
+    date: "2026-06-19",
+    summary: "这次新增 GitHub Actions CI 和 PR 模板，让每个 Pull Request 自动运行项目检查、翻译检查、i18n 扫描和 whitespace 检查，减少漏跑测试和漏翻译的风险。",
+    userChanges: [
+      "应用功能没有明显变化。",
+      "后续更新会更稳定。",
+      "多语言和基础检查更容易在合并前发现问题。",
+    ],
+    technicalChanges: [
+      "Added GitHub Actions CI workflow.",
+      "Added pull request template.",
+      "Added automated npm run check execution on PRs.",
+      "Added automated i18n audit execution on PRs.",
+      "Added automated locale syntax and locale key checks.",
+      "Added git diff --check to CI.",
+      "Documented development check workflow.",
+    ],
+  },
   {
     version: "0.7.1",
     title: "i18n 自动扫描器",

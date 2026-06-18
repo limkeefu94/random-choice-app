@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  check:
+    name: Run app checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run project check
+        run: npm run check
+
+      - name: Run i18n audit
+        run: npm run check:i18n
+
+      - name: Check locale syntax
+        run: |
+          node --check locales/zh-CN.js
+          node --check locales/en.js
+          node --check locales/ms.js
+          node --check scripts/check-locales.js
+          node --check scripts/audit-i18n.js
+          node scripts/check-locales.js
+          node scripts/audit-i18n.js
+
+      - name: Check whitespace
+        run: git diff --check

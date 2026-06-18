@@ -16,6 +16,10 @@
 
 新增或修改 UI 文案后，请先补齐 `locales/zh-CN.js`、`locales/en.js`、`locales/ms.js`，再运行 `npm run check:i18n` 或完整的 `npm run check`。扫描器会检查三语言 key 是否一致、locale value 是否出现 `????` / `undefined` / `null` / `[object Object]`、`app.js` / `index.html` 是否有高风险硬编码中文 UI，并对明显硬编码英文给出 warning。食物、饮料、旅行、购物等数据池、Release Notes、旧历史记录和用户输入内容允许保留原文；新增按钮、标题、label、placeholder、toast、confirm、空状态等 UI 文案不要直接写在 `app.js`。
 
+## Development checks
+
+本项目 PR 会自动通过 GitHub Actions 运行基础检查。提交前建议本地先跑 `npm run check`、`npm run check:i18n` 和 `git diff --check`。如果修改 locale，请同时确认 `node scripts/check-locales.js` 与 `node scripts/audit-i18n.js` 通过。如果修改 UI 文案，必须加入 `zh-CN` / `en` / `ms` 三语言 key；数据池可以保留原文，但主要按钮、标题、label、placeholder、toast、confirm 和空状态不要硬编码中文。
+
 ## Vercel 部署
 
 1. 把这个仓库连接到 Vercel。

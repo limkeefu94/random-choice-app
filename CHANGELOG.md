@@ -11,6 +11,14 @@
 - 新增关联应用占位：设置中心展示未来随心转盘和其他生活小工具共用账号的规划入口。
 - 优化手机端个人资料和设置面板：增加底部安全滚动空间，并压缩关联小应用展示。
 
+## v0.7.2 - 自动 PR 检查流程
+
+- 新增 GitHub Actions CI workflow，让 PR 和 main push 自动运行基础检查。
+- 新增 PR 模板，统一 Summary、变更说明、人工测试、自动检查和风险说明。
+- CI 会运行 `npm ci`、`npm run check`、`npm run check:i18n`、locale syntax / key 检查和 `git diff --check`。
+- README 补充 Development checks，说明本地提交前建议执行的检查流程。
+- 应用功能没有明显变化，重点是减少漏跑测试和漏翻译风险。
+
 ## v0.7.1 - i18n 自动扫描器
 
 - 新增 `scripts/audit-i18n.js`，用于检查三语言 key 一致性、缺失翻译、乱码和危险 fallback。
