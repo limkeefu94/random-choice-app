@@ -2300,9 +2300,12 @@ body.is-home-layout-dragging * {
   animation: worldLikeButtonUnpop 260ms ease-out;
 }
 
-.world-like-button.is-loading,
+.world-like-button.is-syncing {
+  cursor: pointer;
+}
+
 .world-like-button:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.68;
 }
 
@@ -2327,16 +2330,21 @@ body.is-home-layout-dragging * {
   display: block;
   width: 180px;
   height: 160px;
+  --world-like-pop-scale: 0.42;
+  --world-like-pop-start-y: -58%;
+  --world-like-pop-end-y: -146%;
   pointer-events: none;
   background-image: url("./assets/social/heart-pop-sprite.png");
   background-repeat: no-repeat;
   background-size: 1440px 800px;
   background-position: 0 0;
-  transform: translate(-50%, -72%) scale(0.42);
+  transform: translate(-50%, var(--world-like-pop-start-y)) scale(var(--world-like-pop-scale));
   transform-origin: center;
   opacity: 1;
   filter: drop-shadow(0 10px 18px rgba(217, 79, 67, 0.22));
-  animation: worldLikeHeartPopFrames 1.2s steps(1) forwards;
+  animation:
+    worldLikeHeartPopFrames 1.2s steps(1) forwards,
+    worldLikeHeartPopFloat 1.2s cubic-bezier(0.16, 0.84, 0.22, 1) forwards;
 }
 
 @keyframes worldLikeButtonPop {
@@ -2360,6 +2368,21 @@ body.is-home-layout-dragging * {
   }
   100% {
     transform: scale(1);
+  }
+}
+
+@keyframes worldLikeHeartPopFloat {
+  0% {
+    transform: translate(-50%, var(--world-like-pop-start-y)) scale(var(--world-like-pop-scale));
+  }
+  18% {
+    transform: translate(-50%, -82%) scale(var(--world-like-pop-scale));
+  }
+  72% {
+    transform: translate(-50%, -128%) scale(var(--world-like-pop-scale));
+  }
+  100% {
+    transform: translate(-50%, var(--world-like-pop-end-y)) scale(var(--world-like-pop-scale));
   }
 }
 
@@ -4635,7 +4658,9 @@ body.is-home-layout-dragging * {
   .world-like-pop {
     width: 180px;
     height: 160px;
-    transform: translate(-50%, -76%) scale(0.34);
+    --world-like-pop-scale: 0.34;
+    --world-like-pop-start-y: -60%;
+    --world-like-pop-end-y: -138%;
   }
 
   .world-image-link {
@@ -4937,6 +4962,7 @@ body.is-home-layout-dragging * {
     height: 44px;
     border-radius: 999px;
     background: rgba(217, 79, 67, 0.16);
+    transform: translate(-50%, -58%) scale(0.86);
     animation: worldLikeReducedPop 180ms ease-out forwards;
   }
 }
