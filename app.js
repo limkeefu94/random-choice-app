@@ -1832,6 +1832,7 @@ const WORLD_PLACEHOLDERS = [
 ];
 const APP_VERSION = "0.7.4";
 const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
+const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const WORLD_SCROLL_BOTTOM_THRESHOLD = 140;
@@ -9074,6 +9075,17 @@ function triggerWorldLikeAnimation(messageId) {
   }, WORLD_LIKE_POP_TIMEOUT_MS);
 }
 
+function triggerWorldLikePendingFeedback(messageId) {
+  const message = getWorldMessageSnapshot(messageId);
+
+  if (message?.likedByCurrentUser) {
+    triggerWorldLikeAnimation(messageId);
+    return;
+  }
+
+  triggerWorldLikeButtonFeedback(messageId, "unlike");
+}
+
 function updateWorldMessageCaches(message) {
   state.worldMessages = mergeWorldMessages(state.worldMessages, [message]);
   myWorldMessages = mergeMyWorldMessageCache(myWorldMessages, message);
@@ -9087,24 +9099,42 @@ function getWorldMessageSnapshot(messageId) {
 }
 
 async function requestToggleWorldMessageLike(messageId) {
-  const response = await fetch(WORLD_CHANNEL_ENDPOINT, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify({
-      action: "toggleLike",
-      id: messageId,
-    }),
-  });
-  const payload = await readJsonResponse(response);
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = controller
+    ? window.setTimeout(() => controller.abort(), WORLD_LIKE_SYNC_TIMEOUT_MS)
+    : null;
 
-  if (!response.ok || !payload.ok) {
-    throw new Error(payload.error || "爱心暂时点不了");
+  try {
+    const response = await fetch(WORLD_CHANNEL_ENDPOINT, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({
+        action: "toggleLike",
+        id: messageId,
+      }),
+      signal: controller?.signal,
+    });
+    const payload = await readJsonResponse(response);
+
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.error || "爱心暂时点不了");
+    }
+
+    return payload.message;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("爱心同步太久了，请稍后再试。");
+    }
+
+    throw error;
+  } finally {
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+    }
   }
-
-  return payload.message;
 }
 
 async function toggleWorldMessageLike(messageId) {
@@ -9121,6 +9151,7 @@ async function toggleWorldMessageLike(messageId) {
   }
 
   if (pendingWorldLikeIds.has(safeMessageId)) {
+    triggerWorldLikePendingFeedback(safeMessageId);
     return;
   }
 
