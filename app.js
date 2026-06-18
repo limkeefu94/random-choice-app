@@ -1831,7 +1831,7 @@ const WORLD_PLACEHOLDERS = [
   "今天的灵感掉在哪里？",
 ];
 const APP_VERSION = "0.7.4";
-const WORLD_LIKE_POP_TIMEOUT_MS = 760;
+const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const WORLD_SCROLL_BOTTOM_THRESHOLD = 140;
@@ -6230,7 +6230,7 @@ function renderWorldLikeButton(message) {
     : worldText("loginToLike", "登录后可以点爱心");
 
   return `
-    <button class="world-like-button${isLiked ? " is-liked" : ""}${isPending ? " is-loading" : ""}" type="button" data-world-like="${escapeHtml(message.id)}" aria-pressed="${isLiked}" aria-label="${label}" ${isPending ? "disabled" : ""}>
+    <button class="world-like-button${isLiked ? " is-liked" : ""}${isPending ? " is-syncing" : ""}" type="button" data-world-like="${escapeHtml(message.id)}" aria-pressed="${isLiked}" aria-label="${label}" aria-busy="${isPending}">
       <span aria-hidden="true">${isLiked ? "❤️" : "♡"}</span>
       <strong>${likeCount}</strong>
     </button>
@@ -8988,7 +8988,7 @@ async function deleteOwnWorldMessage(messageId) {
   return payload;
 }
 
-function refreshWorldLikeButtons(messageId) {
+function refreshWorldLikeButtons(messageId, options = {}) {
   const message = getWorldMessageSnapshot(messageId);
 
   if (!message) {
@@ -8997,7 +8997,21 @@ function refreshWorldLikeButtons(messageId) {
 
   document.querySelectorAll("[data-world-like]").forEach((button) => {
     if (button.dataset.worldLike === messageId) {
-      button.outerHTML = renderWorldLikeButton(message);
+      const template = document.createElement("template");
+      template.innerHTML = renderWorldLikeButton(message).trim();
+      const replacement = template.content.firstElementChild;
+
+      if (!replacement) {
+        return;
+      }
+
+      if (options.preservePop) {
+        button.querySelectorAll(".world-like-pop").forEach((pop) => {
+          replacement.append(pop);
+        });
+      }
+
+      button.replaceWith(replacement);
     }
   });
 }
@@ -9128,7 +9142,14 @@ async function toggleWorldMessageLike(messageId) {
   updateWorldMessageCaches(optimisticMessage);
   saveState();
   refreshWorldLikeButtons(safeMessageId);
-  let likeAnimationType = null;
+  const optimisticAnimationType = nextLiked ? "like" : "unlike";
+  let shouldPreservePop = nextLiked;
+
+  if (optimisticAnimationType === "like") {
+    triggerWorldLikeAnimation(safeMessageId);
+  } else {
+    triggerWorldLikeButtonFeedback(safeMessageId, "unlike");
+  }
 
   if (isProfilePanelOpen && profilePanelView === "home") {
     renderProfilePanel();
@@ -9138,9 +9159,8 @@ async function toggleWorldMessageLike(messageId) {
     const message = await requestToggleWorldMessageLike(safeMessageId);
     updateWorldMessageCaches(message);
     saveState();
-    likeAnimationType = message.likedByCurrentUser ? "like" : "unlike";
-    showToast(message.likedByCurrentUser ? "已点爱心。" : "已取消爱心。");
   } catch (error) {
+    shouldPreservePop = false;
     updateWorldMessageCaches(previousMessage);
     saveState();
     reportClientError(error, {
@@ -9151,16 +9171,10 @@ async function toggleWorldMessageLike(messageId) {
     syncWorldMessages();
   } finally {
     pendingWorldLikeIds.delete(safeMessageId);
-    refreshWorldLikeButtons(safeMessageId);
+    refreshWorldLikeButtons(safeMessageId, { preservePop: shouldPreservePop });
 
     if (isProfilePanelOpen && profilePanelView === "home") {
       renderProfilePanel();
-    }
-
-    if (likeAnimationType === "like") {
-      triggerWorldLikeAnimation(safeMessageId);
-    } else if (likeAnimationType === "unlike") {
-      triggerWorldLikeButtonFeedback(safeMessageId, "unlike");
     }
   }
 }
