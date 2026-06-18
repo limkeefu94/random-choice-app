@@ -252,6 +252,21 @@ button {
   line-height: 1;
 }
 
+.notification-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+}
+
+.notification-icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(106, 57, 26, 0.14));
+}
+
 .profile-avatar-button {
   padding: 0;
   overflow: hidden;
@@ -588,10 +603,11 @@ body.is-home-layout-dragging * {
 }
 
 .mode-menu-toggle {
+  position: relative;
   display: none;
   width: 100%;
   min-height: 58px;
-  padding: 10px 14px;
+  padding: 10px 52px 10px 14px;
   cursor: pointer;
   text-align: left;
   border-radius: 20px;
@@ -657,8 +673,9 @@ body.is-home-layout-dragging * {
 
 .mode-button {
   display: grid;
-  grid-template-columns: 42px 1fr;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
   gap: 12px;
+  align-items: center;
   width: 100%;
   min-width: 0;
   padding: 12px;
@@ -695,8 +712,129 @@ body.is-home-layout-dragging * {
   background: #fff4e8;
 }
 
+.mode-menu-toggle::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  top: calc(50% - 17px);
+  width: 34px;
+  height: 34px;
+  pointer-events: none;
+  background: url("./assets/ui/wheel-pointer.png") center / contain no-repeat;
+  filter: drop-shadow(0 8px 12px rgba(255, 122, 61, 0.18));
+  animation: modePointerDrop 1.35s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.mode-menu-toggle::before {
+  content: "";
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 36% 28%, rgba(255, 255, 255, 0.9), transparent 42%),
+    linear-gradient(135deg, rgba(255, 122, 61, 0.26), rgba(96, 199, 160, 0.18));
+  transform: translateY(-50%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.46);
+}
+
+.mode-icon.has-image {
+  overflow: hidden;
+  padding: 4px;
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.94), transparent 38%),
+    linear-gradient(135deg, rgba(255, 248, 239, 0.95), rgba(236, 251, 244, 0.9));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.58),
+    0 8px 18px rgba(106, 57, 26, 0.08);
+}
+
+.mode-icon-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 10px rgba(106, 57, 26, 0.12));
+}
+
 .mode-copy {
   min-width: 0;
+}
+
+.mode-active-pointer {
+  position: relative;
+  display: grid;
+  width: 34px;
+  height: 38px;
+  place-items: center;
+  justify-self: end;
+  margin-left: 2px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 36% 28%, rgba(255, 255, 255, 0.92), transparent 42%),
+    linear-gradient(135deg, rgba(255, 122, 61, 0.28), rgba(96, 199, 160, 0.18));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.48);
+  animation: modePointerDrop 1.35s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  transform-origin: 50% 90%;
+}
+
+.mode-active-pointer::after {
+  content: "";
+  position: absolute;
+  right: 7px;
+  bottom: 1px;
+  width: 18px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(106, 57, 26, 0.18);
+  filter: blur(1px);
+  animation: modePointerShadow 1.35s ease-in-out infinite;
+}
+
+.mode-active-pointer-image {
+  position: relative;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 12px rgba(255, 122, 61, 0.2));
+}
+
+@keyframes modePointerDrop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+
+  42% {
+    transform: translateY(-8px) scale(1.04);
+  }
+
+  62% {
+    transform: translateY(0) scale(0.98);
+  }
+}
+
+@keyframes modePointerShadow {
+  0%,
+  100% {
+    opacity: 0.52;
+    transform: scaleX(1);
+  }
+
+  42% {
+    opacity: 0.22;
+    transform: scaleX(0.72);
+  }
+
+  62% {
+    opacity: 0.62;
+    transform: scaleX(1.08);
+  }
 }
 
 .mode-copy strong,
@@ -719,8 +857,28 @@ body.is-home-layout-dragging * {
 }
 
 .decision-card {
+  position: relative;
   overflow: hidden;
   padding: 28px;
+}
+
+.decision-card::after {
+  content: "";
+  position: absolute;
+  right: -36px;
+  bottom: -40px;
+  z-index: 0;
+  width: 190px;
+  height: 150px;
+  pointer-events: none;
+  background: url("./assets/ui/leaf-accent.png") center / contain no-repeat;
+  opacity: 0.16;
+  transform: rotate(-10deg);
+}
+
+.decision-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .decision-copy {
@@ -1140,6 +1298,20 @@ body.is-home-layout-dragging * {
   gap: 12px;
 }
 
+.gift-setup-heading > div,
+.gift-result-heading > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.gift-heading-image {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 16px rgba(255, 122, 61, 0.14));
+}
+
 .gift-setup-heading strong,
 .gift-result-heading strong {
   display: block;
@@ -1249,6 +1421,7 @@ body.is-home-layout-dragging * {
 .gift-empty-note {
   display: grid;
   gap: 4px;
+  justify-items: start;
   padding: 14px;
   border: 1px dashed rgba(80, 45, 24, 0.14);
   border-radius: 18px;
@@ -1623,6 +1796,7 @@ body.is-home-layout-dragging * {
 .image-upload-button {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   min-height: 46px;
   padding: 0 14px;
   border: 1px dashed rgba(80, 45, 24, 0.16);
@@ -1652,6 +1826,14 @@ body.is-home-layout-dragging * {
 
 .image-upload-button input {
   display: none;
+}
+
+.image-upload-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 7px rgba(96, 199, 160, 0.16));
 }
 
 .profile-image-picker {
@@ -2197,6 +2379,35 @@ body.is-home-layout-dragging * {
   gap: 10px;
 }
 
+.world-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 18px 12px;
+  border: 1px dashed rgba(96, 199, 160, 0.22);
+  border-radius: 18px;
+  color: #6f4d36;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.world-empty-image {
+  width: 96px;
+  height: 74px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 14px rgba(106, 57, 26, 0.08));
+}
+
+.world-empty-state strong {
+  color: #4d3025;
+  font-size: 0.94rem;
+}
+
+.world-empty-state small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .world-chat-shell {
   margin-top: 14px;
   overflow: auto;
@@ -2288,6 +2499,13 @@ body.is-home-layout-dragging * {
   border-color: rgba(255, 122, 61, 0.26);
   color: #d94f43;
   background: rgba(255, 122, 61, 0.12);
+}
+
+.gift-empty-illustration {
+  width: 76px;
+  height: 56px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 14px rgba(106, 57, 26, 0.1));
 }
 
 .world-like-button.is-loading,
@@ -2722,6 +2940,31 @@ body.is-home-layout-dragging * {
   line-height: 1.5;
 }
 
+.empty-state.is-illustrated {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 10px;
+  border: 1px dashed rgba(80, 45, 24, 0.12);
+  border-radius: 18px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.46);
+}
+
+.empty-state-illustration {
+  width: min(96px, 42vw);
+  height: 76px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 16px rgba(106, 57, 26, 0.08));
+}
+
+.candidate-empty-state {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
 .floating-panel {
   position: fixed;
   top: 86px;
@@ -2947,13 +3190,21 @@ body.is-home-layout-dragging * {
 
 .notification-empty {
   display: grid;
-  gap: 4px;
+  justify-items: center;
+  gap: 6px;
   padding: 18px 12px;
   border: 1px dashed rgba(80, 45, 24, 0.14);
   border-radius: 18px;
   color: #6f4d36;
   text-align: center;
   background: rgba(255, 255, 255, 0.56);
+}
+
+.notification-empty-image {
+  width: 88px;
+  height: 64px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 14px rgba(106, 57, 26, 0.08));
 }
 
 .notification-empty strong {
@@ -4239,8 +4490,15 @@ body.is-home-layout-dragging * {
   }
 
   .mode-menu-toggle {
-    padding: 8px 12px;
+    padding: 8px 48px 8px 12px;
     border-radius: 17px;
+  }
+
+  .mode-menu-toggle::after {
+    right: 12px;
+    top: calc(50% - 15px);
+    width: 30px;
+    height: 30px;
   }
 
   .mode-menu-hint {
@@ -4255,7 +4513,7 @@ body.is-home-layout-dragging * {
   }
 
   .world-entry-button {
-    grid-template-columns: 38px 1fr;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
     padding: 10px;
     border-color: rgba(96, 199, 160, 0.3);
     background:
@@ -4269,7 +4527,7 @@ body.is-home-layout-dragging * {
   }
 
   .mode-button {
-    grid-template-columns: 38px 1fr;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
     gap: 10px;
     padding: 10px;
     border-radius: 18px;
@@ -4280,6 +4538,21 @@ body.is-home-layout-dragging * {
     height: 38px;
     border-radius: 14px;
     font-size: 1.12rem;
+  }
+
+  .mode-active-pointer {
+    width: 30px;
+    height: 34px;
+  }
+
+  .mode-active-pointer-image {
+    width: 30px;
+    height: 30px;
+  }
+
+  .mode-active-pointer::after {
+    right: 6px;
+    width: 16px;
   }
 
   .decision-card,

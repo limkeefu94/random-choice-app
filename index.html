@@ -37,7 +37,9 @@
             </select>
           </label>
           <button class="notification-button" id="notificationButton" type="button" aria-expanded="false" aria-controls="notificationPanel" aria-label="查看应用通知">
-            <span aria-hidden="true">🔔</span>
+            <span class="notification-icon" aria-hidden="true">
+              <img src="./assets/ui/notification-bell.png" alt="" />
+            </span>
             <small id="notificationBadge" hidden>0</small>
           </button>
           <button class="profile-avatar-button" id="profileAvatarButton" type="button" aria-expanded="false" aria-controls="profilePanel" aria-label="编辑个人资料" hidden></button>
@@ -63,7 +65,9 @@
           <div class="sidebar-world">
             <span id="socialEntryTitle">社交入口</span>
             <button class="mode-button world-entry-button" id="worldChannelButton" type="button" aria-pressed="false">
-              <span class="mode-icon">🌍</span>
+              <span class="mode-icon has-image">
+                <img class="mode-icon-image" src="./assets/modes/mode-world.png" alt="" aria-hidden="true" loading="lazy" />
+              </span>
               <span class="mode-copy">
                 <strong>世界频道</strong>
                 <small>公开频道 · 私聊和群聊之后会放这里</small>
