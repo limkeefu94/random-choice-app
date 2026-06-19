@@ -1830,14 +1830,33 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.7.4";
+const APP_VERSION = "0.7.5";
 const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
 const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
 const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
 const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const WORLD_SCROLL_BOTTOM_THRESHOLD = 140;
+const WORLD_IMAGE_REFRESH_MAX_ATTEMPTS = 1;
 const RELEASE_NOTES = [
+  {
+    version: "0.7.5",
+    title: "修复过期图片链接",
+    date: "2026-06-20",
+    summary: "这次修复世界频道图片链接过期后无法显示的问题。图片会保存稳定的对象路径，并在读取链接过期时重新获取新的安全访问链接。",
+    userChanges: [
+      "旧世界频道图片过期后可以重新加载。",
+      "图片链接失效时会显示友好提示。",
+      "图片浏览器不会再直接打开 ExpiredToken XML 页面。",
+    ],
+    technicalChanges: [
+      "Added read signed URL refresh flow for GCS world images.",
+      "Preserved stable objectName/filePath as long-term image source.",
+      "Added frontend retry helper for expired world image URLs.",
+      "Added fallback UI for expired or unavailable images.",
+      "Kept existing upload and world channel APIs compatible.",
+    ],
+  },
   {
     version: "0.7.4",
     title: "世界频道爱心动画",
@@ -2438,6 +2457,9 @@ let profilePanelView = "home";
 let editingWorldMessageId = "";
 let currentWorldPlaceholder = "";
 let activeWorldImageViewer = null;
+let pendingWorldImageRefreshes = new Map();
+let worldImageRefreshAttempts = new Map();
+let worldImageUrlOverrides = new Map();
 let pendingWorldLikeIds = new Set();
 let worldLikeToggleGuards = new Map();
 let myWorldMessages = [];
@@ -6249,35 +6271,52 @@ function scrollWorldChatToBottom() {
 }
 
 function renderWorldAttachment(attachment, message = null) {
-  const imageUrl = getWorldMessageImageUrl(message || { attachment });
+  const messageSource = message || { attachment };
+  const imageUrl = getWorldMessageImageUrl(messageSource);
+  const objectName = getWorldMessageImageObjectName(messageSource);
+  const safeAttachment = attachment || {};
+  const messageId = String(messageSource?.id || "");
+  const hasImageSource = Boolean(imageUrl || objectName || safeAttachment.type === "image");
 
-  if (!imageUrl) {
+  if (!hasImageSource) {
     return "";
   }
 
-  const safeAttachment = attachment || {};
   const imageAlt = safeAttachment.alt || safeAttachment.name || worldText("imageAlt", "世界频道图片");
   const caption = message ? getWorldMessageText(message) : "";
-  const fallback = worldText("imageLoadFailed", "图片无法显示");
+  const fallback = imageUrl
+    ? worldText("imageLoadFailed", "图片无法显示")
+    : objectName
+      ? worldText("refreshingImage", "正在重新加载图片…")
+      : worldText("imageExpired", "图片链接已过期");
+  const imageMarkup = imageUrl
+    ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(imageAlt)}" loading="lazy" data-world-image-preview />`
+    : "";
 
   return `
-    <button class="world-image-link" type="button" data-world-image-url="${escapeHtml(imageUrl)}" data-world-image-alt="${escapeHtml(imageAlt)}" data-world-image-caption="${escapeHtml(caption)}" aria-label="${escapeHtml(worldText("openImagePreview", "打开世界频道图片预览"))}">
-      <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(imageAlt)}" loading="lazy" data-world-image-preview />
-      <span class="world-image-fallback" hidden>${escapeHtml(fallback)}</span>
+    <button class="world-image-link" type="button" ${imageUrl ? `data-world-image-url="${escapeHtml(imageUrl)}"` : "data-world-image-missing=\"true\""} data-world-message-id="${escapeHtml(messageId)}" data-world-image-object-name="${escapeHtml(objectName)}" data-world-image-alt="${escapeHtml(imageAlt)}" data-world-image-caption="${escapeHtml(caption)}" aria-label="${escapeHtml(worldText("openImagePreview", "打开世界频道图片预览"))}">
+      ${imageMarkup}
+      <span class="world-image-fallback"${imageUrl ? " hidden" : ""}>${escapeHtml(fallback)}</span>
     </button>
   `;
 }
 
 function bindWorldAttachmentImageFallbacks(root = document) {
   root.querySelectorAll("[data-world-image-preview]").forEach((image) => {
-    image.addEventListener("error", () => {
-      image.hidden = true;
-      const fallback = image.closest(".world-image-link")?.querySelector(".world-image-fallback");
+    if (image.dataset.worldImageFallbackBound === "true") {
+      return;
+    }
 
-      if (fallback) {
-        fallback.hidden = false;
-      }
-    }, { once: true });
+    image.dataset.worldImageFallbackBound = "true";
+    image.addEventListener("error", () => handleWorldImageError(image));
+  });
+  root.querySelectorAll("[data-world-image-missing]").forEach((link) => {
+    if (link.dataset.worldImageRefreshStarted === "true") {
+      return;
+    }
+
+    link.dataset.worldImageRefreshStarted = "true";
+    window.setTimeout(() => refreshWorldImageLink(link), 0);
   });
 }
 
@@ -6334,8 +6373,9 @@ function handleWorldChatClick(event) {
   event.preventDefault();
   openWorldImageViewer({
     url: imageButton.dataset.worldImageUrl,
-    alt: imageButton.dataset.worldImageAlt || "世界频道图片",
+    alt: imageButton.dataset.worldImageAlt || worldText("imageAlt", "\u4e16\u754c\u9891\u9053\u56fe\u7247"),
     caption: imageButton.dataset.worldImageCaption || "",
+    messageId: imageButton.dataset.worldMessageId || "",
   });
 }
 
@@ -6360,7 +6400,7 @@ function ensureWorldImageViewerModal() {
   return modal;
 }
 
-function openWorldImageViewer({ url, alt, caption = "" }) {
+function openWorldImageViewer({ url, alt, caption = "", messageId = "" }) {
   const imageUrl = String(url || "").trim();
 
   if (!imageUrl) {
@@ -6374,6 +6414,7 @@ function openWorldImageViewer({ url, alt, caption = "" }) {
     url: imageUrl,
     alt: imageAlt,
     caption: captionText,
+    messageId: String(messageId || ""),
     scale: 1,
     panX: 0,
     panY: 0,
@@ -6383,7 +6424,7 @@ function openWorldImageViewer({ url, alt, caption = "" }) {
       <div class="world-image-viewer-media">
         <div class="world-image-viewer-frame" id="worldImageViewerFrame">
           <img id="worldImageViewerImage" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(imageAlt)}" draggable="false" />
-          <p class="world-image-viewer-error" hidden>图片加载失败</p>
+          <p class="world-image-viewer-error" hidden>${escapeHtml(worldText("imageLoadFailed", "\u56fe\u7247\u65e0\u6cd5\u663e\u793a"))}</p>
         </div>
       </div>
       <aside class="world-image-viewer-info">
@@ -6403,9 +6444,35 @@ function openWorldImageViewer({ url, alt, caption = "" }) {
   const previewImage = modal.querySelector("img");
   const errorMessage = modal.querySelector(".world-image-viewer-error");
 
-  previewImage.addEventListener("error", () => {
-    previewImage.hidden = true;
+  previewImage.addEventListener("error", async () => {
+    if (!activeWorldImageViewer?.messageId || previewImage.dataset.worldViewerRefreshAttempted === "true") {
+      previewImage.hidden = true;
+      errorMessage.hidden = false;
+      errorMessage.textContent = worldText("imageRefreshFailed", "图片暂时无法显示");
+      return;
+    }
+
+    previewImage.dataset.worldViewerRefreshAttempted = "true";
     errorMessage.hidden = false;
+    errorMessage.textContent = worldText("refreshingImage", "正在重新加载图片…");
+
+    try {
+      const payload = await refreshWorldImageUrl(activeWorldImageViewer.messageId);
+      const nextUrl = String(payload.viewUrl || payload.url || "").trim();
+
+      if (!nextUrl) {
+        throw new Error(worldText("imageRefreshFailed", "图片暂时无法显示"));
+      }
+
+      activeWorldImageViewer.url = nextUrl;
+      previewImage.hidden = false;
+      errorMessage.hidden = true;
+      previewImage.src = nextUrl;
+    } catch {
+      previewImage.hidden = true;
+      errorMessage.hidden = false;
+      errorMessage.textContent = worldText("imageRefreshFailed", "图片暂时无法显示");
+    }
   });
   previewImage.addEventListener("load", () => {
     setWorldImageViewerTransform({
@@ -7412,13 +7479,66 @@ function formatProfileFullDate(value) {
   return `${new Intl.DateTimeFormat(locale, dateOptions).format(date)} ${timeText}`;
 }
 
-function getWorldMessageImageUrl(message = {}) {
+function getWorldAttachmentSources(message = {}) {
   const attachment = message?.attachment && typeof message.attachment === "object" ? message.attachment : {};
   const attachments = Array.isArray(message?.attachments) ? message.attachments : [];
   const firstAttachment = attachments.find((item) => item && typeof item === "object") || {};
-  const candidates = [
+
+  return { attachment, firstAttachment };
+}
+
+function normalizeWorldObjectNameClient(value) {
+  const objectName = String(value || "").trim().replace(/^\/+/, "");
+
+  if (!objectName || objectName.length > 500) {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(objectName) || objectName.includes("\\") || objectName.includes("\0")) {
+    return "";
+  }
+
+  if (!objectName.startsWith("world/") || objectName.includes("..")) {
+    return "";
+  }
+
+  return objectName;
+}
+
+function parseWorldObjectNameFromStorageUrl(value) {
+  const rawUrl = String(value || "").trim();
+
+  if (!rawUrl || rawUrl.length > 1600) {
+    return "";
+  }
+
+  try {
+    const parsedUrl = new URL(rawUrl);
+
+    if (parsedUrl.protocol !== "https:" || parsedUrl.hostname !== "storage.googleapis.com") {
+      return "";
+    }
+
+    const pathParts = decodeURIComponent(parsedUrl.pathname || "")
+      .split("/")
+      .filter(Boolean);
+
+    if (pathParts.length < 2) {
+      return "";
+    }
+
+    return normalizeWorldObjectNameClient(pathParts.slice(1).join("/"));
+  } catch {
+    return "";
+  }
+}
+
+function getWorldMessageImageCandidates(message = {}, options = {}) {
+  const { includePublicUrl = true } = options;
+  const { attachment, firstAttachment } = getWorldAttachmentSources(message);
+  const primaryCandidates = [
     attachment.url,
-    attachment.publicUrl,
+    attachment.viewUrl,
     attachment.imageUrl,
     attachment.image,
     attachment.imageSrc,
@@ -7426,7 +7546,7 @@ function getWorldMessageImageUrl(message = {}) {
     attachment.attachmentUrl,
     attachment.photoUrl,
     firstAttachment.url,
-    firstAttachment.publicUrl,
+    firstAttachment.viewUrl,
     firstAttachment.imageUrl,
     firstAttachment.image,
     firstAttachment.imageSrc,
@@ -7440,19 +7560,67 @@ function getWorldMessageImageUrl(message = {}) {
     message.attachmentUrl,
     message.photoUrl,
   ];
+  const publicCandidates = includePublicUrl
+    ? [attachment.publicUrl, firstAttachment.publicUrl, message.publicUrl]
+    : [];
 
-  return candidates
+  return [...primaryCandidates, ...publicCandidates]
     .map((value) => String(value || "").trim())
+    .filter(Boolean);
+}
+
+function getWorldMessageImageObjectName(message = {}, options = {}) {
+  const { includeUrl = true } = options;
+  const { attachment, firstAttachment } = getWorldAttachmentSources(message);
+  const directObjectName = [
+    attachment.objectName,
+    attachment.filePath,
+    firstAttachment.objectName,
+    firstAttachment.filePath,
+    message.objectName,
+    message.filePath,
+  ]
+    .map(normalizeWorldObjectNameClient)
+    .find(Boolean);
+
+  if (directObjectName || !includeUrl) {
+    return directObjectName || "";
+  }
+
+  return getWorldMessageImageCandidates(message, { includePublicUrl: true })
+    .map(parseWorldObjectNameFromStorageUrl)
     .find(Boolean) || "";
+}
+
+function getWorldMessageImageUrl(message = {}, options = {}) {
+  const { ignoreOverrides = false, includePublicUrl = true } = options;
+  const messageId = String(message?.id || "");
+
+  if (!ignoreOverrides && messageId) {
+    const override = worldImageUrlOverrides.get(messageId);
+
+    if (override?.url) {
+      const objectName = getWorldMessageImageObjectName(message, { includeUrl: false });
+
+      if (!override.objectName || !objectName || override.objectName === objectName) {
+        return override.url;
+      }
+    }
+  }
+
+  return getWorldMessageImageCandidates(message, { includePublicUrl })[0] || "";
+}
+
+function hasWorldMessageImage(message = {}) {
+  return Boolean(getWorldMessageImageUrl(message) || getWorldMessageImageObjectName(message));
 }
 
 function normalizeWorldMessageAttachment(message = {}) {
   const imageUrl = getWorldMessageImageUrl(message);
-  const attachment = message?.attachment && typeof message.attachment === "object" ? message.attachment : {};
-  const attachments = Array.isArray(message?.attachments) ? message.attachments : [];
-  const firstAttachment = attachments.find((item) => item && typeof item === "object") || {};
+  const objectName = getWorldMessageImageObjectName(message);
+  const { attachment, firstAttachment } = getWorldAttachmentSources(message);
 
-  if (!imageUrl) {
+  if (!imageUrl && !objectName) {
     return attachment.type ? attachment : null;
   }
 
@@ -7460,18 +7628,225 @@ function normalizeWorldMessageAttachment(message = {}) {
     ...firstAttachment,
     ...attachment,
     type: "image",
-    url: imageUrl,
-    publicUrl: attachment.publicUrl || firstAttachment.publicUrl || imageUrl,
+    url: imageUrl || attachment.url || firstAttachment.url || "",
+    viewUrl: imageUrl || attachment.viewUrl || firstAttachment.viewUrl || "",
+    publicUrl: attachment.publicUrl || firstAttachment.publicUrl || "",
+    objectName: attachment.objectName || firstAttachment.objectName || objectName,
+    filePath: attachment.filePath || firstAttachment.filePath || objectName,
     name: attachment.name || firstAttachment.name || message.fileName || message.imageName || "",
     alt: attachment.alt || firstAttachment.alt || worldText("imageAlt", "世界频道图片"),
   };
+}
+
+function getWorldImageRefreshKey(message = {}) {
+  return String(message.id || getWorldMessageImageObjectName(message) || getWorldMessageImageUrl(message, { ignoreOverrides: true }) || "");
+}
+
+function updateWorldMessageImageUrl(messageId, payload = {}) {
+  const safeMessageId = String(messageId || "");
+  const viewUrl = String(payload.viewUrl || payload.url || "").trim();
+  const objectName = normalizeWorldObjectNameClient(payload.objectName || payload.filePath);
+
+  if (!safeMessageId || !viewUrl) {
+    return;
+  }
+
+  worldImageUrlOverrides.set(safeMessageId, {
+    url: viewUrl,
+    objectName,
+  });
+
+  const updateMessage = (message) => {
+    if (!message || message.id !== safeMessageId) {
+      return message;
+    }
+
+    const attachment = normalizeWorldMessageAttachment(message) || { type: "image" };
+
+    return {
+      ...message,
+      attachment: {
+        ...attachment,
+        url: viewUrl,
+        viewUrl,
+        objectName: objectName || attachment.objectName || attachment.filePath || "",
+        filePath: objectName || attachment.filePath || attachment.objectName || "",
+        refreshedAt: new Date().toISOString(),
+      },
+    };
+  };
+
+  state.worldMessages = state.worldMessages.map(updateMessage);
+  myWorldMessages = myWorldMessages.map(updateMessage);
+}
+
+async function refreshWorldImageUrl(messageOrId) {
+  const message = typeof messageOrId === "string"
+    ? getWorldMessageSnapshot(messageOrId)
+    : normalizeWorldMessage(messageOrId || {});
+
+  if (!message) {
+    throw new Error(worldText("imageRefreshFailed", "图片暂时无法显示"));
+  }
+
+  const refreshKey = getWorldImageRefreshKey(message);
+  const messageId = String(message.id || "");
+
+  if (!refreshKey || !messageId) {
+    throw new Error(worldText("imageExpired", "图片链接已过期"));
+  }
+
+  if (pendingWorldImageRefreshes.has(refreshKey)) {
+    return pendingWorldImageRefreshes.get(refreshKey);
+  }
+
+  const attempts = worldImageRefreshAttempts.get(refreshKey) || 0;
+
+  if (attempts >= WORLD_IMAGE_REFRESH_MAX_ATTEMPTS) {
+    throw new Error(worldText("imageRefreshFailed", "图片暂时无法显示"));
+  }
+
+  worldImageRefreshAttempts.set(refreshKey, attempts + 1);
+  const objectName = getWorldMessageImageObjectName(message);
+  const sourceUrl = getWorldMessageImageUrl(message, {
+    ignoreOverrides: true,
+    includePublicUrl: true,
+  });
+  const refreshPromise = fetch("/api/gcs-signed-url", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      action: "read",
+      objectName,
+      filePath: objectName,
+      sourceUrl: objectName ? "" : sourceUrl,
+    }),
+  })
+    .then(readJsonResponseWithResponse)
+    .then(({ response, payload }) => {
+      if (!response.ok || !payload.ok || !(payload.viewUrl || payload.url)) {
+        throw new Error(payload.error || payload.detail || worldText("imageRefreshFailed", "图片暂时无法显示"));
+      }
+
+      updateWorldMessageImageUrl(messageId, payload);
+      return payload;
+    })
+    .finally(() => {
+      pendingWorldImageRefreshes.delete(refreshKey);
+    });
+
+  pendingWorldImageRefreshes.set(refreshKey, refreshPromise);
+  return refreshPromise;
+}
+
+async function readJsonResponseWithResponse(response) {
+  const payload = await readJsonResponse(response);
+  return { response, payload };
+}
+
+function syncWorldImageElement(link, payload = {}) {
+  const viewUrl = String(payload.viewUrl || payload.url || "").trim();
+
+  if (!link || !viewUrl) {
+    return;
+  }
+
+  const fallback = link.querySelector(".world-image-fallback");
+  let image = link.querySelector("[data-world-image-preview]");
+
+  link.dataset.worldImageUrl = viewUrl;
+  link.dataset.worldImageMissing = "";
+
+  if (!image) {
+    image = document.createElement("img");
+    image.loading = "lazy";
+    image.dataset.worldImagePreview = "";
+    image.alt = link.dataset.worldImageAlt || worldText("imageAlt", "世界频道图片");
+    link.prepend(image);
+    image.addEventListener("error", () => handleWorldImageError(image));
+  }
+
+  image.hidden = false;
+  image.src = viewUrl;
+
+  if (fallback) {
+    fallback.hidden = true;
+    fallback.textContent = worldText("imageLoadFailed", "图片无法显示");
+  }
+}
+
+async function refreshWorldImageLink(link) {
+  if (!link) {
+    return;
+  }
+
+  const fallback = link.querySelector(".world-image-fallback");
+  const messageId = link.dataset.worldMessageId || "";
+
+  if (!messageId) {
+    if (fallback) {
+      fallback.hidden = false;
+      fallback.textContent = worldText("imageExpired", "图片链接已过期");
+    }
+    return;
+  }
+
+  if (fallback) {
+    fallback.hidden = false;
+    fallback.textContent = worldText("refreshingImage", "正在重新加载图片…");
+  }
+
+  try {
+    const payload = await refreshWorldImageUrl(messageId);
+    syncWorldImageElement(link, payload);
+  } catch {
+    link.dataset.worldImageRefreshFailed = "true";
+    const image = link.querySelector("[data-world-image-preview]");
+
+    if (image) {
+      image.hidden = true;
+    }
+
+    if (fallback) {
+      fallback.hidden = false;
+      fallback.textContent = worldText("imageRefreshFailed", "\u56fe\u7247\u6682\u65f6\u65e0\u6cd5\u663e\u793a");
+    }
+  }
+}
+
+async function handleWorldImageError(image) {
+  const link = image?.closest(".world-image-link");
+
+  if (!link) {
+    return;
+  }
+
+  if (link.dataset.worldImageRefreshFailed === "true") {
+    image.hidden = true;
+    const fallback = link.querySelector(".world-image-fallback");
+
+    if (fallback) {
+      fallback.hidden = false;
+      fallback.textContent = worldText("imageRefreshFailed", "图片暂时无法显示");
+    }
+    return;
+  }
+
+  try {
+    await refreshWorldImageLink(link);
+  } catch {
+    link.dataset.worldImageRefreshFailed = "true";
+  }
 }
 
 function getWorldMessageText(message) {
   const text = String(message.text || "").trim();
   const sharedPhotoText = worldText("sharedPhoto", "分享了一张图片");
 
-  if (!getWorldMessageImageUrl(message)) {
+  if (!hasWorldMessageImage(message)) {
     return text;
   }
 
