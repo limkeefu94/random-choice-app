@@ -17,6 +17,7 @@ const CORS_OPTIONS = {
 };
 const DEFAULT_RATE_LIMIT_MAX = 12;
 const DEFAULT_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const WORLD_READ_URL_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60;
 const uploadRateBuckets = globalThis.__randomChoiceUploadRateBuckets || new Map();
 
 globalThis.__randomChoiceUploadRateBuckets = uploadRateBuckets;
@@ -41,6 +42,11 @@ function createHttpError(statusCode, error, detail = error) {
   httpError.statusCode = statusCode;
   httpError.publicError = error;
   return httpError;
+}
+
+function isReadSignedUrlRequest(requestBody) {
+  const action = String(requestBody.action || requestBody.mode || "").trim().toLowerCase();
+  return action === "read";
 }
 
 function isPublicUploadAllowed() {
@@ -82,6 +88,111 @@ async function authorizeUploadRequest(request) {
   }
 }
 
+async function authorizeReadRequest(request) {
+  if (!getBearerToken(request)) {
+    throw createHttpError(401, "Authentication required");
+  }
+
+  try {
+    return await getAccountFromRequest(request);
+  } catch {
+    throw createHttpError(401, "Invalid or expired token");
+  }
+}
+
+function normalizeWorldObjectName(value) {
+  const objectName = String(value || "").trim();
+
+  if (!objectName || objectName.length > 500) {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(objectName) || objectName.includes("\\") || objectName.includes("\0")) {
+    return "";
+  }
+
+  const normalizedObjectName = objectName.replace(/^\/+/, "");
+
+  if (!normalizedObjectName.startsWith("world/") || normalizedObjectName.includes("..")) {
+    return "";
+  }
+
+  return normalizedObjectName;
+}
+
+function parseWorldObjectNameFromStorageUrl(value, bucketName) {
+  const rawUrl = String(value || "").trim();
+
+  if (!rawUrl || rawUrl.length > 1600) {
+    return "";
+  }
+
+  try {
+    const parsedUrl = new URL(rawUrl);
+
+    if (parsedUrl.protocol !== "https:" || parsedUrl.hostname !== "storage.googleapis.com") {
+      return "";
+    }
+
+    const decodedPath = decodeURIComponent(parsedUrl.pathname || "");
+    const bucketPrefix = `/${bucketName}/`;
+
+    if (!decodedPath.startsWith(bucketPrefix)) {
+      return "";
+    }
+
+    return normalizeWorldObjectName(decodedPath.slice(bucketPrefix.length));
+  } catch {
+    return "";
+  }
+}
+
+function resolveReadObjectName(requestBody, bucketName) {
+  const directObjectName = normalizeWorldObjectName(requestBody.objectName || requestBody.filePath);
+
+  if (directObjectName) {
+    return directObjectName;
+  }
+
+  const parsedObjectName = [
+    requestBody.sourceUrl,
+    requestBody.url,
+    requestBody.viewUrl,
+    requestBody.publicUrl,
+  ]
+    .map((value) => parseWorldObjectNameFromStorageUrl(value, bucketName))
+    .find(Boolean);
+
+  if (parsedObjectName) {
+    return parsedObjectName;
+  }
+
+  throw createHttpError(400, "Invalid image path");
+}
+
+async function createReadSignedUrl(request, response, requestBody, bucketName) {
+  await authorizeReadRequest(request);
+
+  const objectName = resolveReadObjectName(requestBody, bucketName);
+  const { projectId, credentials } = getGoogleServiceAccount();
+  const storage = new Storage({ projectId, credentials });
+  const file = storage.bucket(bucketName).file(objectName);
+  const [viewUrl] = await file.getSignedUrl({
+    version: "v4",
+    action: "read",
+    expires: Date.now() + WORLD_READ_URL_EXPIRES_IN_SECONDS * 1000,
+  });
+
+  response.status(200).json({
+    ok: true,
+    viewUrl,
+    url: viewUrl,
+    objectName,
+    filePath: objectName,
+    viewExpiresInSeconds: WORLD_READ_URL_EXPIRES_IN_SECONDS,
+  });
+}
+
 function checkUploadRateLimit(response, rateLimitKey) {
   const now = Date.now();
   const windowMs = getPositiveIntegerEnv("UPLOAD_RATE_LIMIT_WINDOW_MS", DEFAULT_RATE_LIMIT_WINDOW_MS);
@@ -116,9 +227,6 @@ module.exports = async function handler(request, response) {
   }
 
   try {
-    const uploadAuth = await authorizeUploadRequest(request);
-    checkUploadRateLimit(response, uploadAuth.rateLimitKey);
-
     const bucketName = process.env.GCS_BUCKET_NAME;
 
     if (!bucketName) {
@@ -127,6 +235,15 @@ module.exports = async function handler(request, response) {
     }
 
     const requestBody = parseBody(request);
+
+    if (isReadSignedUrlRequest(requestBody)) {
+      await createReadSignedUrl(request, response, requestBody, bucketName);
+      return;
+    }
+
+    const uploadAuth = await authorizeUploadRequest(request);
+    checkUploadRateLimit(response, uploadAuth.rateLimitKey);
+
     const contentType = String(requestBody.contentType || "");
     const fileSize = Number(requestBody.fileSize || 0);
 
