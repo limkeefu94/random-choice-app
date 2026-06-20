@@ -142,7 +142,9 @@ button {
 .notification-button,
 .profile-avatar-button,
 .more-menu-button,
-.more-menu-item {
+.more-menu-item,
+.icon-button,
+.inline-action-menu-item {
   border: 1px solid var(--line);
 }
 
@@ -327,6 +329,104 @@ button {
     transform 180ms ease,
     border-color 180ms ease,
     background 180ms ease;
+}
+
+.icon-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 42px;
+  min-height: 42px;
+  padding: 0 13px;
+  border-radius: 999px;
+  color: #5f4638;
+  cursor: pointer;
+  font-weight: 850;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.7);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.icon-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(255, 122, 61, 0.34);
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(106, 57, 26, 0.08);
+}
+
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  transform: none;
+  box-shadow: none;
+}
+
+.icon-button-symbol {
+  display: inline-grid;
+  min-width: 1.1em;
+  place-items: center;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.icon-button-label {
+  min-width: 0;
+}
+
+.icon-button.is-icon-only {
+  width: 42px;
+  padding: 0;
+}
+
+.icon-button.is-icon-only .icon-button-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.panel-close-button {
+  flex: 0 0 auto;
+  color: #7b5a49;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .icon-button[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 8px);
+    z-index: 30;
+    max-width: 180px;
+    padding: 6px 9px;
+    border-radius: 999px;
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1.15;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    background: rgba(35, 27, 23, 0.88);
+    box-shadow: 0 10px 24px rgba(35, 27, 23, 0.18);
+    transform: translate(-50%, 4px);
+    transition: opacity 150ms ease, transform 150ms ease;
+  }
+
+  .icon-button[data-tooltip]:hover::after,
+  .icon-button[data-tooltip]:focus-visible::after {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 .ghost-button {
@@ -1130,7 +1230,8 @@ body.is-home-layout-dragging * {
   gap: 12px;
 }
 
-.action-row .secondary-button {
+.action-row .secondary-button,
+.action-row .icon-button {
   flex: 0 1 auto;
   min-width: 118px;
 }
@@ -2464,9 +2565,80 @@ body.is-home-layout-dragging * {
 
 .world-message-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-top: 9px;
+}
+
+.action-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.action-menu-trigger {
+  min-width: 36px;
+  min-height: 32px;
+}
+
+.inline-action-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 60;
+  display: grid;
+  min-width: 158px;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid rgba(80, 45, 24, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 42px rgba(106, 57, 26, 0.16);
+  backdrop-filter: blur(16px);
+}
+
+.inline-action-menu[hidden] {
+  display: none;
+}
+
+.inline-action-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border-color: transparent;
+  border-radius: 12px;
+  color: #4d3025;
+  cursor: pointer;
+  text-align: left;
+  background: transparent;
+}
+
+.inline-action-menu-item:hover:not(:disabled),
+.inline-action-menu-item:focus-visible {
+  background: rgba(255, 122, 61, 0.1);
+  outline: none;
+}
+
+.inline-action-menu-item.is-danger {
+  color: #9a3419;
+}
+
+.inline-action-menu-item.is-danger:hover:not(:disabled),
+.inline-action-menu-item.is-danger:focus-visible {
+  background: rgba(255, 239, 229, 0.95);
+}
+
+.inline-action-menu-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.inline-action-menu-item strong {
+  font-size: 0.82rem;
+  font-weight: 850;
+  white-space: nowrap;
 }
 
 .world-like-button {
@@ -3174,6 +3346,16 @@ body.is-home-layout-dragging * {
   background: #fff;
 }
 
+.more-menu-item.is-danger {
+  color: #8d3c20;
+  background: rgba(255, 239, 229, 0.72);
+}
+
+.more-menu-item.is-danger:hover:not(:disabled) {
+  border-color: rgba(235, 95, 36, 0.28);
+  background: rgba(255, 239, 229, 0.94);
+}
+
 .more-menu-item strong,
 .more-menu-item small {
   display: block;
@@ -3244,6 +3426,7 @@ body.is-home-layout-dragging * {
 .notification-toolbar {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
   gap: 8px;
 }
 
@@ -3251,6 +3434,15 @@ body.is-home-layout-dragging * {
   min-height: 38px;
   padding: 7px 10px;
   font-size: 0.78rem;
+}
+
+.notification-toolbar .action-menu {
+  justify-self: end;
+}
+
+.notification-action-menu .inline-action-menu {
+  top: calc(100% + 8px);
+  bottom: auto;
 }
 
 .notification-clear-button {
@@ -4001,10 +4193,19 @@ body.is-home-layout-dragging * {
   gap: 10px;
 }
 
+.my-profile-message-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .my-profile-actions > button,
 .my-profile-message-actions > button {
   width: 100%;
   min-width: 0;
+}
+
+.my-profile-message-actions > .action-menu {
+  width: auto;
 }
 
 .my-profile-feed {
@@ -4337,8 +4538,7 @@ body.is-home-layout-dragging * {
     height: 58px;
   }
 
-  .my-profile-actions,
-  .my-profile-message-actions {
+  .my-profile-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -4369,7 +4569,8 @@ body.is-home-layout-dragging * {
     flex: 1 1 100%;
   }
 
-  .action-row .secondary-button {
+  .action-row .secondary-button,
+  .action-row .icon-button {
     flex: 1 1 120px;
     min-width: min(140px, 100%);
   }
@@ -4575,6 +4776,23 @@ body.is-home-layout-dragging * {
 
   .secondary-button {
     padding: 9px 12px;
+  }
+
+  .icon-button {
+    min-height: 40px;
+    padding: 0 10px;
+    gap: 5px;
+    font-size: 0.86rem;
+  }
+
+  .icon-button.is-icon-only {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+  }
+
+  .inline-action-menu {
+    max-width: calc(100vw - 32px);
   }
 
   .primary-button {
