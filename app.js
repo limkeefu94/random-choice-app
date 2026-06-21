@@ -1830,7 +1830,7 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.7.5";
+const APP_VERSION = "0.7.6";
 const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
 const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
 const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
@@ -1839,6 +1839,26 @@ const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const WORLD_SCROLL_BOTTOM_THRESHOLD = 140;
 const WORLD_IMAGE_REFRESH_MAX_ATTEMPTS = 1;
 const RELEASE_NOTES = [
+  {
+    version: "0.7.6",
+    title: "按钮和操作栏优化",
+    date: "2026-06-21",
+    summary: "这次整理了结果、世界频道、通知、设置和图片浏览里的操作按钮，让常用动作更清楚，危险操作更不容易误点。",
+    userChanges: [
+      "复制、分享、关闭和更多操作改成更统一的按钮样式。",
+      "世界频道自己的消息用更多菜单收纳编辑和删除。",
+      "通知和设置里的清空类操作增加确认，降低误触风险。",
+      "图片预览关闭按钮更轻量，手机端不再占太多空间。",
+      "按钮悬停提示和手机端排版更一致。",
+    ],
+    technicalChanges: [
+      "Added shared icon button and inline action menu helpers.",
+      "Added localized tooltip/action labels for zh-CN, en, and ms.",
+      "Moved destructive world-message actions into more menus.",
+      "Added confirmation guards for local clear/reset actions.",
+      "Preserved existing auth, GCS, world channel, random, gift, image, and like logic.",
+    ],
+  },
   {
     version: "0.7.5",
     title: "修复过期图片链接",
@@ -2633,6 +2653,10 @@ function commonText(key, fallback = "", replacements = {}) {
   return formatLocaleText(t(`common.${key}`, fallback), replacements);
 }
 
+function tooltipText(key, fallback = "", replacements = {}) {
+  return formatLocaleText(t(`tooltip.${key}`, fallback), replacements);
+}
+
 function settingsText(key, fallback = "", replacements = {}) {
   return formatLocaleText(t(`settings.${key}`, fallback), replacements);
 }
@@ -3194,6 +3218,92 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function renderIconButton(options = {}) {
+  const {
+    id = "",
+    icon = "•",
+    label = "",
+    className = "",
+    dataset = "",
+    type = "button",
+    disabled = false,
+    hidden = false,
+    pressed = "",
+    expanded = "",
+    controls = "",
+    textVisible = true,
+  } = options;
+  const attributes = [
+    id ? `id="${escapeHtml(id)}"` : "",
+    `type="${escapeHtml(type)}"`,
+    disabled ? "disabled" : "",
+    hidden ? "hidden" : "",
+    label ? `aria-label="${escapeHtml(label)}"` : "",
+    label ? `data-tooltip="${escapeHtml(label)}"` : "",
+    pressed !== "" ? `aria-pressed="${escapeHtml(pressed)}"` : "",
+    expanded !== "" ? `aria-expanded="${escapeHtml(expanded)}"` : "",
+    controls ? `aria-controls="${escapeHtml(controls)}"` : "",
+    dataset,
+  ].filter(Boolean).join(" ");
+
+  return `
+    <button class="icon-button${textVisible ? "" : " is-icon-only"}${className ? ` ${escapeHtml(className)}` : ""}" ${attributes}>
+      <span class="icon-button-symbol" aria-hidden="true">${escapeHtml(icon)}</span>
+      <span class="icon-button-label">${escapeHtml(label)}</span>
+    </button>
+  `;
+}
+
+function setIconButtonContent(button, options = {}) {
+  if (!button) {
+    return;
+  }
+
+  const { icon = "•", label = "", textVisible = true } = options;
+  button.classList.add("icon-button");
+  button.classList.toggle("is-icon-only", !textVisible);
+  button.setAttribute("aria-label", label);
+  button.dataset.tooltip = label;
+  button.innerHTML = `
+    <span class="icon-button-symbol" aria-hidden="true">${escapeHtml(icon)}</span>
+    <span class="icon-button-label">${escapeHtml(label)}</span>
+  `;
+}
+
+function renderActionMenu(options = {}) {
+  const { id = "", label = commonText("more", "更多"), items = [], className = "" } = options;
+  const menuId = `${id || `action-${randomInt(1000000)}`}-menu`;
+  const activeItems = items.filter(Boolean);
+
+  return `
+    <div class="action-menu${className ? ` ${escapeHtml(className)}` : ""}" data-action-menu>
+      ${renderIconButton({
+        icon: "⋯",
+        label,
+        className: "action-menu-trigger",
+        dataset: `data-action-menu-toggle aria-haspopup="menu"`,
+        expanded: "false",
+        controls: menuId,
+        textVisible: false,
+      })}
+      <div class="inline-action-menu" id="${escapeHtml(menuId)}" role="menu" hidden>
+        ${activeItems.map((item) => `
+          <button
+            class="inline-action-menu-item${item.isDanger ? " is-danger" : ""}"
+            type="button"
+            role="menuitem"
+            ${item.disabled ? "disabled" : ""}
+            ${item.dataset || ""}
+          >
+            <span aria-hidden="true">${escapeHtml(item.icon || "•")}</span>
+            <strong>${escapeHtml(item.label || "")}</strong>
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function renderAssetImage(src, alt = "", className = "", attributes = "") {
   if (!src) {
     return "";
@@ -3310,9 +3420,18 @@ function applyStaticTranslations() {
   elements.moreMenuButton.setAttribute("aria-label", t("top.more", "更多"));
   elements.moreMenuButtonLabel.textContent = t("top.more", "更多");
   elements.randomButtonLabel.textContent = resultText("randomPick", "随机一下");
-  elements.favoriteButton.textContent = resultText("saveResult", "收藏结果");
-  elements.copyResultButton.textContent = resultText("copyResult", "复制结果");
-  elements.shareResultButton.textContent = resultText("share", "分享");
+  setIconButtonContent(elements.favoriteButton, {
+    icon: "☆",
+    label: resultText("saveResult", "收藏结果"),
+  });
+  setIconButtonContent(elements.copyResultButton, {
+    icon: "⧉",
+    label: resultText("copyResult", "复制结果"),
+  });
+  setIconButtonContent(elements.shareResultButton, {
+    icon: "↗",
+    label: resultText("share", "分享"),
+  });
   elements.surpriseModeButton.textContent = homeText("modeHelp", "帮我换个模式");
   elements.homeFeaturesTitle.textContent = homeText("featuresTitle", "首页功能");
   elements.modeMenuToggleText.textContent = homeText("chooseMode", "选择模式");
@@ -3327,6 +3446,10 @@ function applyStaticTranslations() {
   elements.favoritesTitle.textContent = homeText("favoritesTitle", "收藏");
   elements.worldChannelTitle.textContent = t("world.title", "世界频道");
   elements.worldChannelSubtitle.textContent = t("world.subtitle", "公开频道 · 私聊和群聊之后会放这里");
+  setIconButtonContent(elements.worldCloseButton, {
+    icon: "×",
+    label: tooltipText("close", "关闭"),
+  });
   elements.notificationPanel.setAttribute("aria-label", t("top.notification", "通知"));
   elements.profilePanel.setAttribute("aria-label", t("top.profile", "个人资料"));
   elements.moreMenuPanel.setAttribute("aria-label", t("menu.more", "更多菜单"));
@@ -3617,11 +3740,30 @@ function renderNotificationPanel() {
           <strong>${escapeHtml(notificationText("title", "通知"))}</strong>
           <small>${escapeHtml(unreadCount ? notificationText("unreadCount", "{count} 条未读", { count: unreadCount }) : notificationText("noUnread", "暂时没有未读通知"))}</small>
         </div>
-      <button class="ghost-button compact-ghost" id="notificationCloseButton" type="button">${escapeHtml(commonText("close", "关闭"))}</button>
+      ${renderIconButton({
+        id: "notificationCloseButton",
+        icon: "×",
+        label: tooltipText("close", "关闭"),
+        className: "panel-close-button",
+        textVisible: false,
+      })}
     </div>
     <div class="notification-toolbar" aria-label="${escapeHtml(notificationText("actions", "通知操作"))}">
       <button class="secondary-button compact-secondary" id="notificationMarkReadButton" type="button" ${notifications.length ? "" : "disabled"}>${escapeHtml(notificationText("markAllRead", "全部已读"))}</button>
-      <button class="secondary-button compact-secondary notification-clear-button" id="notificationClearButton" type="button" ${notifications.length ? "" : "disabled"}>${escapeHtml(notificationText("clearLocal", "清空本机通知"))}</button>
+      ${renderActionMenu({
+        id: "notification-actions",
+        label: commonText("more", "更多"),
+        className: "notification-action-menu",
+        items: [
+          {
+            icon: "🧹",
+            label: notificationText("clearLocal", "清空本机通知"),
+            isDanger: true,
+            disabled: !notifications.length,
+            dataset: "id=\"notificationClearButton\"",
+          },
+        ],
+      })}
     </div>
     <div class="notification-list">
       ${notificationMarkup}
@@ -3638,7 +3780,7 @@ function renderNotificationPanel() {
 
   document.querySelector("#notificationCloseButton").addEventListener("click", closeNotificationPanel);
   document.querySelector("#notificationMarkReadButton")?.addEventListener("click", markAllNotificationsRead);
-  document.querySelector("#notificationClearButton")?.addEventListener("click", clearLocalNotifications);
+  document.querySelector("#notificationClearButton")?.addEventListener("click", clearLocalNotificationsWithConfirm);
 }
 
 function renderProfilePanel() {
@@ -3667,7 +3809,13 @@ function renderMyProfilePanel(currentUser) {
           <strong>我的主页</strong>
           <small>查看资料和管理自己发布过的世界频道内容</small>
         </div>
-        <button class="ghost-button compact-ghost" id="profileCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
+        ${renderIconButton({
+          id: "profileCloseButton",
+          icon: "×",
+          label: tooltipText("close", "关闭"),
+          className: "panel-close-button",
+          textVisible: false,
+        })}
       </div>
       <section class="my-profile-hero">
         <span class="world-avatar my-profile-avatar" aria-hidden="true">
@@ -3716,7 +3864,13 @@ function renderProfileEditorPanel(currentUser) {
           <strong>${escapeHtml(t("top.profile", "个人资料"))}</strong>
           <small>换头像、改名字或密码</small>
         </div>
-        <button class="ghost-button compact-ghost" id="profileCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
+        ${renderIconButton({
+          id: "profileCloseButton",
+          icon: "×",
+          label: tooltipText("close", "关闭"),
+          className: "panel-close-button",
+          textVisible: false,
+        })}
       </div>
       <button class="ghost-button compact-ghost profile-back-button" id="profileBackButton" type="button">返回我的主页</button>
       <div class="profile-preview-row">
@@ -3888,10 +4042,24 @@ function renderMyProfileMessage(message) {
             <button class="primary-button compact-primary" type="button" data-my-world-save="${escapeHtml(message.id)}">保存</button>
             <button class="secondary-button" type="button" data-my-world-cancel="${escapeHtml(message.id)}">取消</button>
           `
-          : `
-            <button class="secondary-button" type="button" data-my-world-edit="${escapeHtml(message.id)}">编辑文字</button>
-            <button class="secondary-button settings-clear-button" type="button" data-my-world-delete="${escapeHtml(message.id)}">移除</button>
-          `}
+          : renderActionMenu({
+            id: `my-profile-message-${message.id}`,
+            label: commonText("more", "更多"),
+            className: "my-profile-action-menu",
+            items: [
+              {
+                icon: "✎",
+                label: worldText("editMessage", "编辑文字"),
+                dataset: `data-my-world-edit="${escapeHtml(message.id)}"`,
+              },
+              {
+                icon: "🗑",
+                label: worldText("deleteMessage", "移除内容"),
+                isDanger: true,
+                dataset: `data-my-world-delete="${escapeHtml(message.id)}"`,
+              },
+            ],
+          })}
       </div>
     </article>
   `;
@@ -3951,7 +4119,7 @@ function renderMoreMenuPanel() {
 
   elements.moreMenuPanel.innerHTML = `
     <div class="more-menu-list" role="menu" aria-label="${escapeHtml(t("menu.more", "更多操作"))}">
-      <button class="more-menu-item" id="menuClearHistoryButton" type="button" role="menuitem">
+      <button class="more-menu-item is-danger" id="menuClearHistoryButton" type="button" role="menuitem">
         <strong>${escapeHtml(t("actions.clearHistory", "清空记录"))}</strong>
         <small>${escapeHtml(t("menu.clearHistory.desc", "清空最近决定和收藏"))}</small>
       </button>
@@ -3979,7 +4147,7 @@ function renderMoreMenuPanel() {
 
   document.querySelector("#menuClearHistoryButton").addEventListener("click", () => {
     closeMoreMenu();
-    clearHistory();
+    clearHistoryWithConfirm();
   });
   document.querySelector("#menuFeedbackButton").addEventListener("click", openFeedbackPanel);
   document.querySelector("#menuSettingsButton").addEventListener("click", openSettingsPanel);
@@ -4121,7 +4289,13 @@ function renderSettingsPanel() {
           <strong>${escapeHtml(settingsText("title", "设置中心"))}</strong>
           <small>${escapeHtml(settingsText("subtitle", "账号、隐私、好友、通知、偏好和应用信息集中整理"))}</small>
         </div>
-        <button class="ghost-button compact-ghost" id="settingsCloseButton" type="button">${escapeHtml(commonText("close", "关闭"))}</button>
+        ${renderIconButton({
+          id: "settingsCloseButton",
+          icon: "×",
+          label: tooltipText("close", "关闭"),
+          className: "panel-close-button",
+          textVisible: false,
+        })}
       </div>
       ${!isLoggedIn ? `<p class="settings-login-hint">${escapeHtml(settingsText("loginHint", "登入后可以保存隐私和内容偏好到云端。"))}</p>` : ""}
       <section class="settings-section">
@@ -4273,7 +4447,7 @@ function renderSettingsPanel() {
   document.querySelector("#settingsVersionButton").addEventListener("click", toggleReleaseNotesFromSettings);
   document.querySelector("#releaseNotesCloseButton")?.addEventListener("click", closeReleaseNotesFromSettings);
   document.querySelector("#settingsFeedbackButton").addEventListener("click", openFeedbackPanel);
-  document.querySelector("#settingsClearLocalButton").addEventListener("click", clearHistory);
+  document.querySelector("#settingsClearLocalButton").addEventListener("click", clearHistoryWithConfirm);
   bindSettingsPlaceholderControls();
   bindHomeLayoutSettingsControls();
   document.querySelector("#settingsForm").addEventListener("submit", saveSettingsCenter);
@@ -4287,7 +4461,7 @@ function bindSettingsPlaceholderControls() {
 
 function bindHomeLayoutSettingsControls() {
   document.querySelector("#settingsHomeEditButton")?.addEventListener("click", openHomeLayoutEditorFromSettings);
-  document.querySelector("#homeLayoutResetButton")?.addEventListener("click", resetHomeLayout);
+  document.querySelector("#homeLayoutResetButton")?.addEventListener("click", resetHomeLayoutWithConfirm);
 }
 
 function refreshHomeLayoutUi() {
@@ -4603,6 +4777,14 @@ function resetHomeLayout() {
   showToast(settingsText("homeLayoutRestored", "首页布局已恢复默认。"));
 }
 
+function resetHomeLayoutWithConfirm() {
+  if (!window.confirm(settingsText("restoreHomeLayoutConfirm", "确定要恢复默认首页布局吗？"))) {
+    return;
+  }
+
+  resetHomeLayout();
+}
+
 function getSettingsFormPayload() {
   const existingSettings = normalizeAccountSettings(getCurrentUser()?.settings);
 
@@ -4680,7 +4862,13 @@ function renderFeedbackPanel() {
           <strong>反馈问题</strong>
           <small>Bug、建议、UI 或内容错误都可以告诉我</small>
         </div>
-        <button class="ghost-button compact-ghost" id="feedbackCloseButton" type="button">${escapeHtml(t("actions.close", "关闭"))}</button>
+        ${renderIconButton({
+          id: "feedbackCloseButton",
+          icon: "×",
+          label: tooltipText("close", "关闭"),
+          className: "panel-close-button",
+          textVisible: false,
+        })}
       </div>
       <div class="field">
         <label for="feedbackType">反馈类型</label>
@@ -6209,9 +6397,7 @@ function renderWorldChannel(options = {}) {
                 </div>
                 ${getWorldMessageText(message) ? `<p>${escapeHtml(getWorldMessageText(message))}</p>` : ""}
                 ${renderWorldAttachment(message.attachment, message)}
-                <div class="world-message-actions">
-                  ${renderWorldLikeButton(message)}
-                </div>
+                ${renderWorldMessageActions(message)}
               </div>
             </article>
           `,
@@ -6241,6 +6427,38 @@ function renderWorldChannel(options = {}) {
     );
   }
   syncWorldNewMessagesButton();
+}
+
+function renderWorldMessageActions(message) {
+  const currentUser = getCurrentUser();
+  const actionItems = [renderWorldLikeButton(message)];
+
+  if (isOwnWorldMessage(message, currentUser)) {
+    actionItems.push(renderActionMenu({
+      id: `world-message-${message.id}`,
+      label: commonText("more", "更多"),
+      className: "world-message-action-menu",
+      items: [
+        {
+          icon: "✎",
+          label: worldText("editMessage", "编辑文字"),
+          dataset: `data-world-message-edit="${escapeHtml(message.id)}"`,
+        },
+        {
+          icon: "🗑",
+          label: worldText("deleteMessage", "移除内容"),
+          isDanger: true,
+          dataset: `data-world-message-delete="${escapeHtml(message.id)}"`,
+        },
+      ],
+    }));
+  }
+
+  return `
+    <div class="world-message-actions" aria-label="${escapeHtml(commonText("actions", "操作"))}">
+      ${actionItems.join("")}
+    </div>
+  `;
 }
 
 function renderWorldLikeButton(message) {
@@ -6356,6 +6574,24 @@ function handleWorldChatScroll() {
 }
 
 function handleWorldChatClick(event) {
+  const editButton = event.target.closest("[data-world-message-edit]");
+
+  if (editButton) {
+    event.preventDefault();
+    closeInlineActionMenus();
+    editOwnWorldMessageFromMenu(editButton.dataset.worldMessageEdit);
+    return;
+  }
+
+  const deleteButton = event.target.closest("[data-world-message-delete]");
+
+  if (deleteButton) {
+    event.preventDefault();
+    closeInlineActionMenus();
+    deleteOwnWorldMessageFromMenu(deleteButton.dataset.worldMessageDelete);
+    return;
+  }
+
   const likeButton = event.target.closest("[data-world-like]");
 
   if (likeButton) {
@@ -6429,12 +6665,18 @@ function openWorldImageViewer({ url, alt, caption = "", messageId = "" }) {
       </div>
       <aside class="world-image-viewer-info">
         <div class="world-image-viewer-header">
-          <strong id="worldImageViewerTitle">世界频道图片</strong>
-          <button class="ghost-button compact-ghost" id="worldImageViewerClose" type="button" aria-label="关闭图片预览">关闭</button>
+          <strong id="worldImageViewerTitle">${escapeHtml(worldText("imageViewerTitle", "世界频道图片"))}</strong>
+          ${renderIconButton({
+            id: "worldImageViewerClose",
+            icon: "×",
+            label: tooltipText("close", "关闭"),
+            className: "panel-close-button",
+            textVisible: false,
+          })}
         </div>
         <div class="world-image-viewer-body">
-          <p class="world-image-viewer-caption${captionText ? "" : " is-empty"}">${captionText ? escapeHtml(captionText) : "这张图片没有文字说明"}</p>
-          <small class="world-image-viewer-hint">滚轮缩放，拖动查看细节。手机上可双指缩放。</small>
+          <p class="world-image-viewer-caption${captionText ? "" : " is-empty"}">${captionText ? escapeHtml(captionText) : escapeHtml(worldText("imageNoCaption", "这张图片没有文字说明"))}</p>
+          <small class="world-image-viewer-hint">${escapeHtml(worldText("imageViewerHint", "滚轮缩放，拖动查看细节。手机上可双指缩放。"))}</small>
         </div>
       </aside>
     </div>
@@ -7969,6 +8211,16 @@ function markAllNotificationsRead() {
   showToast(notificationText("markedRead", "通知已全部标为已读"));
 }
 
+function clearLocalNotificationsWithConfirm() {
+  closeInlineActionMenus();
+
+  if (!window.confirm(notificationText("confirmClearLocal", "确定要清空本机通知吗？"))) {
+    return;
+  }
+
+  clearLocalNotifications();
+}
+
 function clearLocalNotifications() {
   const visibleIds = getVisibleNotifications().map((item) => item.id);
   state.notificationClearedIds = [...new Set([...state.notificationClearedIds, ...visibleIds])];
@@ -8086,7 +8338,53 @@ function closeFeedbackPanel() {
   renderTopUserTools();
 }
 
+function closeInlineActionMenus(exceptMenu = null) {
+  document.querySelectorAll("[data-action-menu]").forEach((menu) => {
+    if (exceptMenu && menu === exceptMenu) {
+      return;
+    }
+
+    menu.classList.remove("is-open");
+    const trigger = menu.querySelector("[data-action-menu-toggle]");
+    const panel = menu.querySelector(".inline-action-menu");
+
+    trigger?.setAttribute("aria-expanded", "false");
+
+    if (panel) {
+      panel.hidden = true;
+    }
+  });
+}
+
+function toggleInlineActionMenu(trigger) {
+  const menu = trigger.closest("[data-action-menu]");
+  const panel = menu?.querySelector(".inline-action-menu");
+
+  if (!menu || !panel) {
+    return;
+  }
+
+  const shouldOpen = !menu.classList.contains("is-open");
+  closeInlineActionMenus(menu);
+  menu.classList.toggle("is-open", shouldOpen);
+  trigger.setAttribute("aria-expanded", String(shouldOpen));
+  panel.hidden = !shouldOpen;
+}
+
 function handleDocumentClick(event) {
+  const actionMenuToggle = event.target.closest("[data-action-menu-toggle]");
+
+  if (actionMenuToggle) {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleInlineActionMenu(actionMenuToggle);
+    return;
+  }
+
+  if (!event.target.closest("[data-action-menu]")) {
+    closeInlineActionMenus();
+  }
+
   if (!isMoreMenuOpen && !isFeedbackPanelOpen && !isSettingsPanelOpen) {
     return;
   }
@@ -8109,6 +8407,10 @@ function handleDocumentClick(event) {
 }
 
 function handleGlobalKeydown(event) {
+  if (event.key === "Escape") {
+    closeInlineActionMenus();
+  }
+
   if (event.key === "Escape" && activeWorldImageViewer) {
     closeWorldImageViewer();
     return;
@@ -9670,7 +9972,7 @@ async function removeMyWorldMessage(messageId) {
     return;
   }
 
-  if (!window.confirm("移除后，世界频道不再显示这条内容。确定要移除吗？")) {
+  if (!window.confirm(worldText("confirmDeleteMessage", "移除后，世界频道不再显示这条内容。确定要移除吗？"))) {
     return;
   }
 
@@ -9688,6 +9990,76 @@ async function removeMyWorldMessage(messageId) {
       source: WORLD_CHANNEL_ENDPOINT,
     });
     showToast(error.message || "内容暂时移除不了。");
+  }
+}
+
+async function editOwnWorldMessageFromMenu(messageId) {
+  const message = getWorldMessageSnapshot(messageId);
+
+  if (!message) {
+    showToast(worldText("messageMissing", "这条内容暂时找不到。"));
+    return;
+  }
+
+  const currentText = String(message.text || getWorldMessageText(message) || "").trim();
+  const nextText = window.prompt(worldText("editPrompt", "编辑这条世界频道文字："), currentText);
+
+  if (nextText === null) {
+    return;
+  }
+
+  const text = nextText.trim();
+
+  if (!text) {
+    showToast(worldText("textRequired", "文字内容不能为空。"));
+    return;
+  }
+
+  if (text.length > WORLD_MESSAGE_MAX_LENGTH) {
+    showToast(worldText("tooLong", "文字最多 220 字。"));
+    return;
+  }
+
+  try {
+    const updatedMessage = await updateOwnWorldMessage(messageId, text);
+    updateWorldMessageCaches(updatedMessage);
+    editingWorldMessageId = "";
+    saveState();
+    renderWorldChannel({ preserveScroll: true });
+    renderProfilePanel();
+    showToast(worldText("messageUpdated", "内容已更新。"));
+  } catch (error) {
+    reportClientError(error, {
+      type: "world-message-edit-failed",
+      source: WORLD_CHANNEL_ENDPOINT,
+    });
+    showToast(error.message || worldText("messageSaveFailed", "内容暂时保存不了。"));
+  }
+}
+
+async function deleteOwnWorldMessageFromMenu(messageId) {
+  if (!messageId) {
+    return;
+  }
+
+  if (!window.confirm(worldText("confirmDeleteMessage", "移除后，世界频道不再显示这条内容。确定要移除吗？"))) {
+    return;
+  }
+
+  try {
+    await deleteOwnWorldMessage(messageId);
+    removeWorldMessageFromLocalCaches(messageId);
+    editingWorldMessageId = "";
+    saveState();
+    renderWorldChannel({ preserveScroll: true });
+    renderProfilePanel();
+    showToast(worldText("messageRemoved", "内容已移除。"));
+  } catch (error) {
+    reportClientError(error, {
+      type: "world-message-delete-failed",
+      source: WORLD_CHANNEL_ENDPOINT,
+    });
+    showToast(error.message || worldText("messageRemoveFailed", "内容暂时移除不了。"));
   }
 }
 
@@ -10982,19 +11354,30 @@ function buildNumberMeta(game, lines) {
 function updateResultActionButtons(result) {
   const hasResult = Boolean(result);
   const isNumberResult = result?.mode === "number";
-
-  elements.copyResultButton.disabled = !hasResult;
-  elements.copyResultButton.textContent = result?.mode === "gift"
+  const copyLabel = result?.mode === "gift"
     ? giftText("button.copyResult", "复制结果")
     : isNumberResult
       ? resultText("copyNumber", "复制号码")
       : resultText("copyResult", "复制结果");
+  const favoriteLabel = hasResult && isFavoriteResult(result) ? resultText("savedResult", "已收藏") : resultText("saveResult", "收藏结果");
+
+  elements.copyResultButton.disabled = !hasResult;
+  setIconButtonContent(elements.copyResultButton, {
+    icon: isNumberResult ? "№" : "⧉",
+    label: copyLabel,
+  });
   elements.favoriteButton.disabled = !hasResult || result?.mode === "gift";
   elements.favoriteButton.title = result?.mode === "gift" ? giftText("favorite.disabledTitle", "礼物交换结果只保存在本机，可直接复制。") : "";
   elements.shareResultButton.hidden = typeof navigator.share !== "function";
   elements.shareResultButton.disabled = !hasResult || elements.shareResultButton.hidden;
-  elements.shareResultButton.textContent = resultText("share", "分享");
-  elements.favoriteButton.textContent = hasResult && isFavoriteResult(result) ? resultText("savedResult", "已收藏") : resultText("saveResult", "收藏结果");
+  setIconButtonContent(elements.shareResultButton, {
+    icon: "↗",
+    label: resultText("share", "分享"),
+  });
+  setIconButtonContent(elements.favoriteButton, {
+    icon: hasResult && isFavoriteResult(result) ? "★" : "☆",
+    label: favoriteLabel,
+  });
 }
 
 function getResultShareTitle(result = state.currentResult) {
@@ -11405,6 +11788,14 @@ function clearHistory() {
   renderFavorites();
   syncCloudClear(["history", "favorites"]);
   showToast(resultText("recordsCleared", "记录和收藏已清空。"));
+}
+
+function clearHistoryWithConfirm() {
+  if (!window.confirm(resultText("confirmClearRecords", "确定要清空最近决定和收藏吗？"))) {
+    return;
+  }
+
+  clearHistory();
 }
 
 function surpriseMode() {
