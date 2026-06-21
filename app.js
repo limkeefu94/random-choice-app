@@ -1830,7 +1830,7 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.7.6";
+const APP_VERSION = "0.7.7";
 const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
 const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
 const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
@@ -1839,6 +1839,25 @@ const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const WORLD_SCROLL_BOTTOM_THRESHOLD = 140;
 const WORLD_IMAGE_REFRESH_MAX_ATTEMPTS = 1;
 const RELEASE_NOTES = [
+  {
+    version: "0.7.7",
+    title: "世界频道消息编辑优化",
+    date: "2026-06-22",
+    summary: "这次把世界频道编辑从浏览器弹窗改成 App 内编辑。自己的消息可以直接在消息卡里修改，并可保存或取消。",
+    userChanges: [
+      "编辑自己的世界频道消息更自然。",
+      "编辑时可以看到字数限制。",
+      "图片消息可以保留图片并修改说明文字。",
+      "保存失败时会保留编辑内容，方便重试。",
+    ],
+    technicalChanges: [
+      "Replaced browser prompt editing with an in-app message editor.",
+      "Added localized edit/save/cancel/error copy.",
+      "Preserved existing world channel PATCH update flow.",
+      "Preserved attachments, likes, image refresh, and scroll behavior.",
+      "Reused existing action button and more-menu patterns.",
+    ],
+  },
   {
     version: "0.7.6",
     title: "按钮和操作栏优化",
@@ -2475,6 +2494,10 @@ let shouldRemoveProfileAvatarImage = false;
 let authMode = "login";
 let profilePanelView = "home";
 let editingWorldMessageId = "";
+let inlineEditingWorldMessageId = "";
+let inlineEditingWorldMessageText = "";
+let inlineEditingWorldMessageError = "";
+let savingWorldMessageEditId = "";
 let currentWorldPlaceholder = "";
 let activeWorldImageViewer = null;
 let pendingWorldImageRefreshes = new Map();
@@ -6395,9 +6418,9 @@ function renderWorldChannel(options = {}) {
                   <strong>${escapeHtml(message.user)}</strong>
                   <small class="world-message-stamp">${escapeHtml(formatWorldMessageDate(message.createdAt))}${formatWorldMessageDate(message.createdAt) && message.time ? " · " : ""}${escapeHtml(message.time || "")}</small>
                 </div>
-                ${getWorldMessageText(message) ? `<p>${escapeHtml(getWorldMessageText(message))}</p>` : ""}
+                ${renderWorldMessageBody(message)}
                 ${renderWorldAttachment(message.attachment, message)}
-                ${renderWorldMessageActions(message)}
+                ${renderWorldMessageActions(message, { isEditing: inlineEditingWorldMessageId === message.id })}
               </div>
             </article>
           `,
@@ -6429,11 +6452,95 @@ function renderWorldChannel(options = {}) {
   syncWorldNewMessagesButton();
 }
 
-function renderWorldMessageActions(message) {
+function renderWorldMessageBody(message) {
+  if (inlineEditingWorldMessageId === message.id) {
+    return renderWorldInlineEditor(message);
+  }
+
+  const text = getWorldMessageText(message);
+  return text ? `<p>${escapeHtml(text)}</p>` : "";
+}
+
+function getEditableWorldMessageText(message) {
+  const rawText = String(message?.text || "").trim();
+
+  if (!hasWorldMessageImage(message)) {
+    return rawText;
+  }
+
+  if (isDefaultWorldImageCaption(rawText)) {
+    return "";
+  }
+
+  const attachmentName = String(message.attachment?.name || message.imageName || message.fileName || "");
+
+  if (attachmentName && rawText.includes(attachmentName)) {
+    const captionText = rawText.split(attachmentName).join("").replace(/[：:\-\s]+$/g, "").trim();
+    return isDefaultWorldImageCaption(captionText) ? "" : captionText;
+  }
+
+  return rawText;
+}
+
+function renderWorldInlineEditor(message) {
+  const safeMessageId = escapeHtml(message.id);
+  const isSaving = savingWorldMessageEditId === message.id;
+  const hasImage = hasWorldMessageImage(message);
+  const text = inlineEditingWorldMessageText;
+  const textLength = text.length;
+  const tooLong = textLength > WORLD_MESSAGE_MAX_LENGTH;
+  const errorText = inlineEditingWorldMessageError
+    || (tooLong ? worldText("messageTooLong", "消息不能超过 220 字") : "");
+  const placeholder = hasImage
+    ? worldText("addImageCaption", "添加图片说明")
+    : worldText("editMessagePlaceholder", "修改你想说的话");
+
+  return `
+    <div class="world-message-edit-form" data-world-edit-form="${safeMessageId}" aria-label="${escapeHtml(worldText("editingMessage", "正在编辑消息"))}">
+      <label class="world-message-edit-label" for="worldMessageEditText-${safeMessageId}">${escapeHtml(worldText("editingMessage", "正在编辑消息"))}</label>
+      <textarea
+        id="worldMessageEditText-${safeMessageId}"
+        class="world-message-edit-textarea"
+        data-world-edit-text="${safeMessageId}"
+        maxlength="${WORLD_MESSAGE_MAX_LENGTH + 20}"
+        rows="3"
+        placeholder="${escapeHtml(placeholder)}"
+        ${isSaving ? "disabled" : ""}
+      >${escapeHtml(text)}</textarea>
+      <div class="world-message-edit-footer">
+        <small class="world-message-edit-count" data-world-edit-count aria-live="polite">${textLength} / ${WORLD_MESSAGE_MAX_LENGTH}</small>
+        <div class="world-message-edit-actions">
+          <button class="ghost-button compact-ghost" type="button" data-world-edit-cancel="${safeMessageId}" ${isSaving ? "disabled" : ""}>${escapeHtml(worldText("cancelEdit", "取消"))}</button>
+          <button class="primary-button compact-primary" type="button" data-world-edit-save="${safeMessageId}" ${isSaving || tooLong ? "disabled" : ""}>${escapeHtml(worldText("saveMessage", "保存"))}</button>
+        </div>
+      </div>
+      <small class="world-message-edit-error" data-world-edit-error ${errorText ? "" : "hidden"}>${escapeHtml(errorText)}</small>
+    </div>
+  `;
+}
+
+function canManageWorldMessage(message, currentUser = getCurrentUser()) {
+  return Boolean(
+    message
+      && currentUser
+      && !isDeletedWorldMessageClient(message)
+      && message.accountId
+      && currentUser.id
+      && message.accountId === currentUser.id,
+  );
+}
+
+function renderWorldMessageActions(message, options = {}) {
+  const { isEditing = false } = options;
   const currentUser = getCurrentUser();
+
+  if (isEditing) {
+    return "";
+  }
+
   const actionItems = [renderWorldLikeButton(message)];
 
-  if (isOwnWorldMessage(message, currentUser)) {
+  if (canManageWorldMessage(message, currentUser)) {
     actionItems.push(renderActionMenu({
       id: `world-message-${message.id}`,
       label: commonText("more", "更多"),
@@ -6574,6 +6681,22 @@ function handleWorldChatScroll() {
 }
 
 function handleWorldChatClick(event) {
+  const saveEditButton = event.target.closest("[data-world-edit-save]");
+
+  if (saveEditButton) {
+    event.preventDefault();
+    saveWorldMessageInlineEdit(saveEditButton.dataset.worldEditSave);
+    return;
+  }
+
+  const cancelEditButton = event.target.closest("[data-world-edit-cancel]");
+
+  if (cancelEditButton) {
+    event.preventDefault();
+    cancelWorldMessageInlineEdit({ render: true });
+    return;
+  }
+
   const editButton = event.target.closest("[data-world-message-edit]");
 
   if (editButton) {
@@ -6613,6 +6736,65 @@ function handleWorldChatClick(event) {
     caption: imageButton.dataset.worldImageCaption || "",
     messageId: imageButton.dataset.worldMessageId || "",
   });
+}
+
+function handleWorldInlineEditInput(event) {
+  const textarea = event.target.closest("[data-world-edit-text]");
+
+  if (!textarea) {
+    return;
+  }
+
+  inlineEditingWorldMessageId = textarea.dataset.worldEditText || inlineEditingWorldMessageId;
+  inlineEditingWorldMessageText = textarea.value;
+  inlineEditingWorldMessageError = "";
+  syncWorldInlineEditForm(textarea);
+}
+
+function handleWorldInlineEditKeydown(event) {
+  const textarea = event.target.closest("[data-world-edit-text]");
+
+  if (!textarea) {
+    return;
+  }
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    cancelWorldMessageInlineEdit({ render: true });
+    return;
+  }
+
+  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    saveWorldMessageInlineEdit(textarea.dataset.worldEditText);
+  }
+}
+
+function syncWorldInlineEditForm(textarea) {
+  const form = textarea?.closest("[data-world-edit-form]");
+
+  if (!form) {
+    return;
+  }
+
+  const textLength = textarea.value.length;
+  const tooLong = textLength > WORLD_MESSAGE_MAX_LENGTH;
+  const count = form.querySelector("[data-world-edit-count]");
+  const error = form.querySelector("[data-world-edit-error]");
+  const saveButton = form.querySelector("[data-world-edit-save]");
+
+  if (count) {
+    count.textContent = `${textLength} / ${WORLD_MESSAGE_MAX_LENGTH}`;
+  }
+
+  if (error) {
+    error.textContent = tooLong ? worldText("messageTooLong", "消息不能超过 220 字") : "";
+    error.hidden = !tooLong;
+  }
+
+  if (saveButton) {
+    saveButton.disabled = tooLong || savingWorldMessageEditId === inlineEditingWorldMessageId;
+  }
 }
 
 function ensureWorldImageViewerModal() {
@@ -7480,6 +7662,7 @@ function applyAuthSession(payload) {
     myWorldMessages = [];
     myWorldMessagesError = "";
     editingWorldMessageId = "";
+    cancelWorldMessageInlineEdit({ render: false });
   }
 
   applyAccountPreferences(user);
@@ -7497,6 +7680,7 @@ function clearAuthSession(options = {}) {
   cancelGiftShuffle({ silent: true });
   pendingWorldLikeIds.clear();
   worldLikeToggleGuards.clear();
+  cancelWorldMessageInlineEdit({ render: false });
   closeAvatarCropModal({ resetInput: true, silent: true, restorePrevious: false });
   closeWorldImageViewer();
   clearPendingWorldImage({ updateStatus: false });
@@ -7518,6 +7702,7 @@ function clearAuthSession(options = {}) {
     myWorldMessages = [];
     myWorldMessagesError = "";
     editingWorldMessageId = "";
+    cancelWorldMessageInlineEdit({ render: false });
     profilePanelView = "home";
   }
   state.auth.currentUser = "";
@@ -8138,6 +8323,7 @@ function closeWorldChat() {
 
 function closeWorldChannelTransientModals() {
   closeWorldImageViewer();
+  cancelWorldMessageInlineEdit({ render: false });
 
   const cropModal = document.querySelector("#worldImageCropModal");
 
@@ -9980,6 +10166,7 @@ async function removeMyWorldMessage(messageId) {
     await deleteOwnWorldMessage(messageId);
     removeWorldMessageFromLocalCaches(messageId);
     editingWorldMessageId = "";
+    cancelWorldMessageInlineEdit({ render: false });
     saveState();
     renderWorldChannel();
     renderProfilePanel();
@@ -9993,7 +10180,7 @@ async function removeMyWorldMessage(messageId) {
   }
 }
 
-async function editOwnWorldMessageFromMenu(messageId) {
+function editOwnWorldMessageFromMenu(messageId) {
   const message = getWorldMessageSnapshot(messageId);
 
   if (!message) {
@@ -10001,39 +10188,108 @@ async function editOwnWorldMessageFromMenu(messageId) {
     return;
   }
 
-  const currentText = String(message.text || getWorldMessageText(message) || "").trim();
-  const nextText = window.prompt(worldText("editPrompt", "编辑这条世界频道文字："), currentText);
-
-  if (nextText === null) {
+  if (!canManageWorldMessage(message)) {
+    showToast(worldText("messageMissing", "这条内容暂时找不到。"));
     return;
   }
 
-  const text = nextText.trim();
+  inlineEditingWorldMessageId = message.id;
+  inlineEditingWorldMessageText = getEditableWorldMessageText(message);
+  inlineEditingWorldMessageError = "";
+  savingWorldMessageEditId = "";
+  closeInlineActionMenus();
+  renderWorldChannel({ preserveScroll: true });
 
-  if (!text) {
-    showToast(worldText("textRequired", "文字内容不能为空。"));
+  window.requestAnimationFrame(() => {
+    const textarea = getWorldInlineEditTextarea(message.id);
+
+    if (textarea) {
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      syncWorldInlineEditForm(textarea);
+    }
+  });
+}
+
+function cancelWorldMessageInlineEdit(options = {}) {
+  const { render = false } = options;
+
+  inlineEditingWorldMessageId = "";
+  inlineEditingWorldMessageText = "";
+  inlineEditingWorldMessageError = "";
+  savingWorldMessageEditId = "";
+
+  if (render) {
+    renderWorldChannel({ preserveScroll: true });
+  }
+}
+
+function getWorldInlineEditTextarea(messageId) {
+  const safeMessageId = String(messageId || "");
+
+  if (!safeMessageId) {
+    return null;
+  }
+
+  return Array.from(document.querySelectorAll("[data-world-edit-text]"))
+    .find((textarea) => textarea.dataset.worldEditText === safeMessageId) || null;
+}
+
+function setWorldInlineEditError(messageId, errorText) {
+  inlineEditingWorldMessageId = messageId;
+  inlineEditingWorldMessageError = errorText;
+  savingWorldMessageEditId = "";
+  renderWorldChannel({ preserveScroll: true });
+}
+
+async function saveWorldMessageInlineEdit(messageId) {
+  const safeMessageId = String(messageId || inlineEditingWorldMessageId || "");
+  const message = getWorldMessageSnapshot(safeMessageId);
+
+  if (!safeMessageId || !message || !canManageWorldMessage(message)) {
+    cancelWorldMessageInlineEdit({ render: true });
+    showToast(worldText("messageMissing", "这条内容暂时找不到。"));
+    return;
+  }
+
+  const textarea = getWorldInlineEditTextarea(safeMessageId);
+  const rawText = textarea ? textarea.value : inlineEditingWorldMessageText;
+  const text = String(rawText || "").trim();
+  const hasImage = hasWorldMessageImage(message);
+
+  inlineEditingWorldMessageId = safeMessageId;
+  inlineEditingWorldMessageText = rawText;
+  inlineEditingWorldMessageError = "";
+
+  if (!hasImage && !text) {
+    setWorldInlineEditError(safeMessageId, worldText("messageRequired", "请输入消息内容"));
     return;
   }
 
   if (text.length > WORLD_MESSAGE_MAX_LENGTH) {
-    showToast(worldText("tooLong", "文字最多 220 字。"));
+    setWorldInlineEditError(safeMessageId, worldText("messageTooLong", "消息不能超过 220 字"));
     return;
   }
 
+  savingWorldMessageEditId = safeMessageId;
+  renderWorldChannel({ preserveScroll: true });
+
   try {
-    const updatedMessage = await updateOwnWorldMessage(messageId, text);
+    const updatedMessage = await updateOwnWorldMessage(safeMessageId, text);
     updateWorldMessageCaches(updatedMessage);
-    editingWorldMessageId = "";
+    cancelWorldMessageInlineEdit({ render: false });
     saveState();
     renderWorldChannel({ preserveScroll: true });
     renderProfilePanel();
-    showToast(worldText("messageUpdated", "内容已更新。"));
+    showToast(worldText("saveEditSuccess", "已更新消息"));
   } catch (error) {
     reportClientError(error, {
       type: "world-message-edit-failed",
       source: WORLD_CHANNEL_ENDPOINT,
     });
-    showToast(error.message || worldText("messageSaveFailed", "内容暂时保存不了。"));
+    inlineEditingWorldMessageText = rawText;
+    setWorldInlineEditError(safeMessageId, worldText("saveEditFailed", "保存失败，请稍后再试"));
+    showToast(worldText("saveEditFailed", "保存失败，请稍后再试"));
   }
 }
 
@@ -10050,6 +10306,7 @@ async function deleteOwnWorldMessageFromMenu(messageId) {
     await deleteOwnWorldMessage(messageId);
     removeWorldMessageFromLocalCaches(messageId);
     editingWorldMessageId = "";
+    cancelWorldMessageInlineEdit({ render: false });
     saveState();
     renderWorldChannel({ preserveScroll: true });
     renderProfilePanel();
@@ -11885,6 +12142,8 @@ elements.modeMenuToggle.addEventListener("click", () => {
 });
 elements.worldCloseButton.addEventListener("click", closeWorldChat);
 elements.worldChatList.addEventListener("scroll", handleWorldChatScroll);
+elements.worldChatList.addEventListener("input", handleWorldInlineEditInput);
+elements.worldChatList.addEventListener("keydown", handleWorldInlineEditKeydown);
 elements.worldNewMessagesButton.addEventListener("click", scrollWorldChatToBottom);
 elements.currencySelect.addEventListener("change", (event) => changeCurrency(event.target.value));
 elements.optionPreview.addEventListener("click", (event) => {
