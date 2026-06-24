@@ -60,38 +60,43 @@ const MODES = {
 const MODE_DISPLAY_ORDER = ["food", "shopping", "custom", "gift", "drink", "travel", "number"];
 const HOME_FEATURE_MODE_PREFIX = "mode:";
 const HOME_WORLD_FEATURE_ID = "world";
-const APP_ASSETS = Object.freeze({
-  modes: {
-    food: "./assets/modes/mode-food.png",
-    drink: "./assets/modes/mode-drink.png",
-    travel: "./assets/modes/mode-travel.png",
-    number: "./assets/modes/mode-number.png",
-    shopping: "./assets/modes/mode-shopping.png",
-    gift: "./assets/modes/mode-gift.png",
-    custom: "./assets/modes/mode-custom.png",
-    world: "./assets/modes/mode-world.png",
-  },
-  empty: {
-    favorites: "./assets/empty/empty-favorites.png",
-    history: "./assets/empty/empty-history.png",
-    notification: "./assets/empty/empty-notification.png",
-    options: "./assets/empty/empty-options.png",
-    world: "./assets/empty/empty-world.png",
-  },
-  gift: {
-    box: "./assets/gift/gift-box.png",
-    nameCard: "./assets/gift/name-card.png",
-  },
-  social: {
-    defaultAvatar: "./assets/social/default-avatar.png",
-    uploadImage: "./assets/social/upload-image.png",
-  },
-  ui: {
-    leafAccent: "./assets/ui/leaf-accent.png",
-    notificationBell: "./assets/ui/notification-bell.png",
-    wheelPointer: "./assets/ui/wheel-pointer.png",
-  },
-});
+const APP_THEME_REGISTRY = window.APP_THEMES || {};
+const APP_THEME_IDS = Object.freeze(Object.keys(APP_THEME_REGISTRY));
+const DEFAULT_APP_THEME_ID = APP_THEME_REGISTRY[window.APP_DEFAULT_THEME_ID]
+  ? window.APP_DEFAULT_THEME_ID
+  : APP_THEME_IDS[0] || "soft-png";
+let APP_ASSETS = Object.freeze(resolveThemeAssets(DEFAULT_APP_THEME_ID));
+
+function normalizeThemeId(themeId) {
+  return APP_THEME_REGISTRY[themeId] ? themeId : DEFAULT_APP_THEME_ID;
+}
+
+function getThemeDefinition(themeId = DEFAULT_APP_THEME_ID) {
+  return APP_THEME_REGISTRY[normalizeThemeId(themeId)] || APP_THEME_REGISTRY[DEFAULT_APP_THEME_ID] || {};
+}
+
+function resolveThemeAssets(themeId) {
+  return getThemeDefinition(themeId).assets || {};
+}
+
+function applyAppTheme(themeId = DEFAULT_APP_THEME_ID) {
+  const normalizedThemeId = normalizeThemeId(themeId);
+  const theme = getThemeDefinition(normalizedThemeId);
+
+  APP_ASSETS = Object.freeze(theme.assets || {});
+  document.documentElement.dataset.appTheme = normalizedThemeId;
+  Object.entries(theme.cssVars || {}).forEach(([property, value]) => {
+    document.documentElement.style.setProperty(property, value);
+  });
+
+  return normalizedThemeId;
+}
+
+function getThemeLabel(themeId) {
+  const theme = getThemeDefinition(themeId);
+
+  return t(theme.labelKey || `theme.${themeId}`, theme.label || themeId);
+}
 const FOOD_CATEGORIES = ["全部", "Mamak", "快餐连锁", "外卖平台热门", "油炸类", "素食类", "低卡类", "快餐", "嘴馋零嘴类", "高热量", "健康类"];
 const SPECIAL_FOOD_CATEGORIES = new Set(["Mamak", "快餐连锁", "外卖平台热门"]);
 const SPECIAL_REGION_KEYS = new Set(["全国 Mamak", "快餐连锁", "外卖平台热门"]);
@@ -2375,6 +2380,7 @@ const state = {
   },
   language: "zh-CN",
   languageManuallySelected: false,
+  themeId: DEFAULT_APP_THEME_ID,
   currency: "MYR",
   food: {
     country: "马来西亚",
@@ -2606,6 +2612,7 @@ function loadState() {
     state.worldOpen = Boolean(saved.worldOpen);
     state.languageManuallySelected = saved.languageManuallySelected === true;
     state.language = state.languageManuallySelected ? normalizeLanguage(saved.language) : "zh-CN";
+    state.themeId = normalizeThemeId(saved.themeId);
     state.currency = CURRENCY_RATES[saved.currency] ? saved.currency : state.currency;
     state.homeLayout = normalizeHomeLayout(saved.homeLayout);
     state.food = { ...state.food, ...saved.food };
@@ -2650,6 +2657,7 @@ function saveState() {
     worldOpen: state.worldOpen,
     language: state.language,
     languageManuallySelected: state.languageManuallySelected,
+    themeId: normalizeThemeId(state.themeId),
     currency: state.currency,
     homeLayout: normalizeHomeLayout(state.homeLayout),
     food: state.food,
@@ -3269,6 +3277,42 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function getButtonIconAsset(icon) {
+  const normalizedIcon = String(icon || "").trim();
+  const iconKeyMap = {
+    "×": "close",
+    "✕": "close",
+    "✖": "close",
+    "✎": "edit",
+    "🗑": "trash",
+    "🧹": "trash",
+    "⋯": "menu",
+    "…": "menu",
+    "⧉": "copy",
+    "№": "copy",
+    "↗": "share",
+    "☆": "confirm",
+    "★": "confirm",
+    "✓": "confirm",
+    "✔": "confirm",
+    "↻": "refresh",
+    "⟳": "refresh",
+  };
+  const iconKey = iconKeyMap[normalizedIcon];
+
+  return iconKey ? APP_ASSETS.ui.buttonIcons?.[iconKey] || "" : "";
+}
+
+function renderButtonIconContent(icon) {
+  const iconAsset = getButtonIconAsset(icon);
+
+  if (!iconAsset) {
+    return escapeHtml(icon || "•");
+  }
+
+  return renderAssetImage(iconAsset, "", "button-icon-image", 'aria-hidden="true" loading="lazy"');
+}
+
 function renderIconButton(options = {}) {
   const {
     id = "",
@@ -3284,6 +3328,7 @@ function renderIconButton(options = {}) {
     controls = "",
     textVisible = true,
   } = options;
+  const iconAsset = getButtonIconAsset(icon);
   const attributes = [
     id ? `id="${escapeHtml(id)}"` : "",
     `type="${escapeHtml(type)}"`,
@@ -3298,8 +3343,8 @@ function renderIconButton(options = {}) {
   ].filter(Boolean).join(" ");
 
   return `
-    <button class="icon-button${textVisible ? "" : " is-icon-only"}${className ? ` ${escapeHtml(className)}` : ""}" ${attributes}>
-      <span class="icon-button-symbol" aria-hidden="true">${escapeHtml(icon)}</span>
+    <button class="icon-button${iconAsset ? " has-button-icon" : ""}${textVisible ? "" : " is-icon-only"}${className ? ` ${escapeHtml(className)}` : ""}" ${attributes}>
+      <span class="icon-button-symbol" aria-hidden="true">${renderButtonIconContent(icon)}</span>
       <span class="icon-button-label">${escapeHtml(label)}</span>
     </button>
   `;
@@ -3311,12 +3356,14 @@ function setIconButtonContent(button, options = {}) {
   }
 
   const { icon = "•", label = "", textVisible = true } = options;
+  const iconAsset = getButtonIconAsset(icon);
   button.classList.add("icon-button");
+  button.classList.toggle("has-button-icon", Boolean(iconAsset));
   button.classList.toggle("is-icon-only", !textVisible);
   button.setAttribute("aria-label", label);
   button.dataset.tooltip = label;
   button.innerHTML = `
-    <span class="icon-button-symbol" aria-hidden="true">${escapeHtml(icon)}</span>
+    <span class="icon-button-symbol" aria-hidden="true">${renderButtonIconContent(icon)}</span>
     <span class="icon-button-label">${escapeHtml(label)}</span>
   `;
 }
@@ -3346,7 +3393,7 @@ function renderActionMenu(options = {}) {
             ${item.disabled ? "disabled" : ""}
             ${item.dataset || ""}
           >
-            <span aria-hidden="true">${escapeHtml(item.icon || "•")}</span>
+            <span class="inline-action-menu-icon" aria-hidden="true">${renderButtonIconContent(item.icon || "•")}</span>
             <strong>${escapeHtml(item.label || "")}</strong>
           </button>
         `).join("")}
@@ -3363,6 +3410,41 @@ function renderAssetImage(src, alt = "", className = "", attributes = "") {
   const classAttribute = className ? ` class="${escapeHtml(className)}"` : "";
   const extraAttributes = attributes ? ` ${attributes}` : "";
   return `<img${classAttribute} src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"${extraAttributes}>`;
+}
+
+function syncThemeAssetElements() {
+  const appIcon = APP_ASSETS.icons?.app;
+  const notificationBell = APP_ASSETS.ui?.notificationBell;
+  const worldModeIcon = APP_ASSETS.modes?.world;
+  const randomButtonIcon = APP_ASSETS.ui?.buttonIcons?.shuffle;
+
+  if (appIcon) {
+    const brandIcon = elements.appRefreshButton?.querySelector(".brand-mark img");
+    if (brandIcon) {
+      brandIcon.src = appIcon;
+    }
+  }
+
+  if (notificationBell) {
+    const notificationIcon = elements.notificationButton?.querySelector(".notification-icon img");
+    if (notificationIcon) {
+      notificationIcon.src = notificationBell;
+    }
+  }
+
+  if (worldModeIcon) {
+    const worldIcon = elements.worldChannelButton?.querySelector(".mode-icon-image");
+    if (worldIcon) {
+      worldIcon.src = worldModeIcon;
+    }
+  }
+
+  if (randomButtonIcon) {
+    const randomButtonImage = elements.randomButton?.querySelector(".primary-button-image");
+    if (randomButtonImage) {
+      randomButtonImage.src = randomButtonIcon;
+    }
+  }
 }
 
 function renderModeFeatureIcon(feature) {
@@ -4198,6 +4280,19 @@ function renderMoreMenuPanel() {
           `).join("")}
         </select>
       </label>
+      ${APP_THEME_IDS.length ? `
+        <label class="more-menu-theme" for="themeSelect" hidden aria-hidden="true">
+          <span>
+            <strong>${escapeHtml(t("menu.theme", "主题"))}</strong>
+            <small>${escapeHtml(t("menu.theme.hiddenDesc", "隐藏入口，暂不展示"))}</small>
+          </span>
+          <select id="themeSelect" aria-label="${escapeHtml(t("menu.theme", "主题"))}" tabindex="-1">
+            ${APP_THEME_IDS.map((themeId) => `
+              <option value="${escapeHtml(themeId)}" ${themeId === state.themeId ? "selected" : ""}>${escapeHtml(getThemeLabel(themeId))}</option>
+            `).join("")}
+          </select>
+        </label>
+      ` : ""}
     </div>
   `;
 
@@ -4208,6 +4303,7 @@ function renderMoreMenuPanel() {
   document.querySelector("#menuFeedbackButton").addEventListener("click", openFeedbackPanel);
   document.querySelector("#menuSettingsButton").addEventListener("click", openSettingsPanel);
   document.querySelector("#languageSelect").addEventListener("change", (event) => changeLanguage(event.target.value));
+  document.querySelector("#themeSelect")?.addEventListener("change", (event) => changeTheme(event.target.value));
 }
 
 function getCurrentReleaseNote() {
@@ -12432,6 +12528,19 @@ function changeLanguage(language) {
   showToast(`${t("menu.language", "语言")}：${LANGUAGE_LABELS[nextLanguage]}`);
 }
 
+function changeTheme(themeId) {
+  const nextThemeId = normalizeThemeId(themeId);
+
+  if (state.themeId === nextThemeId) {
+    return;
+  }
+
+  state.themeId = applyAppTheme(nextThemeId);
+  saveState();
+  syncThemeAssetElements();
+  render();
+}
+
 function showToast(message) {
   window.clearTimeout(toastTimer);
   elements.toast.textContent = message;
@@ -12498,6 +12607,8 @@ document.addEventListener("keydown", handleGlobalKeydown);
 
 installClientErrorHandlers();
 loadState();
+state.themeId = applyAppTheme(state.themeId);
+syncThemeAssetElements();
 formatDateLabel();
 renderDailyInspiration();
 render();
