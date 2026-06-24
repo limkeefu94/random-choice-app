@@ -1830,7 +1830,7 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.7.7";
+const APP_VERSION = "0.7.8";
 const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
 const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
 const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
@@ -1838,7 +1838,32 @@ const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const WORLD_SCROLL_BOTTOM_THRESHOLD = 140;
 const WORLD_IMAGE_REFRESH_MAX_ATTEMPTS = 1;
+const AVATAR_IMAGE_REFRESH_MAX_ATTEMPTS = 1;
+const AVATAR_IMAGE_ALLOWED_PREFIXES = Object.freeze([
+  "world/",
+  "avatars/",
+  "users/",
+  "profile/",
+]);
 const RELEASE_NOTES = [
+  {
+    version: "0.7.8",
+    title: "修复头像过期链接",
+    date: "2026-06-24",
+    summary: "这次修复用户头像 signed URL 过期后可能破图的问题。头像会优先保留稳定路径，过期时重新获取安全访问链接，失败时回到默认文字头像。",
+    userChanges: [
+      "顶部头像、我的主页头像和个人资料头像更稳定。",
+      "世界频道消息里的头像链接过期后会尝试自动恢复。",
+      "头像暂时无法显示时，会回到名字首字头像，不再长期显示破图。",
+      "默认文字头像和已上传头像显示逻辑保持一致。",
+    ],
+    technicalChanges: [
+      "Added safe avatar objectName/filePath compatibility fields.",
+      "Extended read signed URL refresh to approved avatar prefixes.",
+      "Added client-side avatar refresh and fallback handling.",
+      "Preserved existing auth, GCS upload, world channel, like, gift, and home layout flows.",
+    ],
+  },
   {
     version: "0.7.7",
     title: "世界频道消息编辑优化",
@@ -2503,6 +2528,9 @@ let activeWorldImageViewer = null;
 let pendingWorldImageRefreshes = new Map();
 let worldImageRefreshAttempts = new Map();
 let worldImageUrlOverrides = new Map();
+let pendingAvatarImageRefreshes = new Map();
+let avatarImageRefreshAttempts = new Map();
+let avatarImageUrlOverrides = new Map();
 let pendingWorldLikeIds = new Set();
 let worldLikeToggleGuards = new Map();
 let myWorldMessages = [];
@@ -3704,7 +3732,9 @@ function renderTopUserTools() {
       avatarUrl: getUserAvatarUrl(currentUser),
       name: getUserDisplayName(currentUser),
       className: "profile-avatar-image",
+      source: currentUser,
     });
+    bindAvatarImageFallbacks(elements.profileAvatarButton);
     elements.profileAvatarButton.setAttribute("aria-label", `我的主页：${getUserDisplayName(currentUser)}`);
     elements.profileAvatarButton.setAttribute("aria-expanded", String(isProfilePanelOpen));
   } else {
@@ -3847,6 +3877,7 @@ function renderMyProfilePanel(currentUser) {
             avatarUrl: getUserAvatarUrl(currentUser),
             name: getUserDisplayName(currentUser),
             className: "profile-preview-image",
+            source: currentUser,
           })}
         </span>
         <div class="my-profile-identity">
@@ -3877,6 +3908,7 @@ function renderMyProfilePanel(currentUser) {
 
   bindMyProfilePanelEvents();
   bindWorldAttachmentImageFallbacks(elements.profilePanel);
+  bindAvatarImageFallbacks(elements.profilePanel);
 }
 
 function renderProfileEditorPanel(currentUser) {
@@ -3903,6 +3935,7 @@ function renderProfileEditorPanel(currentUser) {
             avatarUrl: getUserAvatarUrl(currentUser),
             name: getUserDisplayName(currentUser),
             className: "profile-preview-image",
+            source: currentUser,
           })}
         </span>
         <div>
@@ -5190,6 +5223,7 @@ function renderWorldControls() {
               avatarUrl: getUserAvatarUrl(currentUser),
               name: displayName,
               className: "world-avatar-image",
+              source: currentUser,
             })}
           </span>
           <div class="world-composer-copy">
@@ -5233,6 +5267,7 @@ function renderWorldControls() {
   document.querySelector("#worldMessageInput").addEventListener("input", updateWorldCharacterHint);
   document.querySelector("#worldImageInput").addEventListener("change", prepareWorldImage);
   document.querySelector("#clearWorldImageButton").addEventListener("click", () => clearPendingWorldImage());
+  bindAvatarImageFallbacks(elements.worldAuthPanel);
   updateWorldCharacterHint();
   updatePendingImagePreview();
 }
@@ -6411,6 +6446,7 @@ function renderWorldChannel(options = {}) {
                   avatarUrl: getMessageAvatarUrl(message),
                   name: message.user,
                   className: "world-avatar-image",
+                  source: message,
                 })}
               </span>
               <div class="world-message-main">
@@ -6436,6 +6472,7 @@ function renderWorldChannel(options = {}) {
     </div>
   `;
   bindWorldAttachmentImageFallbacks(elements.worldChatList);
+  bindAvatarImageFallbacks(elements.worldChatList);
   if (shouldScrollWorldToBottomAfterRender) {
     window.requestAnimationFrame(() => {
       scrollWorldChatToBottom();
@@ -7619,6 +7656,11 @@ function normalizeAccountUser(user = {}) {
     displayName,
     avatar: normalizeAvatar("", displayName),
     avatarUrl: user.avatarUrl || "",
+    avatarObjectName: user.avatarObjectName || "",
+    avatarFilePath: user.avatarFilePath || "",
+    avatarPath: user.avatarPath || "",
+    avatarStoragePath: user.avatarStoragePath || "",
+    avatarPublicUrl: user.avatarPublicUrl || "",
     settings,
     privacy: normalizePrivacySettings(user.privacy),
     worldPreferences: normalizeWorldPreferenceSettings(user.worldPreferences),
@@ -7804,19 +7846,283 @@ function getUserAvatar(user) {
 }
 
 function getUserAvatarUrl(user) {
-  return String(user?.avatarUrl || "").trim();
+  return getAvatarImageUrl(user);
 }
 
-function renderAvatarContent({ avatar, avatarUrl, name, className = "" }) {
-  if (avatarUrl) {
-    return `<img class="${className}" src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(name || "头像")}" loading="lazy" />`;
+function normalizeAvatarObjectNameClient(value) {
+  const objectName = String(value || "").trim().replace(/^\/+/, "");
+
+  if (!objectName || objectName.length > 500) {
+    return "";
   }
 
-  return escapeHtml(normalizeAvatar(avatar, name));
+  if (/^https?:\/\//i.test(objectName) || objectName.includes("\\") || objectName.includes("\0") || objectName.includes("..")) {
+    return "";
+  }
+
+  if (!AVATAR_IMAGE_ALLOWED_PREFIXES.some((prefix) => objectName.startsWith(prefix))) {
+    return "";
+  }
+
+  return objectName;
+}
+
+function parseAvatarObjectNameFromStorageUrl(value) {
+  const rawUrl = String(value || "").trim();
+
+  if (!rawUrl || rawUrl.length > 1600) {
+    return "";
+  }
+
+  try {
+    const parsedUrl = new URL(rawUrl);
+
+    if (parsedUrl.protocol !== "https:" || parsedUrl.hostname !== "storage.googleapis.com") {
+      return "";
+    }
+
+    const pathParts = decodeURIComponent(parsedUrl.pathname || "")
+      .split("/")
+      .filter(Boolean);
+
+    if (pathParts.length < 2) {
+      return "";
+    }
+
+    return normalizeAvatarObjectNameClient(pathParts.slice(1).join("/"));
+  } catch {
+    return "";
+  }
+}
+
+function getAvatarImageObjectName(source = {}) {
+  const directObjectName = [
+    source.avatarObjectName,
+    source.avatarFilePath,
+    source.avatarPath,
+    source.avatarStoragePath,
+    source.objectName,
+    source.filePath,
+  ]
+    .map(normalizeAvatarObjectNameClient)
+    .find(Boolean);
+
+  if (directObjectName) {
+    return directObjectName;
+  }
+
+  return [
+    source.avatarUrl,
+    source.avatarPublicUrl,
+    source.publicUrl,
+    source.url,
+  ]
+    .map(parseAvatarObjectNameFromStorageUrl)
+    .find(Boolean) || "";
+}
+
+function getAvatarImageSourceId(source = {}) {
+  return String(source.id || source.accountId || source.userId || source.username || source.messageId || "").trim();
+}
+
+function getAvatarImageRefreshKey(source = {}) {
+  return String(getAvatarImageObjectName(source) || getAvatarImageSourceId(source) || source.avatarUrl || source.avatarPublicUrl || "");
+}
+
+function getAvatarImageUrl(source = {}, options = {}) {
+  const { ignoreOverrides = false } = options;
+  const objectName = getAvatarImageObjectName(source);
+  const refreshKey = getAvatarImageRefreshKey(source);
+
+  if (!ignoreOverrides) {
+    const override = avatarImageUrlOverrides.get(objectName) || avatarImageUrlOverrides.get(refreshKey);
+
+    if (override?.url) {
+      return override.url;
+    }
+  }
+
+  return String(source?.avatarUrl || source?.avatarPublicUrl || "").trim();
+}
+
+function renderAvatarContent({ avatar, avatarUrl, name, className = "", source = null }) {
+  const avatarSource = {
+    ...(source && typeof source === "object" ? source : {}),
+    avatarUrl: avatarUrl || source?.avatarUrl || "",
+  };
+  const imageUrl = getAvatarImageUrl(avatarSource);
+  const objectName = getAvatarImageObjectName(avatarSource);
+  const sourceId = getAvatarImageSourceId(avatarSource);
+  const fallbackText = normalizeAvatar(avatar, name);
+
+  if (imageUrl) {
+    return `<img class="${className}" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(name || t("account.avatarAlt", "头像"))}" loading="lazy" data-avatar-image data-avatar-source-id="${escapeHtml(sourceId)}" data-avatar-object-name="${escapeHtml(objectName)}" data-avatar-url="${escapeHtml(getAvatarImageUrl(avatarSource, { ignoreOverrides: true }))}" data-avatar-name="${escapeHtml(name || "")}" data-avatar-fallback="${escapeHtml(fallbackText)}" />`;
+  }
+
+  return escapeHtml(fallbackText);
 }
 
 function getMessageAvatarUrl(message) {
-  return String(message.avatarUrl || "").trim();
+  return getAvatarImageUrl(message);
+}
+
+function updateAvatarImageUrl(source = {}, payload = {}) {
+  const viewUrl = String(payload.viewUrl || payload.url || "").trim();
+  const objectName = normalizeAvatarObjectNameClient(payload.objectName || payload.filePath || getAvatarImageObjectName(source));
+  const refreshKey = getAvatarImageRefreshKey(source);
+
+  if (!viewUrl) {
+    return;
+  }
+
+  const override = {
+    url: viewUrl,
+    objectName,
+  };
+
+  if (objectName) {
+    avatarImageUrlOverrides.set(objectName, override);
+  }
+
+  if (refreshKey) {
+    avatarImageUrlOverrides.set(refreshKey, override);
+  }
+
+  const matchesSource = (item) => {
+    if (!item) {
+      return false;
+    }
+
+    const itemObjectName = getAvatarImageObjectName(item);
+
+    if (objectName && itemObjectName && objectName === itemObjectName) {
+      return true;
+    }
+
+    const sourceId = getAvatarImageSourceId(source);
+    const itemId = getAvatarImageSourceId(item);
+
+    return Boolean(sourceId && itemId && sourceId === itemId);
+  };
+
+  const applyAvatarUpdate = (item) => matchesSource(item)
+    ? {
+      ...item,
+      avatarUrl: viewUrl,
+      avatarObjectName: objectName || item.avatarObjectName || item.avatarFilePath || "",
+      avatarFilePath: objectName || item.avatarFilePath || item.avatarObjectName || "",
+    }
+    : item;
+
+  state.users = state.users.map(applyAvatarUpdate);
+  state.worldMessages = state.worldMessages.map(applyAvatarUpdate);
+  myWorldMessages = myWorldMessages.map(applyAvatarUpdate);
+}
+
+async function refreshAvatarImageUrl(source = {}) {
+  const objectName = getAvatarImageObjectName(source);
+  const sourceUrl = getAvatarImageUrl(source, { ignoreOverrides: true });
+  const refreshKey = getAvatarImageRefreshKey(source);
+
+  if (!refreshKey) {
+    throw new Error(t("account.avatarRefreshFailed", "头像暂时无法显示"));
+  }
+
+  if (pendingAvatarImageRefreshes.has(refreshKey)) {
+    return pendingAvatarImageRefreshes.get(refreshKey);
+  }
+
+  const attempts = avatarImageRefreshAttempts.get(refreshKey) || 0;
+
+  if (attempts >= AVATAR_IMAGE_REFRESH_MAX_ATTEMPTS) {
+    throw new Error(t("account.avatarRefreshFailed", "头像暂时无法显示"));
+  }
+
+  avatarImageRefreshAttempts.set(refreshKey, attempts + 1);
+  const refreshPromise = fetch("/api/gcs-signed-url", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      action: "read",
+      objectName,
+      filePath: objectName,
+      sourceUrl: objectName ? "" : sourceUrl,
+    }),
+  })
+    .then(readJsonResponseWithResponse)
+    .then(({ response, payload }) => {
+      if (!response.ok || !payload.ok || !(payload.viewUrl || payload.url)) {
+        throw new Error(payload.error || payload.detail || t("account.avatarRefreshFailed", "头像暂时无法显示"));
+      }
+
+      updateAvatarImageUrl(source, payload);
+      saveState();
+      return payload;
+    })
+    .finally(() => {
+      pendingAvatarImageRefreshes.delete(refreshKey);
+    });
+
+  pendingAvatarImageRefreshes.set(refreshKey, refreshPromise);
+  return refreshPromise;
+}
+
+function showAvatarFallback(image) {
+  const fallbackText = normalizeAvatar(image?.dataset?.avatarFallback || "", image?.dataset?.avatarName || "");
+  const avatarShell = image?.closest(".world-avatar, .profile-avatar-button, .profile-preview-avatar, .my-profile-avatar");
+
+  if (avatarShell) {
+    avatarShell.textContent = fallbackText;
+    avatarShell.setAttribute("title", t("account.avatarRefreshFailed", "头像暂时无法显示"));
+  }
+}
+
+function syncAvatarImageElement(image, payload = {}) {
+  const viewUrl = String(payload.viewUrl || payload.url || "").trim();
+
+  if (!image || !viewUrl) {
+    return;
+  }
+
+  image.hidden = false;
+  image.dataset.avatarUrl = viewUrl;
+  image.src = viewUrl;
+}
+
+async function handleAvatarImageError(image) {
+  if (!image || image.dataset.avatarRefreshFailed === "true") {
+    showAvatarFallback(image);
+    return;
+  }
+
+  image.hidden = true;
+  const source = {
+    id: image.dataset.avatarSourceId || "",
+    avatarUrl: image.dataset.avatarUrl || image.currentSrc || image.src || "",
+    avatarObjectName: image.dataset.avatarObjectName || "",
+  };
+
+  try {
+    const payload = await refreshAvatarImageUrl(source);
+    syncAvatarImageElement(image, payload);
+  } catch {
+    image.dataset.avatarRefreshFailed = "true";
+    showAvatarFallback(image);
+  }
+}
+
+function bindAvatarImageFallbacks(root = document) {
+  root.querySelectorAll("[data-avatar-image]").forEach((image) => {
+    if (image.dataset.avatarFallbackBound === "true") {
+      return;
+    }
+
+    image.dataset.avatarFallbackBound = "true";
+    image.addEventListener("error", () => handleAvatarImageError(image));
+  });
 }
 
 function isDefaultWorldImageCaption(text) {
@@ -9363,7 +9669,9 @@ function updateProfilePreview() {
       avatarUrl,
       name: displayName,
       className: "profile-preview-image",
+      source: pendingProfileAvatarImage ? { avatarUrl } : currentUser,
     });
+    bindAvatarImageFallbacks(avatarPreview);
   }
 
   if (namePreview) {
@@ -9458,6 +9766,9 @@ async function saveProfileChanges() {
 
   const oldNames = new Set([currentUser.username, currentUser.displayName].filter(Boolean));
   let avatarUrl = shouldRemoveProfileAvatarImage ? "" : getUserAvatarUrl(currentUser);
+  let avatarObjectName = shouldRemoveProfileAvatarImage ? "" : getAvatarImageObjectName(currentUser);
+  let avatarFilePath = shouldRemoveProfileAvatarImage ? "" : avatarObjectName;
+  let avatarPublicUrl = shouldRemoveProfileAvatarImage ? "" : (currentUser.avatarPublicUrl || "");
 
   if (pendingProfileAvatarImage) {
     try {
@@ -9465,6 +9776,9 @@ async function saveProfileChanges() {
       const upload = await uploadImageThroughServer(pendingProfileAvatarImage.file);
       rememberUpload(upload, pendingProfileAvatarImage.file);
       avatarUrl = upload.url || upload.publicUrl || avatarUrl;
+      avatarObjectName = upload.objectName || upload.filePath || "";
+      avatarFilePath = upload.filePath || upload.objectName || "";
+      avatarPublicUrl = upload.publicUrl || "";
     } catch (error) {
       console.warn("Profile avatar upload failed.", error);
       reportClientError(error, {
@@ -9484,6 +9798,9 @@ async function saveProfileChanges() {
     const payload = await authRequest("update-profile", {
       displayName,
       avatarUrl,
+      avatarObjectName,
+      avatarFilePath,
+      avatarPublicUrl,
       currentPassword,
       newPassword,
       confirmPassword,
@@ -9508,6 +9825,11 @@ async function saveProfileChanges() {
       user: getUserDisplayName(updatedUser),
       avatar: getUserAvatar(updatedUser),
       avatarUrl: getUserAvatarUrl(updatedUser),
+      avatarObjectName: updatedUser.avatarObjectName || "",
+      avatarFilePath: updatedUser.avatarFilePath || updatedUser.avatarObjectName || "",
+      avatarPath: updatedUser.avatarPath || "",
+      avatarStoragePath: updatedUser.avatarStoragePath || "",
+      avatarPublicUrl: updatedUser.avatarPublicUrl || "",
     };
   });
   myWorldMessages = myWorldMessages.map((message) => {
@@ -9520,6 +9842,11 @@ async function saveProfileChanges() {
       user: getUserDisplayName(updatedUser),
       avatar: getUserAvatar(updatedUser),
       avatarUrl: getUserAvatarUrl(updatedUser),
+      avatarObjectName: updatedUser.avatarObjectName || "",
+      avatarFilePath: updatedUser.avatarFilePath || updatedUser.avatarObjectName || "",
+      avatarPath: updatedUser.avatarPath || "",
+      avatarStoragePath: updatedUser.avatarStoragePath || "",
+      avatarPublicUrl: updatedUser.avatarPublicUrl || "",
     };
   });
 
@@ -9675,6 +10002,11 @@ function normalizeWorldMessage(message) {
     user: message.user || "游客",
     avatar: normalizeAvatar(message.avatar, message.user),
     avatarUrl: message.avatarUrl || "",
+    avatarObjectName: message.avatarObjectName || "",
+    avatarFilePath: message.avatarFilePath || "",
+    avatarPath: message.avatarPath || "",
+    avatarStoragePath: message.avatarStoragePath || "",
+    avatarPublicUrl: message.avatarPublicUrl || "",
     text: message.text || "",
     attachment: normalizeWorldMessageAttachment(normalizedMessage),
     createdAt,
