@@ -375,6 +375,21 @@ button {
   line-height: 1;
 }
 
+.icon-button.has-button-icon .icon-button-symbol {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+}
+
+.button-icon-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 8px rgba(92, 62, 33, 0.08));
+  pointer-events: none;
+}
+
 .icon-button-label {
   min-width: 0;
 }
@@ -392,6 +407,25 @@ button {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+@media (hover: hover) and (pointer: fine) and (min-width: 721px) {
+  .icon-button.has-button-icon:not(.is-icon-only) {
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+    gap: 0;
+  }
+
+  .icon-button.has-button-icon:not(.is-icon-only) .icon-button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
 }
 
 .panel-close-button {
@@ -820,7 +854,7 @@ body.is-home-layout-dragging * {
   width: 34px;
   height: 34px;
   pointer-events: none;
-  background: url("./assets/ui/wheel-pointer.png") center / contain no-repeat;
+  background: var(--asset-wheel-pointer, url("./assets/ui/wheel-pointer.png")) center / contain no-repeat;
   filter: drop-shadow(0 8px 12px rgba(255, 122, 61, 0.18));
   animation: modePointerDrop 1.35s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
@@ -971,7 +1005,7 @@ body.is-home-layout-dragging * {
   width: 190px;
   height: 150px;
   pointer-events: none;
-  background: url("./assets/ui/leaf-accent.png") center / contain no-repeat;
+  background: var(--asset-leaf-accent, url("./assets/ui/leaf-accent.png")) center / contain no-repeat;
   opacity: 0.16;
   transform: rotate(-10deg);
 }
@@ -1257,6 +1291,34 @@ body.is-home-layout-dragging * {
 .primary-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 20px 40px rgba(235, 95, 36, 0.3);
+}
+
+.primary-button-image {
+  display: block;
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 12px rgba(92, 62, 33, 0.12));
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) and (min-width: 721px) {
+  .primary-button.has-button-image {
+    width: 58px;
+    min-width: 58px;
+    padding: 0;
+    gap: 0;
+  }
+
+  .primary-button.has-button-image span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
 }
 
 .primary-button svg {
@@ -2678,6 +2740,16 @@ body.is-home-layout-dragging * {
   background: transparent;
 }
 
+.inline-action-menu-icon {
+  display: inline-grid;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .inline-action-menu-item:hover:not(:disabled),
 .inline-action-menu-item:focus-visible {
   background: rgba(255, 122, 61, 0.1);
@@ -2780,7 +2852,7 @@ body.is-home-layout-dragging * {
   --world-like-pop-start-y: -58%;
   --world-like-pop-end-y: -146%;
   pointer-events: none;
-  background-image: url("./assets/social/heart-pop-sprite.png");
+  background-image: var(--asset-heart-pop-sprite, url("./assets/social/heart-pop-sprite.png"));
   background-repeat: no-repeat;
   background-size: 1440px 800px;
   background-position: 0 0;
@@ -3439,7 +3511,8 @@ body.is-home-layout-dragging * {
   opacity: 0.62;
 }
 
-.more-menu-language {
+.more-menu-language,
+.more-menu-theme {
   display: grid;
   gap: 8px;
   padding: 10px 12px;
@@ -3450,22 +3523,28 @@ body.is-home-layout-dragging * {
 
 .more-menu-language span,
 .more-menu-language strong,
-.more-menu-language small {
+.more-menu-language small,
+.more-menu-theme span,
+.more-menu-theme strong,
+.more-menu-theme small {
   display: block;
 }
 
-.more-menu-language strong {
+.more-menu-language strong,
+.more-menu-theme strong {
   color: #4d3025;
   font-size: 0.9rem;
   font-weight: 850;
 }
 
-.more-menu-language small {
+.more-menu-language small,
+.more-menu-theme small {
   color: var(--muted);
   font-size: 0.74rem;
 }
 
-.more-menu-language select {
+.more-menu-language select,
+.more-menu-theme select {
   width: 100%;
   min-height: 38px;
   padding: 0 10px;

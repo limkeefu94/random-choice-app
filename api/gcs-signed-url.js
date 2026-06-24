@@ -18,6 +18,12 @@ const CORS_OPTIONS = {
 const DEFAULT_RATE_LIMIT_MAX = 12;
 const DEFAULT_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const WORLD_READ_URL_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60;
+const READ_OBJECT_ALLOWED_PREFIXES = Object.freeze([
+  "world/",
+  "avatars/",
+  "users/",
+  "profile/",
+]);
 const uploadRateBuckets = globalThis.__randomChoiceUploadRateBuckets || new Map();
 
 globalThis.__randomChoiceUploadRateBuckets = uploadRateBuckets;
@@ -100,7 +106,7 @@ async function authorizeReadRequest(request) {
   }
 }
 
-function normalizeWorldObjectName(value) {
+function normalizeReadObjectName(value) {
   const objectName = String(value || "").trim();
 
   if (!objectName || objectName.length > 500) {
@@ -113,14 +119,18 @@ function normalizeWorldObjectName(value) {
 
   const normalizedObjectName = objectName.replace(/^\/+/, "");
 
-  if (!normalizedObjectName.startsWith("world/") || normalizedObjectName.includes("..")) {
+  if (normalizedObjectName.includes("..")) {
+    return "";
+  }
+
+  if (!READ_OBJECT_ALLOWED_PREFIXES.some((prefix) => normalizedObjectName.startsWith(prefix))) {
     return "";
   }
 
   return normalizedObjectName;
 }
 
-function parseWorldObjectNameFromStorageUrl(value, bucketName) {
+function parseReadObjectNameFromStorageUrl(value, bucketName) {
   const rawUrl = String(value || "").trim();
 
   if (!rawUrl || rawUrl.length > 1600) {
@@ -141,14 +151,14 @@ function parseWorldObjectNameFromStorageUrl(value, bucketName) {
       return "";
     }
 
-    return normalizeWorldObjectName(decodedPath.slice(bucketPrefix.length));
+    return normalizeReadObjectName(decodedPath.slice(bucketPrefix.length));
   } catch {
     return "";
   }
 }
 
 function resolveReadObjectName(requestBody, bucketName) {
-  const directObjectName = normalizeWorldObjectName(requestBody.objectName || requestBody.filePath);
+  const directObjectName = normalizeReadObjectName(requestBody.objectName || requestBody.filePath);
 
   if (directObjectName) {
     return directObjectName;
@@ -160,7 +170,7 @@ function resolveReadObjectName(requestBody, bucketName) {
     requestBody.viewUrl,
     requestBody.publicUrl,
   ]
-    .map((value) => parseWorldObjectNameFromStorageUrl(value, bucketName))
+    .map((value) => parseReadObjectNameFromStorageUrl(value, bucketName))
     .find(Boolean);
 
   if (parsedObjectName) {

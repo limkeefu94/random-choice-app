@@ -60,38 +60,43 @@ const MODES = {
 const MODE_DISPLAY_ORDER = ["food", "shopping", "custom", "gift", "drink", "travel", "number"];
 const HOME_FEATURE_MODE_PREFIX = "mode:";
 const HOME_WORLD_FEATURE_ID = "world";
-const APP_ASSETS = Object.freeze({
-  modes: {
-    food: "./assets/modes/mode-food.png",
-    drink: "./assets/modes/mode-drink.png",
-    travel: "./assets/modes/mode-travel.png",
-    number: "./assets/modes/mode-number.png",
-    shopping: "./assets/modes/mode-shopping.png",
-    gift: "./assets/modes/mode-gift.png",
-    custom: "./assets/modes/mode-custom.png",
-    world: "./assets/modes/mode-world.png",
-  },
-  empty: {
-    favorites: "./assets/empty/empty-favorites.png",
-    history: "./assets/empty/empty-history.png",
-    notification: "./assets/empty/empty-notification.png",
-    options: "./assets/empty/empty-options.png",
-    world: "./assets/empty/empty-world.png",
-  },
-  gift: {
-    box: "./assets/gift/gift-box.png",
-    nameCard: "./assets/gift/name-card.png",
-  },
-  social: {
-    defaultAvatar: "./assets/social/default-avatar.png",
-    uploadImage: "./assets/social/upload-image.png",
-  },
-  ui: {
-    leafAccent: "./assets/ui/leaf-accent.png",
-    notificationBell: "./assets/ui/notification-bell.png",
-    wheelPointer: "./assets/ui/wheel-pointer.png",
-  },
-});
+const APP_THEME_REGISTRY = window.APP_THEMES || {};
+const APP_THEME_IDS = Object.freeze(Object.keys(APP_THEME_REGISTRY));
+const DEFAULT_APP_THEME_ID = APP_THEME_REGISTRY[window.APP_DEFAULT_THEME_ID]
+  ? window.APP_DEFAULT_THEME_ID
+  : APP_THEME_IDS[0] || "soft-png";
+let APP_ASSETS = Object.freeze(resolveThemeAssets(DEFAULT_APP_THEME_ID));
+
+function normalizeThemeId(themeId) {
+  return APP_THEME_REGISTRY[themeId] ? themeId : DEFAULT_APP_THEME_ID;
+}
+
+function getThemeDefinition(themeId = DEFAULT_APP_THEME_ID) {
+  return APP_THEME_REGISTRY[normalizeThemeId(themeId)] || APP_THEME_REGISTRY[DEFAULT_APP_THEME_ID] || {};
+}
+
+function resolveThemeAssets(themeId) {
+  return getThemeDefinition(themeId).assets || {};
+}
+
+function applyAppTheme(themeId = DEFAULT_APP_THEME_ID) {
+  const normalizedThemeId = normalizeThemeId(themeId);
+  const theme = getThemeDefinition(normalizedThemeId);
+
+  APP_ASSETS = Object.freeze(theme.assets || {});
+  document.documentElement.dataset.appTheme = normalizedThemeId;
+  Object.entries(theme.cssVars || {}).forEach(([property, value]) => {
+    document.documentElement.style.setProperty(property, value);
+  });
+
+  return normalizedThemeId;
+}
+
+function getThemeLabel(themeId) {
+  const theme = getThemeDefinition(themeId);
+
+  return t(theme.labelKey || `theme.${themeId}`, theme.label || themeId);
+}
 const FOOD_CATEGORIES = ["全部", "Mamak", "快餐连锁", "外卖平台热门", "油炸类", "素食类", "低卡类", "快餐", "嘴馋零嘴类", "高热量", "健康类"];
 const SPECIAL_FOOD_CATEGORIES = new Set(["Mamak", "快餐连锁", "外卖平台热门"]);
 const SPECIAL_REGION_KEYS = new Set(["全国 Mamak", "快餐连锁", "外卖平台热门"]);
@@ -1830,7 +1835,7 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.7.7";
+const APP_VERSION = "0.7.8";
 const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
 const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
 const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
@@ -1838,7 +1843,32 @@ const WORLD_IMAGE_VIEWER_MIN_SCALE = 1;
 const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const WORLD_SCROLL_BOTTOM_THRESHOLD = 140;
 const WORLD_IMAGE_REFRESH_MAX_ATTEMPTS = 1;
+const AVATAR_IMAGE_REFRESH_MAX_ATTEMPTS = 1;
+const AVATAR_IMAGE_ALLOWED_PREFIXES = Object.freeze([
+  "world/",
+  "avatars/",
+  "users/",
+  "profile/",
+]);
 const RELEASE_NOTES = [
+  {
+    version: "0.7.8",
+    title: "修复头像过期链接",
+    date: "2026-06-24",
+    summary: "这次修复用户头像 signed URL 过期后可能破图的问题。头像会优先保留稳定路径，过期时重新获取安全访问链接，失败时回到默认文字头像。",
+    userChanges: [
+      "顶部头像、我的主页头像和个人资料头像更稳定。",
+      "世界频道消息里的头像链接过期后会尝试自动恢复。",
+      "头像暂时无法显示时，会回到名字首字头像，不再长期显示破图。",
+      "默认文字头像和已上传头像显示逻辑保持一致。",
+    ],
+    technicalChanges: [
+      "Added safe avatar objectName/filePath compatibility fields.",
+      "Extended read signed URL refresh to approved avatar prefixes.",
+      "Added client-side avatar refresh and fallback handling.",
+      "Preserved existing auth, GCS upload, world channel, like, gift, and home layout flows.",
+    ],
+  },
   {
     version: "0.7.7",
     title: "世界频道消息编辑优化",
@@ -2350,6 +2380,7 @@ const state = {
   },
   language: "zh-CN",
   languageManuallySelected: false,
+  themeId: DEFAULT_APP_THEME_ID,
   currency: "MYR",
   food: {
     country: "马来西亚",
@@ -2503,6 +2534,9 @@ let activeWorldImageViewer = null;
 let pendingWorldImageRefreshes = new Map();
 let worldImageRefreshAttempts = new Map();
 let worldImageUrlOverrides = new Map();
+let pendingAvatarImageRefreshes = new Map();
+let avatarImageRefreshAttempts = new Map();
+let avatarImageUrlOverrides = new Map();
 let pendingWorldLikeIds = new Set();
 let worldLikeToggleGuards = new Map();
 let myWorldMessages = [];
@@ -2578,6 +2612,7 @@ function loadState() {
     state.worldOpen = Boolean(saved.worldOpen);
     state.languageManuallySelected = saved.languageManuallySelected === true;
     state.language = state.languageManuallySelected ? normalizeLanguage(saved.language) : "zh-CN";
+    state.themeId = normalizeThemeId(saved.themeId);
     state.currency = CURRENCY_RATES[saved.currency] ? saved.currency : state.currency;
     state.homeLayout = normalizeHomeLayout(saved.homeLayout);
     state.food = { ...state.food, ...saved.food };
@@ -2622,6 +2657,7 @@ function saveState() {
     worldOpen: state.worldOpen,
     language: state.language,
     languageManuallySelected: state.languageManuallySelected,
+    themeId: normalizeThemeId(state.themeId),
     currency: state.currency,
     homeLayout: normalizeHomeLayout(state.homeLayout),
     food: state.food,
@@ -3241,6 +3277,42 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function getButtonIconAsset(icon) {
+  const normalizedIcon = String(icon || "").trim();
+  const iconKeyMap = {
+    "×": "close",
+    "✕": "close",
+    "✖": "close",
+    "✎": "edit",
+    "🗑": "trash",
+    "🧹": "trash",
+    "⋯": "menu",
+    "…": "menu",
+    "⧉": "copy",
+    "№": "copy",
+    "↗": "share",
+    "☆": "confirm",
+    "★": "confirm",
+    "✓": "confirm",
+    "✔": "confirm",
+    "↻": "refresh",
+    "⟳": "refresh",
+  };
+  const iconKey = iconKeyMap[normalizedIcon];
+
+  return iconKey ? APP_ASSETS.ui.buttonIcons?.[iconKey] || "" : "";
+}
+
+function renderButtonIconContent(icon) {
+  const iconAsset = getButtonIconAsset(icon);
+
+  if (!iconAsset) {
+    return escapeHtml(icon || "•");
+  }
+
+  return renderAssetImage(iconAsset, "", "button-icon-image", 'aria-hidden="true" loading="lazy"');
+}
+
 function renderIconButton(options = {}) {
   const {
     id = "",
@@ -3256,6 +3328,7 @@ function renderIconButton(options = {}) {
     controls = "",
     textVisible = true,
   } = options;
+  const iconAsset = getButtonIconAsset(icon);
   const attributes = [
     id ? `id="${escapeHtml(id)}"` : "",
     `type="${escapeHtml(type)}"`,
@@ -3270,8 +3343,8 @@ function renderIconButton(options = {}) {
   ].filter(Boolean).join(" ");
 
   return `
-    <button class="icon-button${textVisible ? "" : " is-icon-only"}${className ? ` ${escapeHtml(className)}` : ""}" ${attributes}>
-      <span class="icon-button-symbol" aria-hidden="true">${escapeHtml(icon)}</span>
+    <button class="icon-button${iconAsset ? " has-button-icon" : ""}${textVisible ? "" : " is-icon-only"}${className ? ` ${escapeHtml(className)}` : ""}" ${attributes}>
+      <span class="icon-button-symbol" aria-hidden="true">${renderButtonIconContent(icon)}</span>
       <span class="icon-button-label">${escapeHtml(label)}</span>
     </button>
   `;
@@ -3283,12 +3356,14 @@ function setIconButtonContent(button, options = {}) {
   }
 
   const { icon = "•", label = "", textVisible = true } = options;
+  const iconAsset = getButtonIconAsset(icon);
   button.classList.add("icon-button");
+  button.classList.toggle("has-button-icon", Boolean(iconAsset));
   button.classList.toggle("is-icon-only", !textVisible);
   button.setAttribute("aria-label", label);
   button.dataset.tooltip = label;
   button.innerHTML = `
-    <span class="icon-button-symbol" aria-hidden="true">${escapeHtml(icon)}</span>
+    <span class="icon-button-symbol" aria-hidden="true">${renderButtonIconContent(icon)}</span>
     <span class="icon-button-label">${escapeHtml(label)}</span>
   `;
 }
@@ -3318,7 +3393,7 @@ function renderActionMenu(options = {}) {
             ${item.disabled ? "disabled" : ""}
             ${item.dataset || ""}
           >
-            <span aria-hidden="true">${escapeHtml(item.icon || "•")}</span>
+            <span class="inline-action-menu-icon" aria-hidden="true">${renderButtonIconContent(item.icon || "•")}</span>
             <strong>${escapeHtml(item.label || "")}</strong>
           </button>
         `).join("")}
@@ -3335,6 +3410,41 @@ function renderAssetImage(src, alt = "", className = "", attributes = "") {
   const classAttribute = className ? ` class="${escapeHtml(className)}"` : "";
   const extraAttributes = attributes ? ` ${attributes}` : "";
   return `<img${classAttribute} src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"${extraAttributes}>`;
+}
+
+function syncThemeAssetElements() {
+  const appIcon = APP_ASSETS.icons?.app;
+  const notificationBell = APP_ASSETS.ui?.notificationBell;
+  const worldModeIcon = APP_ASSETS.modes?.world;
+  const randomButtonIcon = APP_ASSETS.ui?.buttonIcons?.shuffle;
+
+  if (appIcon) {
+    const brandIcon = elements.appRefreshButton?.querySelector(".brand-mark img");
+    if (brandIcon) {
+      brandIcon.src = appIcon;
+    }
+  }
+
+  if (notificationBell) {
+    const notificationIcon = elements.notificationButton?.querySelector(".notification-icon img");
+    if (notificationIcon) {
+      notificationIcon.src = notificationBell;
+    }
+  }
+
+  if (worldModeIcon) {
+    const worldIcon = elements.worldChannelButton?.querySelector(".mode-icon-image");
+    if (worldIcon) {
+      worldIcon.src = worldModeIcon;
+    }
+  }
+
+  if (randomButtonIcon) {
+    const randomButtonImage = elements.randomButton?.querySelector(".primary-button-image");
+    if (randomButtonImage) {
+      randomButtonImage.src = randomButtonIcon;
+    }
+  }
 }
 
 function renderModeFeatureIcon(feature) {
@@ -3704,7 +3814,9 @@ function renderTopUserTools() {
       avatarUrl: getUserAvatarUrl(currentUser),
       name: getUserDisplayName(currentUser),
       className: "profile-avatar-image",
+      source: currentUser,
     });
+    bindAvatarImageFallbacks(elements.profileAvatarButton);
     elements.profileAvatarButton.setAttribute("aria-label", `我的主页：${getUserDisplayName(currentUser)}`);
     elements.profileAvatarButton.setAttribute("aria-expanded", String(isProfilePanelOpen));
   } else {
@@ -3847,6 +3959,7 @@ function renderMyProfilePanel(currentUser) {
             avatarUrl: getUserAvatarUrl(currentUser),
             name: getUserDisplayName(currentUser),
             className: "profile-preview-image",
+            source: currentUser,
           })}
         </span>
         <div class="my-profile-identity">
@@ -3877,6 +3990,7 @@ function renderMyProfilePanel(currentUser) {
 
   bindMyProfilePanelEvents();
   bindWorldAttachmentImageFallbacks(elements.profilePanel);
+  bindAvatarImageFallbacks(elements.profilePanel);
 }
 
 function renderProfileEditorPanel(currentUser) {
@@ -3903,6 +4017,7 @@ function renderProfileEditorPanel(currentUser) {
             avatarUrl: getUserAvatarUrl(currentUser),
             name: getUserDisplayName(currentUser),
             className: "profile-preview-image",
+            source: currentUser,
           })}
         </span>
         <div>
@@ -4165,6 +4280,19 @@ function renderMoreMenuPanel() {
           `).join("")}
         </select>
       </label>
+      ${APP_THEME_IDS.length ? `
+        <label class="more-menu-theme" for="themeSelect" hidden aria-hidden="true">
+          <span>
+            <strong>${escapeHtml(t("menu.theme", "主题"))}</strong>
+            <small>${escapeHtml(t("menu.theme.hiddenDesc", "隐藏入口，暂不展示"))}</small>
+          </span>
+          <select id="themeSelect" aria-label="${escapeHtml(t("menu.theme", "主题"))}" tabindex="-1">
+            ${APP_THEME_IDS.map((themeId) => `
+              <option value="${escapeHtml(themeId)}" ${themeId === state.themeId ? "selected" : ""}>${escapeHtml(getThemeLabel(themeId))}</option>
+            `).join("")}
+          </select>
+        </label>
+      ` : ""}
     </div>
   `;
 
@@ -4175,6 +4303,7 @@ function renderMoreMenuPanel() {
   document.querySelector("#menuFeedbackButton").addEventListener("click", openFeedbackPanel);
   document.querySelector("#menuSettingsButton").addEventListener("click", openSettingsPanel);
   document.querySelector("#languageSelect").addEventListener("change", (event) => changeLanguage(event.target.value));
+  document.querySelector("#themeSelect")?.addEventListener("change", (event) => changeTheme(event.target.value));
 }
 
 function getCurrentReleaseNote() {
@@ -5190,6 +5319,7 @@ function renderWorldControls() {
               avatarUrl: getUserAvatarUrl(currentUser),
               name: displayName,
               className: "world-avatar-image",
+              source: currentUser,
             })}
           </span>
           <div class="world-composer-copy">
@@ -5233,6 +5363,7 @@ function renderWorldControls() {
   document.querySelector("#worldMessageInput").addEventListener("input", updateWorldCharacterHint);
   document.querySelector("#worldImageInput").addEventListener("change", prepareWorldImage);
   document.querySelector("#clearWorldImageButton").addEventListener("click", () => clearPendingWorldImage());
+  bindAvatarImageFallbacks(elements.worldAuthPanel);
   updateWorldCharacterHint();
   updatePendingImagePreview();
 }
@@ -6411,6 +6542,7 @@ function renderWorldChannel(options = {}) {
                   avatarUrl: getMessageAvatarUrl(message),
                   name: message.user,
                   className: "world-avatar-image",
+                  source: message,
                 })}
               </span>
               <div class="world-message-main">
@@ -6436,6 +6568,7 @@ function renderWorldChannel(options = {}) {
     </div>
   `;
   bindWorldAttachmentImageFallbacks(elements.worldChatList);
+  bindAvatarImageFallbacks(elements.worldChatList);
   if (shouldScrollWorldToBottomAfterRender) {
     window.requestAnimationFrame(() => {
       scrollWorldChatToBottom();
@@ -7619,6 +7752,11 @@ function normalizeAccountUser(user = {}) {
     displayName,
     avatar: normalizeAvatar("", displayName),
     avatarUrl: user.avatarUrl || "",
+    avatarObjectName: user.avatarObjectName || "",
+    avatarFilePath: user.avatarFilePath || "",
+    avatarPath: user.avatarPath || "",
+    avatarStoragePath: user.avatarStoragePath || "",
+    avatarPublicUrl: user.avatarPublicUrl || "",
     settings,
     privacy: normalizePrivacySettings(user.privacy),
     worldPreferences: normalizeWorldPreferenceSettings(user.worldPreferences),
@@ -7804,19 +7942,283 @@ function getUserAvatar(user) {
 }
 
 function getUserAvatarUrl(user) {
-  return String(user?.avatarUrl || "").trim();
+  return getAvatarImageUrl(user);
 }
 
-function renderAvatarContent({ avatar, avatarUrl, name, className = "" }) {
-  if (avatarUrl) {
-    return `<img class="${className}" src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(name || "头像")}" loading="lazy" />`;
+function normalizeAvatarObjectNameClient(value) {
+  const objectName = String(value || "").trim().replace(/^\/+/, "");
+
+  if (!objectName || objectName.length > 500) {
+    return "";
   }
 
-  return escapeHtml(normalizeAvatar(avatar, name));
+  if (/^https?:\/\//i.test(objectName) || objectName.includes("\\") || objectName.includes("\0") || objectName.includes("..")) {
+    return "";
+  }
+
+  if (!AVATAR_IMAGE_ALLOWED_PREFIXES.some((prefix) => objectName.startsWith(prefix))) {
+    return "";
+  }
+
+  return objectName;
+}
+
+function parseAvatarObjectNameFromStorageUrl(value) {
+  const rawUrl = String(value || "").trim();
+
+  if (!rawUrl || rawUrl.length > 1600) {
+    return "";
+  }
+
+  try {
+    const parsedUrl = new URL(rawUrl);
+
+    if (parsedUrl.protocol !== "https:" || parsedUrl.hostname !== "storage.googleapis.com") {
+      return "";
+    }
+
+    const pathParts = decodeURIComponent(parsedUrl.pathname || "")
+      .split("/")
+      .filter(Boolean);
+
+    if (pathParts.length < 2) {
+      return "";
+    }
+
+    return normalizeAvatarObjectNameClient(pathParts.slice(1).join("/"));
+  } catch {
+    return "";
+  }
+}
+
+function getAvatarImageObjectName(source = {}) {
+  const directObjectName = [
+    source.avatarObjectName,
+    source.avatarFilePath,
+    source.avatarPath,
+    source.avatarStoragePath,
+    source.objectName,
+    source.filePath,
+  ]
+    .map(normalizeAvatarObjectNameClient)
+    .find(Boolean);
+
+  if (directObjectName) {
+    return directObjectName;
+  }
+
+  return [
+    source.avatarUrl,
+    source.avatarPublicUrl,
+    source.publicUrl,
+    source.url,
+  ]
+    .map(parseAvatarObjectNameFromStorageUrl)
+    .find(Boolean) || "";
+}
+
+function getAvatarImageSourceId(source = {}) {
+  return String(source.id || source.accountId || source.userId || source.username || source.messageId || "").trim();
+}
+
+function getAvatarImageRefreshKey(source = {}) {
+  return String(getAvatarImageObjectName(source) || getAvatarImageSourceId(source) || source.avatarUrl || source.avatarPublicUrl || "");
+}
+
+function getAvatarImageUrl(source = {}, options = {}) {
+  const { ignoreOverrides = false } = options;
+  const objectName = getAvatarImageObjectName(source);
+  const refreshKey = getAvatarImageRefreshKey(source);
+
+  if (!ignoreOverrides) {
+    const override = avatarImageUrlOverrides.get(objectName) || avatarImageUrlOverrides.get(refreshKey);
+
+    if (override?.url) {
+      return override.url;
+    }
+  }
+
+  return String(source?.avatarUrl || source?.avatarPublicUrl || "").trim();
+}
+
+function renderAvatarContent({ avatar, avatarUrl, name, className = "", source = null }) {
+  const avatarSource = {
+    ...(source && typeof source === "object" ? source : {}),
+    avatarUrl: avatarUrl || source?.avatarUrl || "",
+  };
+  const imageUrl = getAvatarImageUrl(avatarSource);
+  const objectName = getAvatarImageObjectName(avatarSource);
+  const sourceId = getAvatarImageSourceId(avatarSource);
+  const fallbackText = normalizeAvatar(avatar, name);
+
+  if (imageUrl) {
+    return `<img class="${className}" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(name || t("account.avatarAlt", "头像"))}" loading="lazy" data-avatar-image data-avatar-source-id="${escapeHtml(sourceId)}" data-avatar-object-name="${escapeHtml(objectName)}" data-avatar-url="${escapeHtml(getAvatarImageUrl(avatarSource, { ignoreOverrides: true }))}" data-avatar-name="${escapeHtml(name || "")}" data-avatar-fallback="${escapeHtml(fallbackText)}" />`;
+  }
+
+  return escapeHtml(fallbackText);
 }
 
 function getMessageAvatarUrl(message) {
-  return String(message.avatarUrl || "").trim();
+  return getAvatarImageUrl(message);
+}
+
+function updateAvatarImageUrl(source = {}, payload = {}) {
+  const viewUrl = String(payload.viewUrl || payload.url || "").trim();
+  const objectName = normalizeAvatarObjectNameClient(payload.objectName || payload.filePath || getAvatarImageObjectName(source));
+  const refreshKey = getAvatarImageRefreshKey(source);
+
+  if (!viewUrl) {
+    return;
+  }
+
+  const override = {
+    url: viewUrl,
+    objectName,
+  };
+
+  if (objectName) {
+    avatarImageUrlOverrides.set(objectName, override);
+  }
+
+  if (refreshKey) {
+    avatarImageUrlOverrides.set(refreshKey, override);
+  }
+
+  const matchesSource = (item) => {
+    if (!item) {
+      return false;
+    }
+
+    const itemObjectName = getAvatarImageObjectName(item);
+
+    if (objectName && itemObjectName && objectName === itemObjectName) {
+      return true;
+    }
+
+    const sourceId = getAvatarImageSourceId(source);
+    const itemId = getAvatarImageSourceId(item);
+
+    return Boolean(sourceId && itemId && sourceId === itemId);
+  };
+
+  const applyAvatarUpdate = (item) => matchesSource(item)
+    ? {
+      ...item,
+      avatarUrl: viewUrl,
+      avatarObjectName: objectName || item.avatarObjectName || item.avatarFilePath || "",
+      avatarFilePath: objectName || item.avatarFilePath || item.avatarObjectName || "",
+    }
+    : item;
+
+  state.users = state.users.map(applyAvatarUpdate);
+  state.worldMessages = state.worldMessages.map(applyAvatarUpdate);
+  myWorldMessages = myWorldMessages.map(applyAvatarUpdate);
+}
+
+async function refreshAvatarImageUrl(source = {}) {
+  const objectName = getAvatarImageObjectName(source);
+  const sourceUrl = getAvatarImageUrl(source, { ignoreOverrides: true });
+  const refreshKey = getAvatarImageRefreshKey(source);
+
+  if (!refreshKey) {
+    throw new Error(t("account.avatarRefreshFailed", "头像暂时无法显示"));
+  }
+
+  if (pendingAvatarImageRefreshes.has(refreshKey)) {
+    return pendingAvatarImageRefreshes.get(refreshKey);
+  }
+
+  const attempts = avatarImageRefreshAttempts.get(refreshKey) || 0;
+
+  if (attempts >= AVATAR_IMAGE_REFRESH_MAX_ATTEMPTS) {
+    throw new Error(t("account.avatarRefreshFailed", "头像暂时无法显示"));
+  }
+
+  avatarImageRefreshAttempts.set(refreshKey, attempts + 1);
+  const refreshPromise = fetch("/api/gcs-signed-url", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      action: "read",
+      objectName,
+      filePath: objectName,
+      sourceUrl: objectName ? "" : sourceUrl,
+    }),
+  })
+    .then(readJsonResponseWithResponse)
+    .then(({ response, payload }) => {
+      if (!response.ok || !payload.ok || !(payload.viewUrl || payload.url)) {
+        throw new Error(payload.error || payload.detail || t("account.avatarRefreshFailed", "头像暂时无法显示"));
+      }
+
+      updateAvatarImageUrl(source, payload);
+      saveState();
+      return payload;
+    })
+    .finally(() => {
+      pendingAvatarImageRefreshes.delete(refreshKey);
+    });
+
+  pendingAvatarImageRefreshes.set(refreshKey, refreshPromise);
+  return refreshPromise;
+}
+
+function showAvatarFallback(image) {
+  const fallbackText = normalizeAvatar(image?.dataset?.avatarFallback || "", image?.dataset?.avatarName || "");
+  const avatarShell = image?.closest(".world-avatar, .profile-avatar-button, .profile-preview-avatar, .my-profile-avatar");
+
+  if (avatarShell) {
+    avatarShell.textContent = fallbackText;
+    avatarShell.setAttribute("title", t("account.avatarRefreshFailed", "头像暂时无法显示"));
+  }
+}
+
+function syncAvatarImageElement(image, payload = {}) {
+  const viewUrl = String(payload.viewUrl || payload.url || "").trim();
+
+  if (!image || !viewUrl) {
+    return;
+  }
+
+  image.hidden = false;
+  image.dataset.avatarUrl = viewUrl;
+  image.src = viewUrl;
+}
+
+async function handleAvatarImageError(image) {
+  if (!image || image.dataset.avatarRefreshFailed === "true") {
+    showAvatarFallback(image);
+    return;
+  }
+
+  image.hidden = true;
+  const source = {
+    id: image.dataset.avatarSourceId || "",
+    avatarUrl: image.dataset.avatarUrl || image.currentSrc || image.src || "",
+    avatarObjectName: image.dataset.avatarObjectName || "",
+  };
+
+  try {
+    const payload = await refreshAvatarImageUrl(source);
+    syncAvatarImageElement(image, payload);
+  } catch {
+    image.dataset.avatarRefreshFailed = "true";
+    showAvatarFallback(image);
+  }
+}
+
+function bindAvatarImageFallbacks(root = document) {
+  root.querySelectorAll("[data-avatar-image]").forEach((image) => {
+    if (image.dataset.avatarFallbackBound === "true") {
+      return;
+    }
+
+    image.dataset.avatarFallbackBound = "true";
+    image.addEventListener("error", () => handleAvatarImageError(image));
+  });
 }
 
 function isDefaultWorldImageCaption(text) {
@@ -9363,7 +9765,9 @@ function updateProfilePreview() {
       avatarUrl,
       name: displayName,
       className: "profile-preview-image",
+      source: pendingProfileAvatarImage ? { avatarUrl } : currentUser,
     });
+    bindAvatarImageFallbacks(avatarPreview);
   }
 
   if (namePreview) {
@@ -9458,6 +9862,9 @@ async function saveProfileChanges() {
 
   const oldNames = new Set([currentUser.username, currentUser.displayName].filter(Boolean));
   let avatarUrl = shouldRemoveProfileAvatarImage ? "" : getUserAvatarUrl(currentUser);
+  let avatarObjectName = shouldRemoveProfileAvatarImage ? "" : getAvatarImageObjectName(currentUser);
+  let avatarFilePath = shouldRemoveProfileAvatarImage ? "" : avatarObjectName;
+  let avatarPublicUrl = shouldRemoveProfileAvatarImage ? "" : (currentUser.avatarPublicUrl || "");
 
   if (pendingProfileAvatarImage) {
     try {
@@ -9465,6 +9872,9 @@ async function saveProfileChanges() {
       const upload = await uploadImageThroughServer(pendingProfileAvatarImage.file);
       rememberUpload(upload, pendingProfileAvatarImage.file);
       avatarUrl = upload.url || upload.publicUrl || avatarUrl;
+      avatarObjectName = upload.objectName || upload.filePath || "";
+      avatarFilePath = upload.filePath || upload.objectName || "";
+      avatarPublicUrl = upload.publicUrl || "";
     } catch (error) {
       console.warn("Profile avatar upload failed.", error);
       reportClientError(error, {
@@ -9484,6 +9894,9 @@ async function saveProfileChanges() {
     const payload = await authRequest("update-profile", {
       displayName,
       avatarUrl,
+      avatarObjectName,
+      avatarFilePath,
+      avatarPublicUrl,
       currentPassword,
       newPassword,
       confirmPassword,
@@ -9508,6 +9921,11 @@ async function saveProfileChanges() {
       user: getUserDisplayName(updatedUser),
       avatar: getUserAvatar(updatedUser),
       avatarUrl: getUserAvatarUrl(updatedUser),
+      avatarObjectName: updatedUser.avatarObjectName || "",
+      avatarFilePath: updatedUser.avatarFilePath || updatedUser.avatarObjectName || "",
+      avatarPath: updatedUser.avatarPath || "",
+      avatarStoragePath: updatedUser.avatarStoragePath || "",
+      avatarPublicUrl: updatedUser.avatarPublicUrl || "",
     };
   });
   myWorldMessages = myWorldMessages.map((message) => {
@@ -9520,6 +9938,11 @@ async function saveProfileChanges() {
       user: getUserDisplayName(updatedUser),
       avatar: getUserAvatar(updatedUser),
       avatarUrl: getUserAvatarUrl(updatedUser),
+      avatarObjectName: updatedUser.avatarObjectName || "",
+      avatarFilePath: updatedUser.avatarFilePath || updatedUser.avatarObjectName || "",
+      avatarPath: updatedUser.avatarPath || "",
+      avatarStoragePath: updatedUser.avatarStoragePath || "",
+      avatarPublicUrl: updatedUser.avatarPublicUrl || "",
     };
   });
 
@@ -9675,6 +10098,11 @@ function normalizeWorldMessage(message) {
     user: message.user || "游客",
     avatar: normalizeAvatar(message.avatar, message.user),
     avatarUrl: message.avatarUrl || "",
+    avatarObjectName: message.avatarObjectName || "",
+    avatarFilePath: message.avatarFilePath || "",
+    avatarPath: message.avatarPath || "",
+    avatarStoragePath: message.avatarStoragePath || "",
+    avatarPublicUrl: message.avatarPublicUrl || "",
     text: message.text || "",
     attachment: normalizeWorldMessageAttachment(normalizedMessage),
     createdAt,
@@ -12100,6 +12528,19 @@ function changeLanguage(language) {
   showToast(`${t("menu.language", "语言")}：${LANGUAGE_LABELS[nextLanguage]}`);
 }
 
+function changeTheme(themeId) {
+  const nextThemeId = normalizeThemeId(themeId);
+
+  if (state.themeId === nextThemeId) {
+    return;
+  }
+
+  state.themeId = applyAppTheme(nextThemeId);
+  saveState();
+  syncThemeAssetElements();
+  render();
+}
+
 function showToast(message) {
   window.clearTimeout(toastTimer);
   elements.toast.textContent = message;
@@ -12166,6 +12607,8 @@ document.addEventListener("keydown", handleGlobalKeydown);
 
 installClientErrorHandlers();
 loadState();
+state.themeId = applyAppTheme(state.themeId);
+syncThemeAssetElements();
 formatDateLabel();
 renderDailyInspiration();
 render();

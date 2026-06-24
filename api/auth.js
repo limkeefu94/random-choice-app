@@ -217,12 +217,27 @@ async function updateProfile(request, response) {
   const displayName = cleanDisplayName(body.displayName, account.username);
   const hasAvatarUrl = Object.prototype.hasOwnProperty.call(body, "avatarUrl");
   const avatarUrl = cleanText(hasAvatarUrl ? body.avatarUrl : account.avatarUrl, 1200);
+  const hasAvatarObjectName = Object.prototype.hasOwnProperty.call(body, "avatarObjectName")
+    || Object.prototype.hasOwnProperty.call(body, "avatarFilePath");
+  const avatarObjectName = cleanText(
+    hasAvatarObjectName ? (body.avatarObjectName || body.avatarFilePath) : account.avatarObjectName,
+    500,
+  );
+  const avatarFilePath = cleanText(
+    hasAvatarObjectName ? (body.avatarFilePath || body.avatarObjectName) : account.avatarFilePath,
+    500,
+  );
+  const hasAvatarPublicUrl = Object.prototype.hasOwnProperty.call(body, "avatarPublicUrl");
+  const avatarPublicUrl = cleanText(hasAvatarPublicUrl ? body.avatarPublicUrl : account.avatarPublicUrl, 1200);
   const currentPassword = String(body.currentPassword || "");
   const newPassword = String(body.newPassword || "");
   const confirmPassword = String(body.confirmPassword || "");
   const update = {
     displayName,
     avatarUrl,
+    avatarObjectName,
+    avatarFilePath,
+    avatarPublicUrl,
     updatedAt: new Date().toISOString(),
   };
 
