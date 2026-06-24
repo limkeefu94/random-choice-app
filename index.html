@@ -43,8 +43,11 @@
             <small id="notificationBadge" hidden>0</small>
           </button>
           <button class="profile-avatar-button" id="profileAvatarButton" type="button" aria-expanded="false" aria-controls="profilePanel" aria-label="编辑个人资料" hidden></button>
-          <button class="more-menu-button" id="moreMenuButton" type="button" aria-expanded="false" aria-controls="moreMenuPanel" aria-label="打开更多菜单">
-            <span aria-hidden="true">⋯</span>
+          <button class="more-menu-button has-png-icon" id="moreMenuButton" type="button" aria-expanded="false" aria-controls="moreMenuPanel" aria-label="打开更多菜单">
+            <span class="button-png-stack" aria-hidden="true">
+              <span class="button-png-fallback">⋯</span>
+              <img class="button-png-icon" src="./assets/ui/button-icons/menu.png" alt="" loading="lazy" onload="this.previousElementSibling.hidden=true" onerror="this.hidden=true" />
+            </span>
             <strong>更多</strong>
           </button>
         </div>

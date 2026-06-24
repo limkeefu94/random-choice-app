@@ -375,6 +375,69 @@ button {
   line-height: 1;
 }
 
+.button-png-stack {
+  position: relative;
+  display: inline-grid;
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  line-height: 1;
+}
+
+.button-png-fallback,
+.button-png-icon {
+  grid-area: 1 / 1;
+}
+
+.button-png-fallback {
+  color: currentColor;
+  font-size: 0.96rem;
+  font-weight: 900;
+}
+
+.button-png-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.button-png-icon[hidden],
+.button-png-fallback[hidden] {
+  display: none;
+}
+
+.has-png-icon {
+  align-items: center;
+}
+
+.icon-button.has-png-icon .icon-button-symbol,
+.inline-action-menu-icon {
+  display: inline-grid;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+}
+
+.primary-button.has-png-icon,
+.secondary-button.has-png-icon,
+.ghost-button.has-png-icon,
+.compact-primary.has-png-icon,
+.compact-ghost.has-png-icon,
+.more-menu-button.has-png-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.button-label-text {
+  min-width: 0;
+}
+
 .icon-button-label {
   min-width: 0;
 }
@@ -3403,6 +3466,18 @@ body.is-home-layout-dragging * {
     background 180ms ease;
 }
 
+.more-menu-item.has-png-icon {
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.more-menu-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
 .more-menu-item:hover:not(:disabled) {
   transform: translateY(-1px);
   border-color: rgba(255, 122, 61, 0.24);
@@ -4806,6 +4881,19 @@ body.is-home-layout-dragging * {
 
   .more-menu-button strong {
     font-size: 0.8rem;
+  }
+
+  .button-png-stack {
+    width: 20px;
+    min-width: 20px;
+    height: 20px;
+  }
+
+  .icon-button.has-png-icon .icon-button-symbol,
+  .inline-action-menu-icon {
+    width: 22px;
+    min-width: 22px;
+    height: 22px;
   }
 
   .notification-button,

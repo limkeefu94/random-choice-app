@@ -90,6 +90,21 @@ const APP_ASSETS = Object.freeze({
     leafAccent: "./assets/ui/leaf-accent.png",
     notificationBell: "./assets/ui/notification-bell.png",
     wheelPointer: "./assets/ui/wheel-pointer.png",
+    buttonIcons: {
+      cancel: "./assets/ui/button-icons/cancel.png",
+      close: "./assets/ui/button-icons/close.png",
+      confirm: "./assets/ui/button-icons/confirm.png",
+      copy: "./assets/ui/button-icons/copy.png",
+      edit: "./assets/ui/button-icons/edit.png",
+      hide: "./assets/ui/button-icons/hide.png",
+      menu: "./assets/ui/button-icons/menu.png",
+      recover: "./assets/ui/button-icons/recover.png",
+      refresh: "./assets/ui/button-icons/refresh.png",
+      share: "./assets/ui/button-icons/share.png",
+      shuffle: "./assets/ui/button-icons/shuffle.png",
+      tools: "./assets/ui/button-icons/tools.png",
+      trash: "./assets/ui/button-icons/trash.png",
+    },
   },
 });
 const FOOD_CATEGORIES = ["全部", "Mamak", "快餐连锁", "外卖平台热门", "油炸类", "素食类", "低卡类", "快餐", "嘴馋零嘴类", "高热量", "健康类"];
@@ -1830,7 +1845,7 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.7.7";
+const APP_VERSION = "0.7.8";
 const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
 const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
 const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
@@ -1839,6 +1854,26 @@ const WORLD_IMAGE_VIEWER_MAX_SCALE = 4;
 const WORLD_SCROLL_BOTTOM_THRESHOLD = 140;
 const WORLD_IMAGE_REFRESH_MAX_ATTEMPTS = 1;
 const RELEASE_NOTES = [
+  {
+    version: "0.7.8",
+    title: "按钮 PNG 图标接入",
+    date: "2026-06-24",
+    summary: "这次把更多、编辑、完成、设置和刷新等常用按钮接入新的 PNG 图标，让操作入口更统一。",
+    userChanges: [
+      "更多按钮换成新的 PNG 图标。",
+      "编辑首页和完成编辑按钮换成更清楚的图标。",
+      "编辑资料、设置和刷新入口显示新的按钮图标。",
+      "手机端保留文字，避免只看图标不容易理解。",
+      "图标加载失败时会回到原本文字或符号。",
+    ],
+    technicalChanges: [
+      "Added app-ready PNG action icon assets.",
+      "Extended shared icon button rendering with PNG icon fallback.",
+      "Mapped more, edit, confirm, settings, and refresh actions to PNG assets.",
+      "Preserved aria labels, tooltips, and existing button click behavior.",
+      "Kept auth, GCS, world channel, likes, gift exchange, home layout data, and image viewer logic unchanged.",
+    ],
+  },
   {
     version: "0.7.7",
     title: "世界频道消息编辑优化",
@@ -3241,10 +3276,104 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function getButtonPngIconSrc(iconName) {
+  const iconKey = String(iconName || "").trim();
+
+  return iconKey ? APP_ASSETS.ui.buttonIcons?.[iconKey] || "" : "";
+}
+
+function getButtonIconNameFromSymbol(icon) {
+  const normalizedIcon = String(icon || "").trim();
+  const iconKeyMap = {
+    "×": "close",
+    "✕": "close",
+    "✖": "close",
+    "✎": "edit",
+    "🗑": "trash",
+    "🧹": "trash",
+    "⋯": "menu",
+    "…": "menu",
+    "⧉": "copy",
+    "№": "copy",
+    "↗": "share",
+    "☆": "confirm",
+    "★": "confirm",
+    "✓": "confirm",
+    "✔": "confirm",
+    "↻": "refresh",
+    "⟳": "refresh",
+  };
+
+  return iconKeyMap[normalizedIcon] || "";
+}
+
+function renderButtonPngIcon(iconName, fallbackIcon = "") {
+  const iconSrc = getButtonPngIconSrc(iconName);
+  const fallbackMarkup = `<span class="button-png-fallback">${escapeHtml(fallbackIcon || "•")}</span>`;
+
+  if (!iconSrc) {
+    return `<span class="button-png-stack is-fallback-only" aria-hidden="true">${fallbackMarkup}</span>`;
+  }
+
+  return `
+    <span class="button-png-stack" aria-hidden="true">
+      ${fallbackMarkup}
+      <img class="button-png-icon" src="${escapeHtml(iconSrc)}" alt="" loading="lazy" onload="this.previousElementSibling.hidden=true" onerror="this.hidden=true" />
+    </span>
+  `;
+}
+
+function renderButtonLabelContent(label, iconName, fallbackIcon = "") {
+  return `
+    ${renderButtonPngIcon(iconName, fallbackIcon)}
+    <span class="button-label-text">${escapeHtml(label || "")}</span>
+  `;
+}
+
+function setLabeledButtonContent(button, options = {}) {
+  if (!button) {
+    return;
+  }
+
+  const { label = "", iconName = "", fallbackIcon = "", tooltip = label } = options;
+  button.classList.toggle("has-png-icon", Boolean(iconName));
+  button.setAttribute("aria-label", label);
+
+  if (tooltip) {
+    button.dataset.tooltip = tooltip;
+    button.title = tooltip;
+  }
+
+  button.innerHTML = renderButtonLabelContent(label, iconName, fallbackIcon);
+}
+
+function setMoreMenuButtonContent(label) {
+  if (!elements.moreMenuButton) {
+    return;
+  }
+
+  elements.moreMenuButton.classList.add("has-png-icon");
+  elements.moreMenuButton.setAttribute("aria-label", label);
+  elements.moreMenuButton.dataset.tooltip = label;
+  elements.moreMenuButton.title = label;
+  elements.moreMenuButton.innerHTML = `
+    ${renderButtonPngIcon("menu", "⋯")}
+    <strong>${escapeHtml(label)}</strong>
+  `;
+  elements.moreMenuButtonLabel = elements.moreMenuButton.querySelector("strong");
+}
+
+function renderIconButtonSymbol(icon, imageIcon = "") {
+  const iconName = imageIcon || getButtonIconNameFromSymbol(icon);
+
+  return iconName ? renderButtonPngIcon(iconName, icon) : escapeHtml(icon || "•");
+}
+
 function renderIconButton(options = {}) {
   const {
     id = "",
     icon = "•",
+    imageIcon = "",
     label = "",
     className = "",
     dataset = "",
@@ -3256,6 +3385,7 @@ function renderIconButton(options = {}) {
     controls = "",
     textVisible = true,
   } = options;
+  const iconName = imageIcon || getButtonIconNameFromSymbol(icon);
   const attributes = [
     id ? `id="${escapeHtml(id)}"` : "",
     `type="${escapeHtml(type)}"`,
@@ -3270,8 +3400,8 @@ function renderIconButton(options = {}) {
   ].filter(Boolean).join(" ");
 
   return `
-    <button class="icon-button${textVisible ? "" : " is-icon-only"}${className ? ` ${escapeHtml(className)}` : ""}" ${attributes}>
-      <span class="icon-button-symbol" aria-hidden="true">${escapeHtml(icon)}</span>
+    <button class="icon-button${iconName ? " has-png-icon" : ""}${textVisible ? "" : " is-icon-only"}${className ? ` ${escapeHtml(className)}` : ""}" ${attributes}>
+      <span class="icon-button-symbol" aria-hidden="true">${renderIconButtonSymbol(icon, imageIcon)}</span>
       <span class="icon-button-label">${escapeHtml(label)}</span>
     </button>
   `;
@@ -3282,13 +3412,15 @@ function setIconButtonContent(button, options = {}) {
     return;
   }
 
-  const { icon = "•", label = "", textVisible = true } = options;
+  const { icon = "•", imageIcon = "", label = "", textVisible = true } = options;
+  const iconName = imageIcon || getButtonIconNameFromSymbol(icon);
   button.classList.add("icon-button");
+  button.classList.toggle("has-png-icon", Boolean(iconName));
   button.classList.toggle("is-icon-only", !textVisible);
   button.setAttribute("aria-label", label);
   button.dataset.tooltip = label;
   button.innerHTML = `
-    <span class="icon-button-symbol" aria-hidden="true">${escapeHtml(icon)}</span>
+    <span class="icon-button-symbol" aria-hidden="true">${renderIconButtonSymbol(icon, imageIcon)}</span>
     <span class="icon-button-label">${escapeHtml(label)}</span>
   `;
 }
@@ -3318,7 +3450,7 @@ function renderActionMenu(options = {}) {
             ${item.disabled ? "disabled" : ""}
             ${item.dataset || ""}
           >
-            <span aria-hidden="true">${escapeHtml(item.icon || "•")}</span>
+            <span class="inline-action-menu-icon" aria-hidden="true">${renderIconButtonSymbol(item.icon || "•", item.imageIcon || "")}</span>
             <strong>${escapeHtml(item.label || "")}</strong>
           </button>
         `).join("")}
@@ -3440,8 +3572,7 @@ function applyStaticTranslations() {
   elements.currencyLabel.textContent = t("top.currency", "货币");
   elements.notificationButton.setAttribute("aria-label", t("top.notification", "通知"));
   elements.profileAvatarButton.setAttribute("aria-label", t("top.profile", "个人资料"));
-  elements.moreMenuButton.setAttribute("aria-label", t("top.more", "更多"));
-  elements.moreMenuButtonLabel.textContent = t("top.more", "更多");
+  setMoreMenuButtonContent(t("top.more", "更多"));
   elements.randomButtonLabel.textContent = resultText("randomPick", "随机一下");
   setIconButtonContent(elements.favoriteButton, {
     icon: "☆",
@@ -3583,7 +3714,11 @@ function renderModes() {
   elements.sidebar.classList.toggle("is-home-editing", isHomeLayoutEditing);
 
   if (elements.homeLayoutEditButton) {
-    elements.homeLayoutEditButton.textContent = isHomeLayoutEditing ? commonText("done", "完成") : homeText("editHome", "编辑首页");
+    setLabeledButtonContent(elements.homeLayoutEditButton, {
+      iconName: isHomeLayoutEditing ? "confirm" : "edit",
+      fallbackIcon: isHomeLayoutEditing ? "✓" : "✎",
+      label: isHomeLayoutEditing ? commonText("done", "完成") : homeText("editHome", "编辑首页"),
+    });
     elements.homeLayoutEditButton.setAttribute("aria-pressed", String(isHomeLayoutEditing));
   }
 
@@ -3824,6 +3959,9 @@ function renderProfilePanel() {
 function renderMyProfilePanel(currentUser) {
   const messages = getMyProfileMessages(currentUser);
   const feedMarkup = renderMyProfileFeed(messages);
+  const editProfileLabel = settingsText("editProfile", "编辑资料");
+  const settingsLabel = t("menu.settings", "设置");
+  const refreshLabel = isMyWorldMessagesLoading ? commonText("loading", "加载中") : commonText("refresh", "刷新");
 
   elements.profilePanel.innerHTML = `
     <div class="my-profile-page">
@@ -3855,8 +3993,12 @@ function renderMyProfilePanel(currentUser) {
         </div>
       </section>
       <div class="my-profile-actions">
-        <button class="primary-button compact-primary" id="myProfileEditButton" type="button">编辑资料</button>
-        <button class="secondary-button" id="myProfileSettingsButton" type="button">设置</button>
+        <button class="primary-button compact-primary has-png-icon" id="myProfileEditButton" type="button" aria-label="${escapeHtml(editProfileLabel)}" data-tooltip="${escapeHtml(editProfileLabel)}">
+          ${renderButtonLabelContent(editProfileLabel, "edit", "✎")}
+        </button>
+        <button class="secondary-button has-png-icon" id="myProfileSettingsButton" type="button" aria-label="${escapeHtml(settingsLabel)}" data-tooltip="${escapeHtml(settingsLabel)}">
+          ${renderButtonLabelContent(settingsLabel, "tools", "⚙")}
+        </button>
       </div>
       <section class="my-profile-feed">
         <div class="my-profile-feed-heading">
@@ -3864,8 +4006,8 @@ function renderMyProfilePanel(currentUser) {
             <strong>我的世界频道内容</strong>
             <small>最近 20 条文字和图片</small>
           </div>
-          <button class="ghost-button compact-ghost" id="myProfileRefreshButton" type="button" ${isMyWorldMessagesLoading ? "disabled" : ""}>
-            ${isMyWorldMessagesLoading ? "更新中…" : "刷新"}
+          <button class="ghost-button compact-ghost has-png-icon" id="myProfileRefreshButton" type="button" aria-label="${escapeHtml(refreshLabel)}" data-tooltip="${escapeHtml(refreshLabel)}" ${isMyWorldMessagesLoading ? "disabled" : ""}>
+            ${renderButtonLabelContent(refreshLabel, "refresh", "↻")}
           </button>
         </div>
         ${myWorldMessagesError ? `<p class="my-profile-error">${escapeHtml(myWorldMessagesError)}</p>` : ""}
@@ -4150,9 +4292,12 @@ function renderMoreMenuPanel() {
         <strong>${escapeHtml(settingsText("feedback", "反馈问题"))}</strong>
         <small>${escapeHtml(t("settings.feedbackDescription", "提交 Bug、建议或内容错误"))}</small>
       </button>
-      <button class="more-menu-item" id="menuSettingsButton" type="button" role="menuitem">
-        <strong>${escapeHtml(t("menu.settings", "设置"))}</strong>
-        <small>${escapeHtml(t("settings.menuDescription", "账号、隐私、偏好和应用信息"))}</small>
+      <button class="more-menu-item has-png-icon" id="menuSettingsButton" type="button" role="menuitem">
+        ${renderButtonPngIcon("tools", "⚙")}
+        <span class="more-menu-copy">
+          <strong>${escapeHtml(t("menu.settings", "设置"))}</strong>
+          <small>${escapeHtml(t("settings.menuDescription", "账号、隐私、偏好和应用信息"))}</small>
+        </span>
       </button>
       <label class="more-menu-language" for="languageSelect">
         <span>
@@ -4241,8 +4386,8 @@ function renderHomeLayoutSettingsSection() {
       <div class="home-layout-settings-summary">
         <p>${escapeHtml(settingsText("homeLayoutSummary", "当前有 {count} 个隐藏功能。隐藏只是本机显示偏好，不会删除世界频道消息、历史记录或云端资料。", { count: hiddenCount }))}</p>
         <div class="settings-action-grid settings-utility-actions">
-          <button class="secondary-button" id="settingsHomeEditButton" type="button">${escapeHtml(settingsText("goEditHome", "去首页编辑"))}</button>
-          <button class="secondary-button" id="homeLayoutResetButton" type="button">${escapeHtml(settingsText("restoreHomeLayout", "恢复默认首页布局"))}</button>
+          <button class="secondary-button has-png-icon" id="settingsHomeEditButton" type="button">${renderButtonLabelContent(settingsText("goEditHome", "去首页编辑"), "edit", "✎")}</button>
+          <button class="secondary-button has-png-icon" id="homeLayoutResetButton" type="button">${renderButtonLabelContent(settingsText("restoreHomeLayout", "恢复默认首页布局"), "refresh", "↻")}</button>
         </div>
       </div>
     </section>
@@ -4327,7 +4472,7 @@ function renderSettingsPanel() {
           <small>${isLoggedIn ? escapeHtml(getUserDisplayName(currentUser)) : escapeHtml(settingsText("notLoggedIn", "尚未登入"))}</small>
         </div>
         <div class="settings-action-grid">
-          <button class="secondary-button" id="settingsEditProfileButton" type="button" ${disabled}>${escapeHtml(settingsText("editProfile", "编辑个人资料"))}</button>
+          <button class="secondary-button has-png-icon" id="settingsEditProfileButton" type="button" ${disabled}>${renderButtonLabelContent(settingsText("editProfile", "编辑个人资料"), "edit", "✎")}</button>
           <button class="secondary-button" id="settingsPasswordButton" type="button" ${disabled}>${escapeHtml(settingsText("changePassword", "修改密码"))}</button>
           <button class="secondary-button profile-logout-button" id="settingsLogoutButton" type="button" ${disabled}>${escapeHtml(settingsText("logout", "登出账号"))}</button>
         </div>
