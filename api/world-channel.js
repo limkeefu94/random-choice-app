@@ -313,7 +313,9 @@ async function updateWorldMessage(request, response) {
 
   const text = cleanText(body.text, 220);
 
-  if (!text) {
+  const existingData = ownedMessage.snapshot.data() || {};
+
+  if (!text && !existingData.attachment) {
     response.status(400).json({ ok: false, error: "文字内容不能为空" });
     return;
   }
