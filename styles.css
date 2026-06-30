@@ -390,6 +390,51 @@ button {
   pointer-events: none;
 }
 
+.button-icon-stack,
+.button-inline-icon {
+  display: inline-grid;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  line-height: 1;
+}
+
+.button-icon-stack {
+  position: relative;
+}
+
+.button-icon-fallback,
+.button-icon-stack .button-icon-image {
+  grid-area: 1 / 1;
+}
+
+.button-icon-fallback {
+  color: currentColor;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.button-icon-image[hidden],
+.button-icon-fallback[hidden] {
+  display: none;
+}
+
+.primary-button.has-button-icon,
+.secondary-button.has-button-icon,
+.ghost-button.has-button-icon,
+.compact-primary.has-button-icon,
+.compact-ghost.has-button-icon,
+.more-menu-button.has-button-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.button-label-text {
+  min-width: 0;
+}
+
 .icon-button-label {
   min-width: 0;
 }
@@ -410,6 +455,23 @@ button {
 }
 
 @media (hover: hover) and (pointer: fine) and (min-width: 721px) {
+  .desktop-icon-only {
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+    gap: 0;
+  }
+
+  .desktop-icon-only .button-label-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
   .icon-button.has-button-icon:not(.is-icon-only) {
     width: 44px;
     min-width: 44px;
@@ -3475,6 +3537,18 @@ body.is-home-layout-dragging * {
     background 180ms ease;
 }
 
+.more-menu-item.has-button-icon {
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.more-menu-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
 .more-menu-item:hover:not(:disabled) {
   transform: translateY(-1px);
   border-color: rgba(255, 122, 61, 0.24);
@@ -4887,6 +4961,30 @@ body.is-home-layout-dragging * {
     font-size: 0.8rem;
   }
 
+  .button-icon-stack,
+  .button-inline-icon {
+    width: 22px;
+    min-width: 22px;
+    height: 22px;
+  }
+
+  .desktop-icon-only {
+    width: auto;
+    min-width: 0;
+    padding-inline: 10px;
+    gap: 7px;
+  }
+
+  .desktop-icon-only .button-label-text {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+
   .notification-button,
   .profile-avatar-button {
     flex: 0 0 auto;
@@ -5597,6 +5695,16 @@ body.is-home-layout-dragging * {
 
   .more-menu-button strong {
     display: none;
+  }
+
+  .more-menu-button.desktop-icon-only strong.button-label-text {
+    display: inline;
+  }
+
+  .more-menu-button.desktop-icon-only {
+    width: auto;
+    min-width: 40px;
+    padding: 0 8px;
   }
 }
 
