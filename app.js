@@ -5337,19 +5337,6 @@ function renderWorldControls() {
           <li>${escapeHtml(worldText("accountWorldCloud", "账号、头像、名字和世界频道会同步到云端。"))}</li>
         </ul>
       </form>
-      <div class="world-panel gcs-panel is-ready">
-        <div class="world-panel-header">
-          <strong>${escapeHtml(worldText("imageAndRecords", "图片和记录"))}</strong>
-          <small>${escapeHtml(worldText("ready", "已准备好"))}</small>
-        </div>
-        <div class="cloud-status-list">
-          <span class="status-pill">✅ ${escapeHtml(worldText("imageReady", "图片可以发送"))}</span>
-          <span class="status-pill">✅ ${escapeHtml(worldText("worldConnectedCloud", "世界频道已接到云端"))}</span>
-          <span class="status-pill" data-cloud-sync-status>${escapeHtml(getCloudSyncLabel())}</span>
-          <span class="status-pill">🔒 ${escapeHtml(worldText("secretNotShown", "重要钥匙不会显示给别人"))}</span>
-        </div>
-        <p>${escapeHtml(worldText("cloudTestNote", "这个版本先测试图片、记录和通知；好友和私聊会放在之后做。"))}</p>
-      </div>
     `;
 
     document.querySelectorAll("[data-auth-mode]").forEach((button) => {
