@@ -1861,11 +1861,13 @@ const RELEASE_NOTES = [
       "世界频道消息里的头像链接过期后会尝试自动恢复。",
       "头像暂时无法显示时，会回到名字首字头像，不再长期显示破图。",
       "默认文字头像和已上传头像显示逻辑保持一致。",
+      "电脑端常用 PNG 按钮只显示图标，手机端继续显示文字。",
     ],
     technicalChanges: [
       "Added safe avatar objectName/filePath compatibility fields.",
       "Extended read signed URL refresh to approved avatar prefixes.",
       "Added client-side avatar refresh and fallback handling.",
+      "Adjusted PNG action buttons to hide labels on desktop and keep labels visible on mobile.",
       "Preserved existing auth, GCS upload, world channel, like, gift, and home layout flows.",
     ],
   },
@@ -3297,6 +3299,7 @@ function getButtonIconAsset(icon) {
     "✔": "confirm",
     "↻": "refresh",
     "⟳": "refresh",
+    "⚙": "tools",
   };
   const iconKey = iconKeyMap[normalizedIcon];
 
@@ -3305,12 +3308,59 @@ function getButtonIconAsset(icon) {
 
 function renderButtonIconContent(icon) {
   const iconAsset = getButtonIconAsset(icon);
+  const fallbackMarkup = `<span class="button-icon-fallback">${escapeHtml(icon || "•")}</span>`;
 
   if (!iconAsset) {
-    return escapeHtml(icon || "•");
+    return fallbackMarkup;
   }
 
-  return renderAssetImage(iconAsset, "", "button-icon-image", 'aria-hidden="true" loading="lazy"');
+  return `
+    <span class="button-icon-stack">
+      ${fallbackMarkup}
+      ${renderAssetImage(iconAsset, "", "button-icon-image", 'aria-hidden="true" loading="lazy" onload="this.previousElementSibling.hidden=true" onerror="this.hidden=true"')}
+    </span>
+  `;
+}
+
+function renderButtonLabelContent(icon, label) {
+  return `
+    <span class="button-inline-icon" aria-hidden="true">${renderButtonIconContent(icon)}</span>
+    <span class="button-label-text">${escapeHtml(label || "")}</span>
+  `;
+}
+
+function setLabeledActionButtonContent(button, options = {}) {
+  if (!button) {
+    return;
+  }
+
+  const { icon = "•", label = "", tooltip = label, desktopIconOnly = true } = options;
+  button.classList.add("has-button-icon");
+  button.classList.toggle("desktop-icon-only", Boolean(desktopIconOnly));
+  button.setAttribute("aria-label", label);
+
+  if (tooltip) {
+    button.dataset.tooltip = tooltip;
+    button.title = tooltip;
+  }
+
+  button.innerHTML = renderButtonLabelContent(icon, label);
+}
+
+function setMoreMenuButtonContent(label) {
+  if (!elements.moreMenuButton) {
+    return;
+  }
+
+  elements.moreMenuButton.classList.add("has-button-icon", "desktop-icon-only");
+  elements.moreMenuButton.setAttribute("aria-label", label);
+  elements.moreMenuButton.dataset.tooltip = label;
+  elements.moreMenuButton.title = label;
+  elements.moreMenuButton.innerHTML = `
+    <span class="button-inline-icon" aria-hidden="true">${renderButtonIconContent("⋯")}</span>
+    <strong class="button-label-text">${escapeHtml(label)}</strong>
+  `;
+  elements.moreMenuButtonLabel = elements.moreMenuButton.querySelector("strong");
 }
 
 function renderIconButton(options = {}) {
@@ -3550,8 +3600,7 @@ function applyStaticTranslations() {
   elements.currencyLabel.textContent = t("top.currency", "货币");
   elements.notificationButton.setAttribute("aria-label", t("top.notification", "通知"));
   elements.profileAvatarButton.setAttribute("aria-label", t("top.profile", "个人资料"));
-  elements.moreMenuButton.setAttribute("aria-label", t("top.more", "更多"));
-  elements.moreMenuButtonLabel.textContent = t("top.more", "更多");
+  setMoreMenuButtonContent(t("top.more", "更多"));
   elements.randomButtonLabel.textContent = resultText("randomPick", "随机一下");
   setIconButtonContent(elements.favoriteButton, {
     icon: "☆",
@@ -3693,7 +3742,10 @@ function renderModes() {
   elements.sidebar.classList.toggle("is-home-editing", isHomeLayoutEditing);
 
   if (elements.homeLayoutEditButton) {
-    elements.homeLayoutEditButton.textContent = isHomeLayoutEditing ? commonText("done", "完成") : homeText("editHome", "编辑首页");
+    setLabeledActionButtonContent(elements.homeLayoutEditButton, {
+      icon: isHomeLayoutEditing ? "✓" : "✎",
+      label: isHomeLayoutEditing ? commonText("done", "完成") : homeText("editHome", "编辑首页"),
+    });
     elements.homeLayoutEditButton.setAttribute("aria-pressed", String(isHomeLayoutEditing));
   }
 
@@ -3936,6 +3988,9 @@ function renderProfilePanel() {
 function renderMyProfilePanel(currentUser) {
   const messages = getMyProfileMessages(currentUser);
   const feedMarkup = renderMyProfileFeed(messages);
+  const editProfileLabel = settingsText("editProfile", "编辑资料");
+  const settingsLabel = t("menu.settings", "设置");
+  const refreshLabel = isMyWorldMessagesLoading ? commonText("loading", "加载中") : commonText("refresh", "刷新");
 
   elements.profilePanel.innerHTML = `
     <div class="my-profile-page">
@@ -3968,8 +4023,12 @@ function renderMyProfilePanel(currentUser) {
         </div>
       </section>
       <div class="my-profile-actions">
-        <button class="primary-button compact-primary" id="myProfileEditButton" type="button">编辑资料</button>
-        <button class="secondary-button" id="myProfileSettingsButton" type="button">设置</button>
+        <button class="primary-button compact-primary has-button-icon desktop-icon-only" id="myProfileEditButton" type="button" aria-label="${escapeHtml(editProfileLabel)}" data-tooltip="${escapeHtml(editProfileLabel)}">
+          ${renderButtonLabelContent("✎", editProfileLabel)}
+        </button>
+        <button class="secondary-button has-button-icon desktop-icon-only" id="myProfileSettingsButton" type="button" aria-label="${escapeHtml(settingsLabel)}" data-tooltip="${escapeHtml(settingsLabel)}">
+          ${renderButtonLabelContent("⚙", settingsLabel)}
+        </button>
       </div>
       <section class="my-profile-feed">
         <div class="my-profile-feed-heading">
@@ -3977,8 +4036,8 @@ function renderMyProfilePanel(currentUser) {
             <strong>我的世界频道内容</strong>
             <small>最近 20 条文字和图片</small>
           </div>
-          <button class="ghost-button compact-ghost" id="myProfileRefreshButton" type="button" ${isMyWorldMessagesLoading ? "disabled" : ""}>
-            ${isMyWorldMessagesLoading ? "更新中…" : "刷新"}
+          <button class="ghost-button compact-ghost has-button-icon desktop-icon-only" id="myProfileRefreshButton" type="button" aria-label="${escapeHtml(refreshLabel)}" data-tooltip="${escapeHtml(refreshLabel)}" ${isMyWorldMessagesLoading ? "disabled" : ""}>
+            ${renderButtonLabelContent("↻", refreshLabel)}
           </button>
         </div>
         ${myWorldMessagesError ? `<p class="my-profile-error">${escapeHtml(myWorldMessagesError)}</p>` : ""}
@@ -4265,9 +4324,12 @@ function renderMoreMenuPanel() {
         <strong>${escapeHtml(settingsText("feedback", "反馈问题"))}</strong>
         <small>${escapeHtml(t("settings.feedbackDescription", "提交 Bug、建议或内容错误"))}</small>
       </button>
-      <button class="more-menu-item" id="menuSettingsButton" type="button" role="menuitem">
-        <strong>${escapeHtml(t("menu.settings", "设置"))}</strong>
-        <small>${escapeHtml(t("settings.menuDescription", "账号、隐私、偏好和应用信息"))}</small>
+      <button class="more-menu-item has-button-icon" id="menuSettingsButton" type="button" role="menuitem">
+        <span class="button-inline-icon" aria-hidden="true">${renderButtonIconContent("⚙")}</span>
+        <span class="more-menu-copy">
+          <strong>${escapeHtml(t("menu.settings", "设置"))}</strong>
+          <small>${escapeHtml(t("settings.menuDescription", "账号、隐私、偏好和应用信息"))}</small>
+        </span>
       </button>
       <label class="more-menu-language" for="languageSelect">
         <span>
@@ -4370,8 +4432,8 @@ function renderHomeLayoutSettingsSection() {
       <div class="home-layout-settings-summary">
         <p>${escapeHtml(settingsText("homeLayoutSummary", "当前有 {count} 个隐藏功能。隐藏只是本机显示偏好，不会删除世界频道消息、历史记录或云端资料。", { count: hiddenCount }))}</p>
         <div class="settings-action-grid settings-utility-actions">
-          <button class="secondary-button" id="settingsHomeEditButton" type="button">${escapeHtml(settingsText("goEditHome", "去首页编辑"))}</button>
-          <button class="secondary-button" id="homeLayoutResetButton" type="button">${escapeHtml(settingsText("restoreHomeLayout", "恢复默认首页布局"))}</button>
+          <button class="secondary-button has-button-icon desktop-icon-only" id="settingsHomeEditButton" type="button" aria-label="${escapeHtml(settingsText("goEditHome", "去首页编辑"))}" data-tooltip="${escapeHtml(settingsText("goEditHome", "去首页编辑"))}">${renderButtonLabelContent("✎", settingsText("goEditHome", "去首页编辑"))}</button>
+          <button class="secondary-button has-button-icon desktop-icon-only" id="homeLayoutResetButton" type="button" aria-label="${escapeHtml(settingsText("restoreHomeLayout", "恢复默认首页布局"))}" data-tooltip="${escapeHtml(settingsText("restoreHomeLayout", "恢复默认首页布局"))}">${renderButtonLabelContent("↻", settingsText("restoreHomeLayout", "恢复默认首页布局"))}</button>
         </div>
       </div>
     </section>
@@ -4456,7 +4518,7 @@ function renderSettingsPanel() {
           <small>${isLoggedIn ? escapeHtml(getUserDisplayName(currentUser)) : escapeHtml(settingsText("notLoggedIn", "尚未登入"))}</small>
         </div>
         <div class="settings-action-grid">
-          <button class="secondary-button" id="settingsEditProfileButton" type="button" ${disabled}>${escapeHtml(settingsText("editProfile", "编辑个人资料"))}</button>
+          <button class="secondary-button has-button-icon desktop-icon-only" id="settingsEditProfileButton" type="button" aria-label="${escapeHtml(settingsText("editProfile", "编辑个人资料"))}" data-tooltip="${escapeHtml(settingsText("editProfile", "编辑个人资料"))}" ${disabled}>${renderButtonLabelContent("✎", settingsText("editProfile", "编辑个人资料"))}</button>
           <button class="secondary-button" id="settingsPasswordButton" type="button" ${disabled}>${escapeHtml(settingsText("changePassword", "修改密码"))}</button>
           <button class="secondary-button profile-logout-button" id="settingsLogoutButton" type="button" ${disabled}>${escapeHtml(settingsText("logout", "登出账号"))}</button>
         </div>
@@ -5275,19 +5337,6 @@ function renderWorldControls() {
           <li>${escapeHtml(worldText("accountWorldCloud", "账号、头像、名字和世界频道会同步到云端。"))}</li>
         </ul>
       </form>
-      <div class="world-panel gcs-panel is-ready">
-        <div class="world-panel-header">
-          <strong>${escapeHtml(worldText("imageAndRecords", "图片和记录"))}</strong>
-          <small>${escapeHtml(worldText("ready", "已准备好"))}</small>
-        </div>
-        <div class="cloud-status-list">
-          <span class="status-pill">✅ ${escapeHtml(worldText("imageReady", "图片可以发送"))}</span>
-          <span class="status-pill">✅ ${escapeHtml(worldText("worldConnectedCloud", "世界频道已接到云端"))}</span>
-          <span class="status-pill" data-cloud-sync-status>${escapeHtml(getCloudSyncLabel())}</span>
-          <span class="status-pill">🔒 ${escapeHtml(worldText("secretNotShown", "重要钥匙不会显示给别人"))}</span>
-        </div>
-        <p>${escapeHtml(worldText("cloudTestNote", "这个版本先测试图片、记录和通知；好友和私聊会放在之后做。"))}</p>
-      </div>
     `;
 
     document.querySelectorAll("[data-auth-mode]").forEach((button) => {
