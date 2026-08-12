@@ -101,6 +101,27 @@ function getThemeLabel(themeId) {
 
   return t(theme.labelKey || `theme.${themeId}`, theme.label || themeId);
 }
+
+function getThemeDescription(themeId) {
+  const theme = getThemeDefinition(themeId);
+
+  return t(theme.descriptionKey || "settings.lightThemeDescription", theme.label || themeId);
+}
+
+function isDarkTheme(themeId = state?.themeId) {
+  return getThemeDefinition(themeId).appearance === "dark";
+}
+
+function getThemeAppearanceVariant(themeId, appearance) {
+  const currentTheme = getThemeDefinition(themeId);
+  const matchingThemeId = APP_THEME_IDS.find((candidateThemeId) => {
+    const candidateTheme = getThemeDefinition(candidateThemeId);
+
+    return candidateTheme.family === currentTheme.family && candidateTheme.appearance === appearance;
+  });
+
+  return matchingThemeId || normalizeThemeId(themeId);
+}
 const FOOD_CATEGORIES = ["全部", "Mamak", "快餐连锁", "外卖平台热门", "油炸类", "素食类", "低卡类", "快餐", "嘴馋零嘴类", "高热量", "健康类"];
 const SPECIAL_FOOD_CATEGORIES = new Set(["Mamak", "快餐连锁", "外卖平台热门"]);
 const SPECIAL_REGION_KEYS = new Set(["全国 Mamak", "快餐连锁", "外卖平台热门"]);
@@ -1839,7 +1860,7 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.7.9";
+const APP_VERSION = "0.8.0";
 const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
 const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
 const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
@@ -1855,6 +1876,24 @@ const AVATAR_IMAGE_ALLOWED_PREFIXES = Object.freeze([
   "profile/",
 ]);
 const RELEASE_NOTES = [
+  {
+    version: "0.8.0",
+    title: "星光主题和日夜切换",
+    date: "2026-08-12",
+    summary: "这次加入一套星光主题，并把亮色和深色切换放进更多菜单，白天和夜晚都能快速换到舒服的界面。",
+    userChanges: [
+      "新增星光亮色和星光深色两种主题，使用全新的极光背景视觉。",
+      "更多菜单加入月亮和太阳切换，可快速切换当前风格的日夜外观。",
+      "设置中心可以选择暖色或星光风格，并分别保留亮色和深色版本。",
+      "主题偏好会继续保存在当前设备。",
+    ],
+    technicalChanges: [
+      "Added generated aurora background assets for light and dark theme variants.",
+      "Added family-aware light and dark theme switching from the more menu.",
+      "Extended theme registry metadata for visual family and appearance variants.",
+      "Preserved existing app flows, data structures, and API behavior.",
+    ],
+  },
   {
     version: "0.7.9",
     title: "随机结果体验优化",
@@ -4304,17 +4343,30 @@ function renderMoreMenuPanel() {
         </select>
       </label>
       ${APP_THEME_IDS.length ? `
-        <label class="more-menu-theme" for="themeSelect" hidden aria-hidden="true">
+        <section class="more-menu-theme" aria-label="${escapeHtml(t("menu.theme", "主题"))}">
           <span>
             <strong>${escapeHtml(t("menu.theme", "主题"))}</strong>
-            <small>${escapeHtml(t("menu.theme.hiddenDesc", "隐藏入口，暂不展示"))}</small>
+            <small>${escapeHtml(t("menu.theme.description", "快速切换亮色或深色；更多风格可在设置中选择。"))}</small>
           </span>
-          <select id="themeSelect" aria-label="${escapeHtml(t("menu.theme", "主题"))}" tabindex="-1">
-            ${APP_THEME_IDS.map((themeId) => `
-              <option value="${escapeHtml(themeId)}" ${themeId === state.themeId ? "selected" : ""}>${escapeHtml(getThemeLabel(themeId))}</option>
-            `).join("")}
-          </select>
-        </label>
+          <div class="more-menu-theme-toggle" role="group" aria-label="${escapeHtml(t("menu.theme", "主题"))}">
+            <button
+              class="more-menu-theme-option${isDarkTheme() ? " is-selected" : ""}"
+              type="button"
+              data-theme-appearance="dark"
+              aria-label="${escapeHtml(t("theme.dark", "深色模式"))}"
+              aria-pressed="${isDarkTheme()}"
+              title="${escapeHtml(t("theme.dark", "深色模式"))}"
+            ><span aria-hidden="true">☾</span></button>
+            <button
+              class="more-menu-theme-option${isDarkTheme() ? "" : " is-selected"}"
+              type="button"
+              data-theme-appearance="light"
+              aria-label="${escapeHtml(t("theme.light", "亮色模式"))}"
+              aria-pressed="${!isDarkTheme()}"
+              title="${escapeHtml(t("theme.light", "亮色模式"))}"
+            ><span aria-hidden="true">☀</span></button>
+          </div>
+        </section>
       ` : ""}
     </div>
   `;
@@ -4326,7 +4378,9 @@ function renderMoreMenuPanel() {
   document.querySelector("#menuFeedbackButton").addEventListener("click", openFeedbackPanel);
   document.querySelector("#menuSettingsButton").addEventListener("click", openSettingsPanel);
   document.querySelector("#languageSelect").addEventListener("change", (event) => changeLanguage(event.target.value));
-  document.querySelector("#themeSelect")?.addEventListener("change", (event) => changeTheme(event.target.value));
+  document.querySelectorAll("[data-theme-appearance]").forEach((button) => {
+    button.addEventListener("click", () => changeThemeAppearance(button.dataset.themeAppearance));
+  });
 }
 
 function getCurrentReleaseNote() {
@@ -4456,12 +4510,11 @@ function renderThemeSettingsSection() {
       </div>
       <div class="theme-choice-group" role="radiogroup" aria-label="${escapeHtml(settingsText("theme", "应用主题"))}">
         ${APP_THEME_IDS.map((themeId) => {
-          const isDark = themeId === "soft-png-dark";
+          const theme = getThemeDefinition(themeId);
+          const isDark = theme.appearance === "dark";
           const isSelected = state.themeId === themeId;
-          const description = isDark
-            ? settingsText("darkThemeDescription", "深色界面，适合夜间或低光环境。")
-            : settingsText("lightThemeDescription", "明亮柔和的界面，适合日常使用。");
-          const icon = isDark ? "☾" : "☀";
+          const description = getThemeDescription(themeId);
+          const icon = theme.family === "aurora" ? (isDark ? "✦" : "✧") : (isDark ? "☾" : "☀");
 
           return `
             <button
@@ -4470,6 +4523,7 @@ function renderThemeSettingsSection() {
               role="radio"
               aria-checked="${isSelected}"
               data-theme-choice="${escapeHtml(themeId)}"
+              data-theme-family="${escapeHtml(theme.family || "soft-png")}"
             >
               <span class="theme-choice-preview" aria-hidden="true"><span>${icon}</span></span>
               <span class="theme-choice-copy">
@@ -12640,6 +12694,14 @@ function changeTheme(themeId) {
   syncThemeAssetElements();
   render();
   showToast(settingsText("themeChanged", "已切换为{theme}。", { theme: getThemeLabel(nextThemeId) }));
+}
+
+function changeThemeAppearance(appearance) {
+  if (appearance !== "light" && appearance !== "dark") {
+    return;
+  }
+
+  changeTheme(getThemeAppearanceVariant(state.themeId, appearance));
 }
 
 function showToast(message) {
