@@ -88,6 +88,10 @@ function applyAppTheme(themeId = DEFAULT_APP_THEME_ID) {
   Object.entries(theme.cssVars || {}).forEach(([property, value]) => {
     document.documentElement.style.setProperty(property, value);
   });
+  document.querySelector('meta[name="theme-color"]')?.setAttribute(
+    "content",
+    theme.cssVars?.["--bg"] || "#fff8ef",
+  );
 
   return normalizedThemeId;
 }
@@ -96,6 +100,32 @@ function getThemeLabel(themeId) {
   const theme = getThemeDefinition(themeId);
 
   return t(theme.labelKey || `theme.${themeId}`, theme.label || themeId);
+}
+
+function isDarkTheme(themeId = state?.themeId) {
+  return getThemeDefinition(themeId).appearance === "dark";
+}
+
+function getThemeAppearanceVariant(themeId, appearance) {
+  const currentTheme = getThemeDefinition(themeId);
+  const matchingThemeId = APP_THEME_IDS.find((candidateThemeId) => {
+    const candidateTheme = getThemeDefinition(candidateThemeId);
+
+    return candidateTheme.family === currentTheme.family && candidateTheme.appearance === appearance;
+  });
+
+  return matchingThemeId || normalizeThemeId(themeId);
+}
+
+function getThemeFamilyVariant(themeId, family) {
+  const currentTheme = getThemeDefinition(themeId);
+  const matchingThemeId = APP_THEME_IDS.find((candidateThemeId) => {
+    const candidateTheme = getThemeDefinition(candidateThemeId);
+
+    return candidateTheme.family === family && candidateTheme.appearance === currentTheme.appearance;
+  });
+
+  return matchingThemeId || normalizeThemeId(themeId);
 }
 const FOOD_CATEGORIES = ["全部", "Mamak", "快餐连锁", "外卖平台热门", "油炸类", "素食类", "低卡类", "快餐", "嘴馋零嘴类", "高热量", "健康类"];
 const SPECIAL_FOOD_CATEGORIES = new Set(["Mamak", "快餐连锁", "外卖平台热门"]);
@@ -1835,7 +1865,7 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.7.8";
+const APP_VERSION = "0.8.0";
 const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
 const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
 const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
@@ -1851,6 +1881,45 @@ const AVATAR_IMAGE_ALLOWED_PREFIXES = Object.freeze([
   "profile/",
 ]);
 const RELEASE_NOTES = [
+  {
+    version: "0.8.0",
+    title: "主题风格和日夜切换",
+    date: "2026-08-12",
+    summary: "这次把暖柔和星光主题整理到设置中心，并让更多菜单的亮色和深色切换更直观，白天和夜晚都能快速换到舒服的界面。",
+    userChanges: [
+      "新增星光亮色和星光深色两种主题，使用全新的极光背景视觉。",
+      "设置中心可选择暖柔或星光风格，更多菜单可用月亮和太阳切换日夜外观。",
+      "主题下的卡片和文字对比更清楚，阅读更轻松。",
+      "更多菜单的语言切换继续可用。",
+      "主题偏好会继续保存在当前设备。",
+    ],
+    technicalChanges: [
+      "Added generated aurora background assets for light and dark theme variants.",
+      "Moved visual family selection into settings while keeping light-dark switching in the more menu.",
+      "Strengthened theme surface and text contrast for clearer reading.",
+      "Kept the more-menu language selector available.",
+      "Extended theme registry metadata for visual family and appearance variants.",
+      "Preserved existing app flows, data structures, and API behavior.",
+    ],
+  },
+  {
+    version: "0.7.9",
+    title: "随机结果体验优化",
+    date: "2026-08-12",
+    summary: "这次重新设计了随机结果卡和抽取动画，让等待结果和结果落定的过程更清楚、更有一点惊喜感。",
+    userChanges: [
+      "随机时会进入更明确的抽取状态，不再只是简单转一圈。",
+      "结果卡改成聚焦舞台，答案出现时会有轻微的落定回弹。",
+      "手机端同步压缩舞台空间，保持按钮和结果容易查看。",
+      "亮色和深色主题都会使用对应的结果视觉。",
+    ],
+    technicalChanges: [
+      "Redesigned the result stage with layered selection-track visuals.",
+      "Added separate draw and reveal animation states without changing selection logic.",
+      "Added localized draw-state copy for zh-CN, en, and ms.",
+      "Preserved existing result, history, favorite, number, and gift flows.",
+    ],
+  },
   {
     version: "0.7.8",
     title: "修复头像过期链接",
@@ -2557,6 +2626,7 @@ let homeLayoutDragState = null;
 let giftShuffleTimer = null;
 let giftShuffleRunId = 0;
 let isGiftShuffleRunning = false;
+let resultRevealTimer = null;
 const clientErrorThrottle = new Map();
 
 function isValidAnonymousUserId(userId) {
@@ -4333,27 +4403,40 @@ function renderMoreMenuPanel() {
       </button>
       <label class="more-menu-language" for="languageSelect">
         <span>
-          <strong>${escapeHtml(t("menu.language", "语言"))}</strong>
-          <small>${escapeHtml(t("menu.future", "未来预留"))}</small>
+          <strong>${escapeHtml(t("menu.language", "Language"))}</strong>
+          <small>${escapeHtml(t("menu.language.description", "Choose your preferred language."))}</small>
         </span>
-        <select id="languageSelect" aria-label="${escapeHtml(t("menu.language", "语言"))}">
+        <select id="languageSelect" aria-label="${escapeHtml(t("menu.language", "Language"))}">
           ${SUPPORTED_LANGUAGES.map((language) => `
             <option value="${language}" ${language === state.language ? "selected" : ""}>${LANGUAGE_LABELS[language]}</option>
           `).join("")}
         </select>
       </label>
       ${APP_THEME_IDS.length ? `
-        <label class="more-menu-theme" for="themeSelect" hidden aria-hidden="true">
+        <section class="more-menu-theme" aria-label="${escapeHtml(t("menu.theme", "Theme"))}">
           <span>
-            <strong>${escapeHtml(t("menu.theme", "主题"))}</strong>
-            <small>${escapeHtml(t("menu.theme.hiddenDesc", "隐藏入口，暂不展示"))}</small>
+            <strong>${escapeHtml(t("menu.theme", "Theme"))}</strong>
+            <small>${escapeHtml(t("menu.theme.description", "Use the moon or sun to switch the current style."))}</small>
           </span>
-          <select id="themeSelect" aria-label="${escapeHtml(t("menu.theme", "主题"))}" tabindex="-1">
-            ${APP_THEME_IDS.map((themeId) => `
-              <option value="${escapeHtml(themeId)}" ${themeId === state.themeId ? "selected" : ""}>${escapeHtml(getThemeLabel(themeId))}</option>
-            `).join("")}
-          </select>
-        </label>
+          <div class="more-menu-theme-toggle" role="group" aria-label="${escapeHtml(t("menu.theme", "Theme"))}">
+            <button
+              class="more-menu-theme-option${isDarkTheme() ? " is-selected" : ""}"
+              type="button"
+              data-theme-appearance="dark"
+              aria-label="${escapeHtml(t("theme.dark", "Dark mode"))}"
+              aria-pressed="${isDarkTheme()}"
+              title="${escapeHtml(t("theme.dark", "Dark mode"))}"
+            ><span aria-hidden="true">☾</span></button>
+            <button
+              class="more-menu-theme-option${isDarkTheme() ? "" : " is-selected"}"
+              type="button"
+              data-theme-appearance="light"
+              aria-label="${escapeHtml(t("theme.light", "Light mode"))}"
+              aria-pressed="${!isDarkTheme()}"
+              title="${escapeHtml(t("theme.light", "Light mode"))}"
+            ><span aria-hidden="true">☀</span></button>
+          </div>
+        </section>
       ` : ""}
     </div>
   `;
@@ -4365,7 +4448,9 @@ function renderMoreMenuPanel() {
   document.querySelector("#menuFeedbackButton").addEventListener("click", openFeedbackPanel);
   document.querySelector("#menuSettingsButton").addEventListener("click", openSettingsPanel);
   document.querySelector("#languageSelect").addEventListener("change", (event) => changeLanguage(event.target.value));
-  document.querySelector("#themeSelect")?.addEventListener("change", (event) => changeTheme(event.target.value));
+  document.querySelectorAll("[data-theme-appearance]").forEach((button) => {
+    button.addEventListener("click", () => changeThemeAppearance(button.dataset.themeAppearance));
+  });
 }
 
 function getCurrentReleaseNote() {
@@ -4486,6 +4571,40 @@ function renderNotificationSettingsSection() {
   `;
 }
 
+function renderThemeSettingsSection() {
+  const currentTheme = getThemeDefinition(state.themeId);
+
+  return `
+    <section class="settings-section theme-settings-section" aria-label="${escapeHtml(settingsText("appearance", "外观"))}">
+      <div class="settings-section-heading">
+        <strong>${escapeHtml(settingsText("appearance", "外观"))}</strong>
+        <small>${escapeHtml(settingsText("appearanceDescription", "在这里选择主题风格，再到更多菜单切换亮色或深色。"))}</small>
+      </div>
+      <div class="theme-family-choice-group" role="group" aria-label="${escapeHtml(t("menu.theme.style", "Theme style"))}">
+        <button
+          class="theme-family-choice${currentTheme.family === "soft-png" ? " is-selected" : ""}"
+          type="button"
+          data-theme-family="soft-png"
+          aria-pressed="${currentTheme.family === "soft-png"}"
+        ><span aria-hidden="true">☀</span>${escapeHtml(t("theme.softPngShort", "Warm"))}</button>
+        <button
+          class="theme-family-choice${currentTheme.family === "aurora" ? " is-selected" : ""}"
+          type="button"
+          data-theme-family="aurora"
+          aria-pressed="${currentTheme.family === "aurora"}"
+        ><span aria-hidden="true">✦</span>${escapeHtml(t("theme.auroraShort", "Starlight"))}</button>
+      </div>
+      <div class="theme-settings-summary">
+        <span class="theme-settings-summary-icon" aria-hidden="true">${currentTheme.family === "aurora" ? "✦" : "☀"}</span>
+        <span>
+          <strong>${escapeHtml(getThemeLabel(state.themeId))}</strong>
+          <small>${escapeHtml(settingsText("appearanceMoreHint", "Quick theme changes are in the More menu."))}</small>
+        </span>
+      </div>
+    </section>
+  `;
+}
+
 function renderSettingsPanel() {
   if (elements.settingsPanel.hidden) {
     return;
@@ -4552,6 +4671,7 @@ function renderSettingsPanel() {
       </section>
       ${renderFriendSettingsSection()}
       ${renderNotificationSettingsSection()}
+      ${renderThemeSettingsSection()}
       <section class="settings-section">
         <div class="settings-section-heading">
           <strong>${escapeHtml(settingsText("contentPreferences", "内容偏好"))}</strong>
@@ -4664,6 +4784,7 @@ function renderSettingsPanel() {
   document.querySelector("#settingsClearLocalButton").addEventListener("click", clearHistoryWithConfirm);
   bindSettingsPlaceholderControls();
   bindHomeLayoutSettingsControls();
+  bindThemeSettingsControls();
   document.querySelector("#settingsForm").addEventListener("submit", saveSettingsCenter);
 }
 
@@ -4676,6 +4797,12 @@ function bindSettingsPlaceholderControls() {
 function bindHomeLayoutSettingsControls() {
   document.querySelector("#settingsHomeEditButton")?.addEventListener("click", openHomeLayoutEditorFromSettings);
   document.querySelector("#homeLayoutResetButton")?.addEventListener("click", resetHomeLayoutWithConfirm);
+}
+
+function bindThemeSettingsControls() {
+  document.querySelectorAll(".theme-settings-section [data-theme-family]").forEach((button) => {
+    button.addEventListener("click", () => changeThemeFamily(button.dataset.themeFamily));
+  });
 }
 
 function refreshHomeLayoutUi() {
@@ -12273,7 +12400,7 @@ function drawResult() {
     return;
   }
 
-  elements.resultStage.classList.add("is-spinning");
+  startResultDrawPresentation();
   elements.randomButton.disabled = true;
 
   window.setTimeout(() => {
@@ -12282,9 +12409,40 @@ function drawResult() {
     const historyEntry = addHistory(result);
     saveState();
     syncCloudItem("history", historyEntry);
-    elements.resultStage.classList.remove("is-spinning");
-    elements.randomButton.disabled = false;
-  }, 520);
+    finishResultDrawPresentation();
+  }, 620);
+}
+
+function startResultDrawPresentation() {
+  if (resultRevealTimer) {
+    window.clearTimeout(resultRevealTimer);
+    resultRevealTimer = null;
+  }
+
+  elements.resultStage.classList.remove("is-revealing");
+  elements.resultStage.classList.add("is-spinning");
+  elements.resultStage.setAttribute("aria-busy", "true");
+  elements.resultLabel.textContent = resultText("drawingLabel", "正在抽取");
+  elements.resultValue.textContent = resultText("drawingPrompt", "正在挑选今天的答案");
+  elements.resultMeta.textContent = resultText("drawingHint", "轻轻转一下，结果马上出现。");
+  elements.numberDigits.hidden = true;
+  elements.numberDigits.classList.remove("is-lottery", "is-gift-result");
+  elements.numberDigits.innerHTML = "";
+  elements.copyResultButton.disabled = true;
+  elements.shareResultButton.disabled = true;
+  elements.favoriteButton.disabled = true;
+}
+
+function finishResultDrawPresentation() {
+  elements.resultStage.classList.remove("is-spinning");
+  elements.resultStage.removeAttribute("aria-busy");
+  elements.resultStage.classList.add("is-revealing");
+  syncRandomButtonState();
+
+  resultRevealTimer = window.setTimeout(() => {
+    elements.resultStage.classList.remove("is-revealing");
+    resultRevealTimer = null;
+  }, 640);
 }
 
 function renderResult(result) {
@@ -12588,6 +12746,23 @@ function changeTheme(themeId) {
   saveState();
   syncThemeAssetElements();
   render();
+  showToast(settingsText("themeChanged", "已切换为{theme}。", { theme: getThemeLabel(nextThemeId) }));
+}
+
+function changeThemeAppearance(appearance) {
+  if (appearance !== "light" && appearance !== "dark") {
+    return;
+  }
+
+  changeTheme(getThemeAppearanceVariant(state.themeId, appearance));
+}
+
+function changeThemeFamily(family) {
+  if (!family) {
+    return;
+  }
+
+  changeTheme(getThemeFamilyVariant(state.themeId, family));
 }
 
 function showToast(message) {
