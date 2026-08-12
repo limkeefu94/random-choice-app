@@ -1839,7 +1839,7 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.7.8";
+const APP_VERSION = "0.7.9";
 const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
 const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
 const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
@@ -1855,6 +1855,24 @@ const AVATAR_IMAGE_ALLOWED_PREFIXES = Object.freeze([
   "profile/",
 ]);
 const RELEASE_NOTES = [
+  {
+    version: "0.7.9",
+    title: "随机结果体验优化",
+    date: "2026-08-12",
+    summary: "这次重新设计了随机结果卡和抽取动画，让等待结果和结果落定的过程更清楚、更有一点惊喜感。",
+    userChanges: [
+      "随机时会进入更明确的抽取状态，不再只是简单转一圈。",
+      "结果卡改成聚焦舞台，答案出现时会有轻微的落定回弹。",
+      "手机端同步压缩舞台空间，保持按钮和结果容易查看。",
+      "亮色和深色主题都会使用对应的结果视觉。",
+    ],
+    technicalChanges: [
+      "Redesigned the result stage with layered selection-track visuals.",
+      "Added separate draw and reveal animation states without changing selection logic.",
+      "Added localized draw-state copy for zh-CN, en, and ms.",
+      "Preserved existing result, history, favorite, number, and gift flows.",
+    ],
+  },
   {
     version: "0.7.8",
     title: "修复头像过期链接",
@@ -2559,6 +2577,7 @@ let homeLayoutDragState = null;
 let giftShuffleTimer = null;
 let giftShuffleRunId = 0;
 let isGiftShuffleRunning = false;
+let resultRevealTimer = null;
 const clientErrorThrottle = new Map();
 
 function isValidAnonymousUserId(userId) {
@@ -12274,7 +12293,7 @@ function drawResult() {
     return;
   }
 
-  elements.resultStage.classList.add("is-spinning");
+  startResultDrawPresentation();
   elements.randomButton.disabled = true;
 
   window.setTimeout(() => {
@@ -12283,9 +12302,40 @@ function drawResult() {
     const historyEntry = addHistory(result);
     saveState();
     syncCloudItem("history", historyEntry);
-    elements.resultStage.classList.remove("is-spinning");
-    elements.randomButton.disabled = false;
-  }, 520);
+    finishResultDrawPresentation();
+  }, 620);
+}
+
+function startResultDrawPresentation() {
+  if (resultRevealTimer) {
+    window.clearTimeout(resultRevealTimer);
+    resultRevealTimer = null;
+  }
+
+  elements.resultStage.classList.remove("is-revealing");
+  elements.resultStage.classList.add("is-spinning");
+  elements.resultStage.setAttribute("aria-busy", "true");
+  elements.resultLabel.textContent = resultText("drawingLabel", "正在抽取");
+  elements.resultValue.textContent = resultText("drawingPrompt", "正在挑选今天的答案");
+  elements.resultMeta.textContent = resultText("drawingHint", "轻轻转一下，结果马上出现。");
+  elements.numberDigits.hidden = true;
+  elements.numberDigits.classList.remove("is-lottery", "is-gift-result");
+  elements.numberDigits.innerHTML = "";
+  elements.copyResultButton.disabled = true;
+  elements.shareResultButton.disabled = true;
+  elements.favoriteButton.disabled = true;
+}
+
+function finishResultDrawPresentation() {
+  elements.resultStage.classList.remove("is-spinning");
+  elements.resultStage.removeAttribute("aria-busy");
+  elements.resultStage.classList.add("is-revealing");
+  syncRandomButtonState();
+
+  resultRevealTimer = window.setTimeout(() => {
+    elements.resultStage.classList.remove("is-revealing");
+    resultRevealTimer = null;
+  }, 640);
 }
 
 function renderResult(result) {
