@@ -88,6 +88,10 @@ function applyAppTheme(themeId = DEFAULT_APP_THEME_ID) {
   Object.entries(theme.cssVars || {}).forEach(([property, value]) => {
     document.documentElement.style.setProperty(property, value);
   });
+  document.querySelector('meta[name="theme-color"]')?.setAttribute(
+    "content",
+    theme.cssVars?.["--bg"] || "#fff8ef",
+  );
 
   return normalizedThemeId;
 }
@@ -4424,6 +4428,44 @@ function renderNotificationSettingsSection() {
   `;
 }
 
+function renderThemeSettingsSection() {
+  return `
+    <section class="settings-section theme-settings-section" aria-label="${escapeHtml(settingsText("appearance", "外观"))}">
+      <div class="settings-section-heading">
+        <strong>${escapeHtml(settingsText("appearance", "外观"))}</strong>
+        <small>${escapeHtml(settingsText("appearanceDescription", "选择适合当前环境的亮色或深色主题，设置会保存在这台设备。"))}</small>
+      </div>
+      <div class="theme-choice-group" role="radiogroup" aria-label="${escapeHtml(settingsText("theme", "应用主题"))}">
+        ${APP_THEME_IDS.map((themeId) => {
+          const isDark = themeId === "soft-png-dark";
+          const isSelected = state.themeId === themeId;
+          const description = isDark
+            ? settingsText("darkThemeDescription", "深色界面，适合夜间或低光环境。")
+            : settingsText("lightThemeDescription", "明亮柔和的界面，适合日常使用。");
+          const icon = isDark ? "☾" : "☀";
+
+          return `
+            <button
+              class="theme-choice${isSelected ? " is-selected" : ""}${isDark ? " is-dark" : ""}"
+              type="button"
+              role="radio"
+              aria-checked="${isSelected}"
+              data-theme-choice="${escapeHtml(themeId)}"
+            >
+              <span class="theme-choice-preview" aria-hidden="true"><span>${icon}</span></span>
+              <span class="theme-choice-copy">
+                <strong>${escapeHtml(getThemeLabel(themeId))}</strong>
+                <small>${escapeHtml(description)}</small>
+              </span>
+              <span class="theme-choice-check" aria-hidden="true">${isSelected ? "✓" : ""}</span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderSettingsPanel() {
   if (elements.settingsPanel.hidden) {
     return;
@@ -4490,6 +4532,7 @@ function renderSettingsPanel() {
       </section>
       ${renderFriendSettingsSection()}
       ${renderNotificationSettingsSection()}
+      ${renderThemeSettingsSection()}
       <section class="settings-section">
         <div class="settings-section-heading">
           <strong>${escapeHtml(settingsText("contentPreferences", "内容偏好"))}</strong>
@@ -4602,6 +4645,7 @@ function renderSettingsPanel() {
   document.querySelector("#settingsClearLocalButton").addEventListener("click", clearHistoryWithConfirm);
   bindSettingsPlaceholderControls();
   bindHomeLayoutSettingsControls();
+  bindThemeSettingsControls();
   document.querySelector("#settingsForm").addEventListener("submit", saveSettingsCenter);
 }
 
@@ -4614,6 +4658,12 @@ function bindSettingsPlaceholderControls() {
 function bindHomeLayoutSettingsControls() {
   document.querySelector("#settingsHomeEditButton")?.addEventListener("click", openHomeLayoutEditorFromSettings);
   document.querySelector("#homeLayoutResetButton")?.addEventListener("click", resetHomeLayoutWithConfirm);
+}
+
+function bindThemeSettingsControls() {
+  document.querySelectorAll("[data-theme-choice]").forEach((button) => {
+    button.addEventListener("click", () => changeTheme(button.dataset.themeChoice));
+  });
 }
 
 function refreshHomeLayoutUi() {
@@ -12539,6 +12589,7 @@ function changeTheme(themeId) {
   saveState();
   syncThemeAssetElements();
   render();
+  showToast(settingsText("themeChanged", "已切换为{theme}。", { theme: getThemeLabel(nextThemeId) }));
 }
 
 function showToast(message) {
