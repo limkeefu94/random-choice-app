@@ -102,12 +102,6 @@ function getThemeLabel(themeId) {
   return t(theme.labelKey || `theme.${themeId}`, theme.label || themeId);
 }
 
-function getThemeDescription(themeId) {
-  const theme = getThemeDefinition(themeId);
-
-  return t(theme.descriptionKey || "settings.lightThemeDescription", theme.label || themeId);
-}
-
 function isDarkTheme(themeId = state?.themeId) {
   return getThemeDefinition(themeId).appearance === "dark";
 }
@@ -118,6 +112,17 @@ function getThemeAppearanceVariant(themeId, appearance) {
     const candidateTheme = getThemeDefinition(candidateThemeId);
 
     return candidateTheme.family === currentTheme.family && candidateTheme.appearance === appearance;
+  });
+
+  return matchingThemeId || normalizeThemeId(themeId);
+}
+
+function getThemeFamilyVariant(themeId, family) {
+  const currentTheme = getThemeDefinition(themeId);
+  const matchingThemeId = APP_THEME_IDS.find((candidateThemeId) => {
+    const candidateTheme = getThemeDefinition(candidateThemeId);
+
+    return candidateTheme.family === family && candidateTheme.appearance === currentTheme.appearance;
   });
 
   return matchingThemeId || normalizeThemeId(themeId);
@@ -1878,18 +1883,21 @@ const AVATAR_IMAGE_ALLOWED_PREFIXES = Object.freeze([
 const RELEASE_NOTES = [
   {
     version: "0.8.0",
-    title: "星光主题和日夜切换",
+    title: "主题风格和日夜切换",
     date: "2026-08-12",
-    summary: "这次加入一套星光主题，并把亮色和深色切换放进更多菜单，白天和夜晚都能快速换到舒服的界面。",
+    summary: "这次把暖柔和星光主题集中到更多菜单，并让亮色和深色切换更直观，白天和夜晚都能快速换到舒服的界面。",
     userChanges: [
       "新增星光亮色和星光深色两种主题，使用全新的极光背景视觉。",
-      "更多菜单加入月亮和太阳切换，可快速切换当前风格的日夜外观。",
-      "设置中心可以选择暖色或星光风格，并分别保留亮色和深色版本。",
+      "更多菜单可先选择暖柔或星光风格，再用月亮和太阳切换日夜外观。",
+      "主题下的卡片和文字对比更清楚，阅读更轻松。",
+      "更多菜单的语言入口先标记为未来预留。",
       "主题偏好会继续保存在当前设备。",
     ],
     technicalChanges: [
       "Added generated aurora background assets for light and dark theme variants.",
-      "Added family-aware light and dark theme switching from the more menu.",
+      "Consolidated visual family and light-dark switching in the more menu.",
+      "Strengthened theme surface and text contrast for clearer reading.",
+      "Reserved the more-menu language entry for a future update.",
       "Extended theme registry metadata for visual family and appearance variants.",
       "Preserved existing app flows, data structures, and API behavior.",
     ],
@@ -4331,39 +4339,51 @@ function renderMoreMenuPanel() {
         <strong>${escapeHtml(t("menu.settings", "设置"))}</strong>
         <small>${escapeHtml(t("settings.menuDescription", "账号、隐私、偏好和应用信息"))}</small>
       </button>
-      <label class="more-menu-language" for="languageSelect">
+      <section class="more-menu-language is-future" aria-label="${escapeHtml(t("menu.language", "Language"))}">
         <span>
-          <strong>${escapeHtml(t("menu.language", "语言"))}</strong>
-          <small>${escapeHtml(t("menu.future", "未来预留"))}</small>
+          <strong>${escapeHtml(t("menu.language", "Language"))}</strong>
+          <small>${escapeHtml(t("menu.language.futureDescription", "This entry is reserved for a future update."))}</small>
         </span>
-        <select id="languageSelect" aria-label="${escapeHtml(t("menu.language", "语言"))}">
-          ${SUPPORTED_LANGUAGES.map((language) => `
-            <option value="${language}" ${language === state.language ? "selected" : ""}>${LANGUAGE_LABELS[language]}</option>
-          `).join("")}
-        </select>
-      </label>
+        <span class="more-menu-future-badge" aria-hidden="true">${escapeHtml(t("menu.future", "Coming later"))}</span>
+      </section>
       ${APP_THEME_IDS.length ? `
-        <section class="more-menu-theme" aria-label="${escapeHtml(t("menu.theme", "主题"))}">
+        <section class="more-menu-theme" aria-label="${escapeHtml(t("menu.theme", "Theme"))}">
           <span>
-            <strong>${escapeHtml(t("menu.theme", "主题"))}</strong>
-            <small>${escapeHtml(t("menu.theme.description", "快速切换亮色或深色；更多风格可在设置中选择。"))}</small>
+            <strong>${escapeHtml(t("menu.theme", "Theme"))}</strong>
+            <small>${escapeHtml(t("menu.theme.description", "Choose a style, then switch between light and dark."))}</small>
           </span>
-          <div class="more-menu-theme-toggle" role="group" aria-label="${escapeHtml(t("menu.theme", "主题"))}">
+          <div class="more-menu-theme-family" role="group" aria-label="${escapeHtml(t("menu.theme.style", "Theme style"))}">
+            <button
+              class="more-menu-theme-family-option${getThemeDefinition(state.themeId).family === "soft-png" ? " is-selected" : ""}"
+              type="button"
+              data-theme-family="soft-png"
+              aria-pressed="${getThemeDefinition(state.themeId).family === "soft-png"}"
+              title="${escapeHtml(t("theme.softPngShort", "Warm"))}"
+            ><span aria-hidden="true">☀</span>${escapeHtml(t("theme.softPngShort", "Warm"))}</button>
+            <button
+              class="more-menu-theme-family-option${getThemeDefinition(state.themeId).family === "aurora" ? " is-selected" : ""}"
+              type="button"
+              data-theme-family="aurora"
+              aria-pressed="${getThemeDefinition(state.themeId).family === "aurora"}"
+              title="${escapeHtml(t("theme.auroraShort", "Starlight"))}"
+            ><span aria-hidden="true">✦</span>${escapeHtml(t("theme.auroraShort", "Starlight"))}</button>
+          </div>
+          <div class="more-menu-theme-toggle" role="group" aria-label="${escapeHtml(t("menu.theme", "Theme"))}">
             <button
               class="more-menu-theme-option${isDarkTheme() ? " is-selected" : ""}"
               type="button"
               data-theme-appearance="dark"
-              aria-label="${escapeHtml(t("theme.dark", "深色模式"))}"
+              aria-label="${escapeHtml(t("theme.dark", "Dark mode"))}"
               aria-pressed="${isDarkTheme()}"
-              title="${escapeHtml(t("theme.dark", "深色模式"))}"
+              title="${escapeHtml(t("theme.dark", "Dark mode"))}"
             ><span aria-hidden="true">☾</span></button>
             <button
               class="more-menu-theme-option${isDarkTheme() ? "" : " is-selected"}"
               type="button"
               data-theme-appearance="light"
-              aria-label="${escapeHtml(t("theme.light", "亮色模式"))}"
+              aria-label="${escapeHtml(t("theme.light", "Light mode"))}"
               aria-pressed="${!isDarkTheme()}"
-              title="${escapeHtml(t("theme.light", "亮色模式"))}"
+              title="${escapeHtml(t("theme.light", "Light mode"))}"
             ><span aria-hidden="true">☀</span></button>
           </div>
         </section>
@@ -4377,7 +4397,9 @@ function renderMoreMenuPanel() {
   });
   document.querySelector("#menuFeedbackButton").addEventListener("click", openFeedbackPanel);
   document.querySelector("#menuSettingsButton").addEventListener("click", openSettingsPanel);
-  document.querySelector("#languageSelect").addEventListener("change", (event) => changeLanguage(event.target.value));
+  document.querySelectorAll("[data-theme-family]").forEach((button) => {
+    button.addEventListener("click", () => changeThemeFamily(button.dataset.themeFamily));
+  });
   document.querySelectorAll("[data-theme-appearance]").forEach((button) => {
     button.addEventListener("click", () => changeThemeAppearance(button.dataset.themeAppearance));
   });
@@ -4506,34 +4528,14 @@ function renderThemeSettingsSection() {
     <section class="settings-section theme-settings-section" aria-label="${escapeHtml(settingsText("appearance", "外观"))}">
       <div class="settings-section-heading">
         <strong>${escapeHtml(settingsText("appearance", "外观"))}</strong>
-        <small>${escapeHtml(settingsText("appearanceDescription", "选择适合当前环境的亮色或深色主题，设置会保存在这台设备。"))}</small>
+        <small>${escapeHtml(settingsText("appearanceDescription", "可在更多菜单选择主题风格，再切换亮色或深色。"))}</small>
       </div>
-      <div class="theme-choice-group" role="radiogroup" aria-label="${escapeHtml(settingsText("theme", "应用主题"))}">
-        ${APP_THEME_IDS.map((themeId) => {
-          const theme = getThemeDefinition(themeId);
-          const isDark = theme.appearance === "dark";
-          const isSelected = state.themeId === themeId;
-          const description = getThemeDescription(themeId);
-          const icon = theme.family === "aurora" ? (isDark ? "✦" : "✧") : (isDark ? "☾" : "☀");
-
-          return `
-            <button
-              class="theme-choice${isSelected ? " is-selected" : ""}${isDark ? " is-dark" : ""}"
-              type="button"
-              role="radio"
-              aria-checked="${isSelected}"
-              data-theme-choice="${escapeHtml(themeId)}"
-              data-theme-family="${escapeHtml(theme.family || "soft-png")}"
-            >
-              <span class="theme-choice-preview" aria-hidden="true"><span>${icon}</span></span>
-              <span class="theme-choice-copy">
-                <strong>${escapeHtml(getThemeLabel(themeId))}</strong>
-                <small>${escapeHtml(description)}</small>
-              </span>
-              <span class="theme-choice-check" aria-hidden="true">${isSelected ? "✓" : ""}</span>
-            </button>
-          `;
-        }).join("")}
+      <div class="theme-settings-summary">
+        <span class="theme-settings-summary-icon" aria-hidden="true">${getThemeDefinition(state.themeId).family === "aurora" ? "✦" : "☀"}</span>
+        <span>
+          <strong>${escapeHtml(getThemeLabel(state.themeId))}</strong>
+          <small>${escapeHtml(settingsText("appearanceMoreHint", "Quick theme changes are in the More menu."))}</small>
+        </span>
       </div>
     </section>
   `;
@@ -4718,7 +4720,6 @@ function renderSettingsPanel() {
   document.querySelector("#settingsClearLocalButton").addEventListener("click", clearHistoryWithConfirm);
   bindSettingsPlaceholderControls();
   bindHomeLayoutSettingsControls();
-  bindThemeSettingsControls();
   document.querySelector("#settingsForm").addEventListener("submit", saveSettingsCenter);
 }
 
@@ -4731,12 +4732,6 @@ function bindSettingsPlaceholderControls() {
 function bindHomeLayoutSettingsControls() {
   document.querySelector("#settingsHomeEditButton")?.addEventListener("click", openHomeLayoutEditorFromSettings);
   document.querySelector("#homeLayoutResetButton")?.addEventListener("click", resetHomeLayoutWithConfirm);
-}
-
-function bindThemeSettingsControls() {
-  document.querySelectorAll("[data-theme-choice]").forEach((button) => {
-    button.addEventListener("click", () => changeTheme(button.dataset.themeChoice));
-  });
 }
 
 function refreshHomeLayoutUi() {
@@ -12702,6 +12697,14 @@ function changeThemeAppearance(appearance) {
   }
 
   changeTheme(getThemeAppearanceVariant(state.themeId, appearance));
+}
+
+function changeThemeFamily(family) {
+  if (!family) {
+    return;
+  }
+
+  changeTheme(getThemeFamilyVariant(state.themeId, family));
 }
 
 function showToast(message) {
