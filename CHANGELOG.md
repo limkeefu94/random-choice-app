@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- v0.8.2：整理 Warm / Starlight 主题家族、light / dark 外观、PNG 资源 fallback、按钮图标和 390px 小屏主题控件一致性。
 - v0.8.1：完成 390px 手机端 QA 和小屏优化，收紧结果区域、世界频道表单和移动端安全间距，并放大世界频道爱心与礼物交换名单删除按钮。
 - 建立正式开发流程文档：`AGENTS.md`、roadmap、release checklist 和任务模板。
 - 修复 Vercel Hobby 部署函数数量上限：将 API helper 移出 `api/`，并移除未使用的旧上传 demo。

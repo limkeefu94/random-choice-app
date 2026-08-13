@@ -1,5 +1,14 @@
 # Release Notes
 
+## v0.8.2 - 主题系统一致性整理
+
+- 设置中心继续负责选择 Warm / Starlight 主题家族，更多菜单继续只处理语言和日夜外观切换。
+- 切换 light / dark 会保留当前主题家族；切换主题家族会保留当前 light / dark 外观。
+- PNG 按钮图标、主题插画、应用图标和背景资源统一走默认资源 fallback，缺资源时不破图。
+- 收紧 Warm light、Warm dark、Starlight light、Starlight dark 下的文字和卡片对比。
+- 保持 390px 手机宽度下更多菜单、设置主题控件和顶部操作不横向溢出。
+- 不改变随机逻辑、Auth、GCS、Firestore schema、World Channel API、点爱心、礼物交换配对、首页布局保存结构或图片浏览器核心逻辑。
+
 ## v0.8.1 - 手机端 QA 和小屏优化
 
 - 检查 390px 手机宽度下的 Home、Result、World Channel、Profile、Settings、Notifications、Gift Exchange 和图片浏览器。

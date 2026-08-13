@@ -65,6 +65,18 @@ const APP_THEME_IDS = Object.freeze(Object.keys(APP_THEME_REGISTRY));
 const DEFAULT_APP_THEME_ID = APP_THEME_REGISTRY[window.APP_DEFAULT_THEME_ID]
   ? window.APP_DEFAULT_THEME_ID
   : APP_THEME_IDS[0] || "soft-png";
+const EMPTY_APP_ASSETS = Object.freeze({
+  icons: Object.freeze({}),
+  modes: Object.freeze({}),
+  empty: Object.freeze({}),
+  gift: Object.freeze({}),
+  social: Object.freeze({}),
+  backgrounds: Object.freeze({}),
+  ui: Object.freeze({
+    buttonIcons: Object.freeze({}),
+  }),
+});
+const APP_DEFAULT_ASSET_REGISTRY = window.APP_DEFAULT_THEME_ASSETS || {};
 let APP_ASSETS = Object.freeze(resolveThemeAssets(DEFAULT_APP_THEME_ID));
 
 function normalizeThemeId(themeId) {
@@ -75,22 +87,72 @@ function getThemeDefinition(themeId = DEFAULT_APP_THEME_ID) {
   return APP_THEME_REGISTRY[normalizeThemeId(themeId)] || APP_THEME_REGISTRY[DEFAULT_APP_THEME_ID] || {};
 }
 
+function isThemeAssetMap(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergeThemeAssets(...assetMaps) {
+  return assetMaps.reduce((mergedAssets, assetMap) => {
+    if (!isThemeAssetMap(assetMap)) {
+      return mergedAssets;
+    }
+
+    Object.entries(assetMap).forEach(([key, value]) => {
+      if (isThemeAssetMap(value)) {
+        mergedAssets[key] = mergeThemeAssets(
+          isThemeAssetMap(mergedAssets[key]) ? mergedAssets[key] : {},
+          value,
+        );
+        return;
+      }
+
+      if (value) {
+        mergedAssets[key] = value;
+      }
+    });
+
+    return mergedAssets;
+  }, {});
+}
+
 function resolveThemeAssets(themeId) {
-  return getThemeDefinition(themeId).assets || {};
+  return mergeThemeAssets(
+    EMPTY_APP_ASSETS,
+    APP_DEFAULT_ASSET_REGISTRY,
+    getThemeDefinition(DEFAULT_APP_THEME_ID).assets || {},
+    getThemeDefinition(themeId).assets || {},
+  );
+}
+
+function resolveThemeCssVars(themeId) {
+  return {
+    ...(getThemeDefinition(DEFAULT_APP_THEME_ID).cssVars || {}),
+    ...(getThemeDefinition(themeId).cssVars || {}),
+  };
+}
+
+function getThemeAssetValue(path, fallback = "") {
+  const keys = Array.isArray(path) ? path : String(path || "").split(".").filter(Boolean);
+  const value = keys.reduce((currentValue, key) => (
+    isThemeAssetMap(currentValue) ? currentValue[key] : undefined
+  ), APP_ASSETS);
+
+  return typeof value === "string" && value ? value : fallback;
 }
 
 function applyAppTheme(themeId = DEFAULT_APP_THEME_ID) {
   const normalizedThemeId = normalizeThemeId(themeId);
   const theme = getThemeDefinition(normalizedThemeId);
+  const cssVars = resolveThemeCssVars(normalizedThemeId);
 
-  APP_ASSETS = Object.freeze(theme.assets || {});
+  APP_ASSETS = Object.freeze(resolveThemeAssets(normalizedThemeId));
   document.documentElement.dataset.appTheme = normalizedThemeId;
-  Object.entries(theme.cssVars || {}).forEach(([property, value]) => {
+  Object.entries(cssVars).forEach(([property, value]) => {
     document.documentElement.style.setProperty(property, value);
   });
   document.querySelector('meta[name="theme-color"]')?.setAttribute(
     "content",
-    theme.cssVars?.["--bg"] || "#fff8ef",
+    cssVars["--bg"] || theme.cssVars?.["--bg"] || "#fff8ef",
   );
 
   return normalizedThemeId;
@@ -106,26 +168,63 @@ function isDarkTheme(themeId = state?.themeId) {
   return getThemeDefinition(themeId).appearance === "dark";
 }
 
-function getThemeAppearanceVariant(themeId, appearance) {
+function getThemeVariant(themeId, options = {}) {
   const currentTheme = getThemeDefinition(themeId);
+  const targetFamily = options.family || currentTheme.family;
+  const targetAppearance = options.appearance || currentTheme.appearance;
   const matchingThemeId = APP_THEME_IDS.find((candidateThemeId) => {
     const candidateTheme = getThemeDefinition(candidateThemeId);
 
-    return candidateTheme.family === currentTheme.family && candidateTheme.appearance === appearance;
+    return candidateTheme.family === targetFamily && candidateTheme.appearance === targetAppearance;
   });
 
-  return matchingThemeId || normalizeThemeId(themeId);
+  if (matchingThemeId) {
+    return matchingThemeId;
+  }
+
+  if (options.family) {
+    const familyFallbackThemeId = APP_THEME_IDS.find((candidateThemeId) => {
+      const candidateTheme = getThemeDefinition(candidateThemeId);
+
+      return candidateTheme.family === targetFamily;
+    });
+
+    if (familyFallbackThemeId) {
+      return familyFallbackThemeId;
+    }
+  }
+
+  return normalizeThemeId(themeId);
+}
+
+function getThemeAppearanceVariant(themeId, appearance) {
+  return getThemeVariant(themeId, { appearance });
 }
 
 function getThemeFamilyVariant(themeId, family) {
-  const currentTheme = getThemeDefinition(themeId);
-  const matchingThemeId = APP_THEME_IDS.find((candidateThemeId) => {
-    const candidateTheme = getThemeDefinition(candidateThemeId);
+  return getThemeVariant(themeId, { family });
+}
 
-    return candidateTheme.family === family && candidateTheme.appearance === currentTheme.appearance;
+function getThemeFamilyOptions() {
+  const optionsByFamily = new Map();
+
+  APP_THEME_IDS.forEach((candidateThemeId) => {
+    const candidateTheme = getThemeDefinition(candidateThemeId);
+    const family = candidateTheme.family || candidateThemeId;
+
+    if (optionsByFamily.has(family)) {
+      return;
+    }
+
+    optionsByFamily.set(family, {
+      family,
+      icon: candidateTheme.familyIcon || "●",
+      labelKey: candidateTheme.familyLabelKey || candidateTheme.labelKey || "",
+      label: candidateTheme.familyLabel || candidateTheme.label || family,
+    });
   });
 
-  return matchingThemeId || normalizeThemeId(themeId);
+  return [...optionsByFamily.values()];
 }
 const FOOD_CATEGORIES = ["全部", "Mamak", "快餐连锁", "外卖平台热门", "油炸类", "素食类", "低卡类", "快餐", "嘴馋零嘴类", "高热量", "健康类"];
 const SPECIAL_FOOD_CATEGORIES = new Set(["Mamak", "快餐连锁", "外卖平台热门"]);
@@ -172,13 +271,13 @@ const LANGUAGE_LABELS = {
   ms: "Bahasa Melayu",
 };
 const CURRENCY_RATES = {
-  MYR: { label: "MYR", displayLabel: "马币 MYR", perMYR: 1, decimals: 0 },
-  SGD: { label: "SGD", displayLabel: "新币 SGD", perMYR: 1 / 3.1044, decimals: 2 },
-  USD: { label: "USD", displayLabel: "美元 USD", perMYR: 1 / 3.968, decimals: 2 },
-  CNY: { label: "CNY", displayLabel: "人民币 CNY", perMYR: 1 / 0.5863, decimals: 0 },
-  JPY: { label: "JPY", displayLabel: "日元 JPY", perMYR: 100 / 2.491, decimals: 0 },
-  THB: { label: "THB", displayLabel: "泰铢 THB", perMYR: 100 / 12.1774, decimals: 0 },
-  TWD: { label: "TWD", displayLabel: "台币 TWD", perMYR: 100 / 12.6333, decimals: 0 },
+  MYR: { label: "MYR", displayLabel: "马币 MYR", displayLabelKey: "currency.MYR", perMYR: 1, decimals: 0 },
+  SGD: { label: "SGD", displayLabel: "新币 SGD", displayLabelKey: "currency.SGD", perMYR: 1 / 3.1044, decimals: 2 },
+  USD: { label: "USD", displayLabel: "美元 USD", displayLabelKey: "currency.USD", perMYR: 1 / 3.968, decimals: 2 },
+  CNY: { label: "CNY", displayLabel: "人民币 CNY", displayLabelKey: "currency.CNY", perMYR: 1 / 0.5863, decimals: 0 },
+  JPY: { label: "JPY", displayLabel: "日元 JPY", displayLabelKey: "currency.JPY", perMYR: 100 / 2.491, decimals: 0 },
+  THB: { label: "THB", displayLabel: "泰铢 THB", displayLabelKey: "currency.THB", perMYR: 100 / 12.1774, decimals: 0 },
+  TWD: { label: "TWD", displayLabel: "台币 TWD", displayLabelKey: "currency.TWD", perMYR: 100 / 12.6333, decimals: 0 },
 };
 
 function dish(title, tags, budget) {
@@ -1865,7 +1964,7 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.8.1";
+const APP_VERSION = "0.8.2";
 const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
 const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
 const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
@@ -1881,6 +1980,26 @@ const AVATAR_IMAGE_ALLOWED_PREFIXES = Object.freeze([
   "profile/",
 ]);
 const RELEASE_NOTES = [
+  {
+    version: "0.8.2",
+    title: "主题系统一致性整理",
+    date: "2026-08-14",
+    summary: "这次把 Warm / Starlight 主题家族、亮色 / 深色外观、PNG 资源和移动端主题控件整理到同一套规则里，切换时更稳定。",
+    userChanges: [
+      "设置中心继续负责选择 Warm 或 Starlight 主题家族。",
+      "更多菜单继续用月亮和太阳切换亮色 / 深色，并保留语言切换。",
+      "切换亮色 / 深色不会重置主题家族，切换主题家族也不会重置当前深浅外观。",
+      "主题下的按钮图标、空状态插画、背景和应用图标会统一使用默认 PNG fallback。",
+      "390px 手机宽度下继续避免主题设置、更多菜单和顶部操作造成横向溢出。",
+    ],
+    technicalChanges: [
+      "Added default theme asset fallback merging before applying per-theme assets.",
+      "Resolved reusable PNG button icons and theme artwork through one asset lookup path.",
+      "Generated theme-family controls from registry metadata instead of hard-coded UI buttons.",
+      "Applied theme-bound text and card contrast rules for warm, starlight, light, and dark variants.",
+      "Preserved existing random, Auth, GCS, Firestore, world channel, like, gift exchange, image viewer, and home-layout data behavior.",
+    ],
+  },
   {
     version: "0.8.1",
     title: "手机端 QA 和小屏优化",
@@ -2400,17 +2519,17 @@ const DEFAULT_ACCOUNT_SETTINGS = Object.freeze({
 });
 const DIRECT_MESSAGE_POLICIES = new Set(["friendsOnly", "everyone", "none"]);
 const WORLD_REGION_OPTIONS = [
-  { value: "global", label: "全球" },
-  { value: "MY", label: "马来西亚" },
-  { value: "SG", label: "新加坡" },
-  { value: "CN", label: "中国" },
-  { value: "TW", label: "台湾" },
-  { value: "HK", label: "香港" },
-  { value: "JP", label: "日本" },
-  { value: "KR", label: "韩国" },
-  { value: "TH", label: "泰国" },
-  { value: "US", label: "美国" },
-  { value: "EU", label: "欧洲" },
+  { value: "global", label: "全球", labelKey: "region.global" },
+  { value: "MY", label: "马来西亚", labelKey: "region.MY" },
+  { value: "SG", label: "新加坡", labelKey: "region.SG" },
+  { value: "CN", label: "中国", labelKey: "region.CN" },
+  { value: "TW", label: "台湾", labelKey: "region.TW" },
+  { value: "HK", label: "香港", labelKey: "region.HK" },
+  { value: "JP", label: "日本", labelKey: "region.JP" },
+  { value: "KR", label: "韩国", labelKey: "region.KR" },
+  { value: "TH", label: "泰国", labelKey: "region.TH" },
+  { value: "US", label: "美国", labelKey: "region.US" },
+  { value: "EU", label: "欧洲", labelKey: "region.EU" },
 ];
 const FEEDBACK_TYPES = ["Bug / 错误", "功能建议", "UI 不好用", "内容错误", "其他"];
 const CLIENT_ERROR_THROTTLE_MS = 60 * 1000;
@@ -2931,9 +3050,17 @@ function worldText(key, fallback = "", replacements = {}) {
   return formatLocaleText(t(`world.${key}`, fallback), replacements);
 }
 
+function getLanguageLabel(language) {
+  return t(`language.${language}`, LANGUAGE_LABELS[language] || language);
+}
+
 function getCurrencyDisplayLabel(code) {
   const currency = CURRENCY_RATES[code];
-  return currency?.displayLabel || currency?.label || code;
+  return currency ? t(currency.displayLabelKey || `currency.${code}`, currency.displayLabel || currency.label || code) : code;
+}
+
+function getWorldRegionLabel(region) {
+  return t(region?.labelKey || `region.${region?.value}`, region?.label || region?.value || "");
 }
 
 function renderCurrencyOptions(selectedCurrency = state.currency, options = {}) {
@@ -3260,7 +3387,7 @@ function getHomeFeatureMeta(featureId) {
     return {
       id: HOME_WORLD_FEATURE_ID,
       type: "world",
-      asset: APP_ASSETS.modes.world,
+      asset: getThemeAssetValue(["modes", "world"]),
       icon: "🌍",
       title: worldText("title", "世界频道"),
       description: worldText("subtitle", "公开频道 · 私聊和群聊之后会放这里"),
@@ -3278,7 +3405,7 @@ function getHomeFeatureMeta(featureId) {
     id: featureId,
     type: "mode",
     modeKey,
-    asset: APP_ASSETS.modes[modeKey],
+    asset: getThemeAssetValue(["modes", modeKey]),
     icon: mode.icon,
     title: getModeText(modeKey, "title"),
     description: getModeText(modeKey, "short"),
@@ -3389,10 +3516,14 @@ function getButtonIconAsset(icon) {
     "↻": "refresh",
     "⟳": "refresh",
     "⚙": "tools",
+    "-": "hide",
+    "−": "hide",
+    "+": "recover",
+    "＋": "recover",
   };
   const iconKey = iconKeyMap[normalizedIcon];
 
-  return iconKey ? APP_ASSETS.ui.buttonIcons?.[iconKey] || "" : "";
+  return iconKey ? getThemeAssetValue(["ui", "buttonIcons", iconKey]) : "";
 }
 
 function renderButtonIconContent(icon) {
@@ -3552,10 +3683,10 @@ function renderAssetImage(src, alt = "", className = "", attributes = "") {
 }
 
 function syncThemeAssetElements() {
-  const appIcon = APP_ASSETS.icons?.app;
-  const notificationBell = APP_ASSETS.ui?.notificationBell;
-  const worldModeIcon = APP_ASSETS.modes?.world;
-  const randomButtonIcon = APP_ASSETS.ui?.buttonIcons?.shuffle;
+  const appIcon = getThemeAssetValue(["icons", "app"]);
+  const notificationBell = getThemeAssetValue(["ui", "notificationBell"]);
+  const worldModeIcon = getThemeAssetValue(["modes", "world"]);
+  const randomButtonIcon = getThemeAssetValue(["ui", "buttonIcons", "shuffle"]);
 
   if (appIcon) {
     const brandIcon = elements.appRefreshButton?.querySelector(".brand-mark img");
@@ -3605,15 +3736,21 @@ function renderModeActivePointer(isActive) {
     return "";
   }
 
+  const pointerAsset = getThemeAssetValue(["ui", "wheelPointer"]);
+
+  if (!pointerAsset) {
+    return "";
+  }
+
   return `
     <span class="mode-active-pointer" aria-hidden="true">
-      ${renderAssetImage(APP_ASSETS.ui.wheelPointer, "", "mode-active-pointer-image")}
+      ${renderAssetImage(pointerAsset, "", "mode-active-pointer-image")}
     </span>
   `;
 }
 
 function renderIllustratedEmptyState(type, text, className = "") {
-  const asset = APP_ASSETS.empty[type];
+  const asset = getThemeAssetValue(["empty", type]);
   const classNames = ["empty-state", asset ? "is-illustrated" : "", className].filter(Boolean).join(" ");
 
   if (!asset) {
@@ -3769,7 +3906,7 @@ function renderHomeFeatureCard(feature, options = {}) {
         data-home-layout-feature="${escapeHtml(feature.id)}"
         aria-label="${escapeHtml(editLabel)}"
         ${!isHidden && !canHideFeature ? "disabled" : ""}
-      >${isHidden ? "+" : "-"}</button>
+      >${renderButtonIconContent(isHidden ? "+" : "-")}</button>
     `
     : "";
 
@@ -4004,7 +4141,7 @@ function renderNotificationPanel() {
       `).join("")
     : `
         <div class="notification-empty">
-          ${renderAssetImage(APP_ASSETS.empty.notification, "", "notification-empty-image", 'aria-hidden="true" loading="lazy"')}
+          ${renderAssetImage(getThemeAssetValue(["empty", "notification"]), "", "notification-empty-image", 'aria-hidden="true" loading="lazy"')}
           <strong>${escapeHtml(notificationText("empty", "暂时没有通知"))}</strong>
           <small>${escapeHtml(notificationText("emptyHint", "系统公告、版本更新和互动提醒会出现在这里。"))}</small>
         </div>
@@ -4427,7 +4564,7 @@ function renderMoreMenuPanel() {
         </span>
         <select id="languageSelect" aria-label="${escapeHtml(t("menu.language", "Language"))}">
           ${SUPPORTED_LANGUAGES.map((language) => `
-            <option value="${language}" ${language === state.language ? "selected" : ""}>${LANGUAGE_LABELS[language]}</option>
+            <option value="${language}" ${language === state.language ? "selected" : ""}>${escapeHtml(getLanguageLabel(language))}</option>
           `).join("")}
         </select>
       </label>
@@ -4435,7 +4572,7 @@ function renderMoreMenuPanel() {
         <section class="more-menu-theme" aria-label="${escapeHtml(t("menu.theme", "Theme"))}">
           <span>
             <strong>${escapeHtml(t("menu.theme", "Theme"))}</strong>
-            <small>${escapeHtml(t("menu.theme.description", "Use the moon or sun to switch the current style."))}</small>
+            <small>${escapeHtml(t("menu.theme.description", "Use the moon or sun to switch light / dark without changing the theme family."))}</small>
           </span>
           <div class="more-menu-theme-toggle" role="group" aria-label="${escapeHtml(t("menu.theme", "Theme"))}">
             <button
@@ -4592,32 +4729,38 @@ function renderNotificationSettingsSection() {
 
 function renderThemeSettingsSection() {
   const currentTheme = getThemeDefinition(state.themeId);
+  const themeFamilyOptions = getThemeFamilyOptions();
+  const currentFamilyOption = themeFamilyOptions.find((option) => option.family === currentTheme.family);
+  const currentFamilyIcon = currentFamilyOption?.icon || currentTheme.familyIcon || "●";
 
   return `
     <section class="settings-section theme-settings-section" aria-label="${escapeHtml(settingsText("appearance", "外观"))}">
       <div class="settings-section-heading">
         <strong>${escapeHtml(settingsText("appearance", "外观"))}</strong>
-        <small>${escapeHtml(settingsText("appearanceDescription", "在这里选择主题风格，再到更多菜单切换亮色或深色。"))}</small>
+        <small>${escapeHtml(settingsText("appearanceDescription", "在这里选择暖柔或星光主题家族，再到更多菜单切换亮色或深色。"))}</small>
       </div>
-      <div class="theme-family-choice-group" role="group" aria-label="${escapeHtml(t("menu.theme.style", "Theme style"))}">
-        <button
-          class="theme-family-choice${currentTheme.family === "soft-png" ? " is-selected" : ""}"
-          type="button"
-          data-theme-family="soft-png"
-          aria-pressed="${currentTheme.family === "soft-png"}"
-        ><span aria-hidden="true">☀</span>${escapeHtml(t("theme.softPngShort", "Warm"))}</button>
-        <button
-          class="theme-family-choice${currentTheme.family === "aurora" ? " is-selected" : ""}"
-          type="button"
-          data-theme-family="aurora"
-          aria-pressed="${currentTheme.family === "aurora"}"
-        ><span aria-hidden="true">✦</span>${escapeHtml(t("theme.auroraShort", "Starlight"))}</button>
-      </div>
+      ${themeFamilyOptions.length ? `
+        <div class="theme-family-choice-group" role="group" aria-label="${escapeHtml(t("menu.theme.style", "Theme style"))}">
+          ${themeFamilyOptions.map((option) => {
+            const isSelected = currentTheme.family === option.family;
+            const optionLabel = option.labelKey ? t(option.labelKey, option.label) : option.label;
+
+            return `
+              <button
+                class="theme-family-choice${isSelected ? " is-selected" : ""}"
+                type="button"
+                data-theme-family="${escapeHtml(option.family)}"
+                aria-pressed="${isSelected}"
+              ><span aria-hidden="true">${escapeHtml(option.icon)}</span>${escapeHtml(optionLabel)}</button>
+            `;
+          }).join("")}
+        </div>
+      ` : ""}
       <div class="theme-settings-summary">
-        <span class="theme-settings-summary-icon" aria-hidden="true">${currentTheme.family === "aurora" ? "✦" : "☀"}</span>
+        <span class="theme-settings-summary-icon" aria-hidden="true">${escapeHtml(currentFamilyIcon)}</span>
         <span>
           <strong>${escapeHtml(getThemeLabel(state.themeId))}</strong>
-          <small>${escapeHtml(settingsText("appearanceMoreHint", "Quick theme changes are in the More menu."))}</small>
+          <small>${escapeHtml(settingsText("appearanceMoreHint", "Moon and sun only change light / dark; they keep the theme family."))}</small>
         </span>
       </div>
     </section>
@@ -4700,7 +4843,7 @@ function renderSettingsPanel() {
           <div class="field">
             <label for="settingsLanguage">${escapeHtml(settingsText("defaultLanguage", "默认语言"))}</label>
             <select id="settingsLanguage" ${disabled}>
-              ${SUPPORTED_LANGUAGES.map((language) => `<option value="${language}" ${settings.preferences.language === language ? "selected" : ""}>${LANGUAGE_LABELS[language]}</option>`).join("")}
+              ${SUPPORTED_LANGUAGES.map((language) => `<option value="${language}" ${settings.preferences.language === language ? "selected" : ""}>${escapeHtml(getLanguageLabel(language))}</option>`).join("")}
             </select>
           </div>
           <div class="field">
@@ -4712,7 +4855,7 @@ function renderSettingsPanel() {
           <div class="field">
             <label for="settingsWorldRegion">${escapeHtml(settingsText("worldRegion", "世界频道地区"))}</label>
             <select id="settingsWorldRegion" ${disabled}>
-              ${WORLD_REGION_OPTIONS.map((region) => `<option value="${region.value}" ${settings.preferences.worldRegion === region.value ? "selected" : ""}>${region.label}</option>`).join("")}
+              ${WORLD_REGION_OPTIONS.map((region) => `<option value="${region.value}" ${settings.preferences.worldRegion === region.value ? "selected" : ""}>${escapeHtml(getWorldRegionLabel(region))}</option>`).join("")}
             </select>
           </div>
           <div class="field">
@@ -4749,7 +4892,7 @@ function renderSettingsPanel() {
         <div class="connected-apps-row" aria-label="${escapeHtml(settingsText("connectedAppsAria", "关联小应用示例"))}">
           <article class="connected-app-card is-current">
             <span class="connected-app-icon connected-app-icon-image">
-              <img src="./assets/icons/app-icon.png" alt="" loading="lazy" />
+              ${renderAssetImage(getThemeAssetValue(["icons", "app"]), "", "", 'loading="lazy"')}
             </span>
             <div class="connected-app-copy">
               <strong>${escapeHtml(t("app.name", "随心转盘"))}</strong>
@@ -5535,7 +5678,7 @@ function renderWorldControls() {
         <div class="world-image-action">
           <label class="image-upload-button">
             <input id="worldImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
-            ${renderAssetImage(APP_ASSETS.social.uploadImage, "", "image-upload-icon", 'aria-hidden="true" loading="lazy"')}
+            ${renderAssetImage(getThemeAssetValue(["social", "uploadImage"]), "", "image-upload-icon", 'aria-hidden="true" loading="lazy"')}
             <span>${escapeHtml(worldText("image", "图片"))}</span>
           </label>
           <small class="upload-status" id="worldUploadStatus">${escapeHtml(worldText("previewBeforeSend", "先预览再发送"))}</small>
@@ -5989,7 +6132,7 @@ function renderGiftParticipantChips(participants, duplicateNames) {
   if (!participants.length) {
     return `
       <div class="gift-empty-note">
-        ${renderAssetImage(APP_ASSETS.gift.nameCard, "", "gift-empty-illustration", 'aria-hidden="true" loading="lazy"')}
+        ${renderAssetImage(getThemeAssetValue(["gift", "nameCard"]), "", "gift-empty-illustration", 'aria-hidden="true" loading="lazy"')}
         <strong>${giftText("empty.participantsTitle", "还没有参与者")}</strong>
         <small>${giftText("empty.participantsHint", "可以一行一个名字，也可以用逗号分开。")}</small>
       </div>
@@ -6114,7 +6257,7 @@ function renderGiftResultSection() {
     return `
       <section class="gift-result-panel" id="giftExchangeResult" aria-live="polite">
         <div class="gift-empty-note">
-          ${renderAssetImage(APP_ASSETS.gift.box, "", "gift-empty-illustration", 'aria-hidden="true" loading="lazy"')}
+          ${renderAssetImage(getThemeAssetValue(["gift", "box"]), "", "gift-empty-illustration", 'aria-hidden="true" loading="lazy"')}
           <strong>${giftText("empty.resultTitle", "准备好名单后按「开始配对」")}</strong>
           <small>${giftText("empty.resultHint", "结果只保存在本机，不会上传到世界频道、好友或云端房间。")}</small>
         </div>
@@ -6165,7 +6308,7 @@ function renderGiftControls() {
   elements.modeControls.innerHTML = `
     <section class="gift-exchange-panel">
       <div class="gift-setup-heading">
-        ${renderAssetImage(APP_ASSETS.gift.box, "", "gift-heading-image", 'aria-hidden="true" loading="lazy"')}
+        ${renderAssetImage(getThemeAssetValue(["gift", "box"]), "", "gift-heading-image", 'aria-hidden="true" loading="lazy"')}
         <div>
           <strong>${getModeTitle("gift")}</strong>
           <small>${giftText("setup.description", "输入参与者名字，系统会随机安排每个人要送礼物给谁。")}</small>
@@ -6755,7 +6898,7 @@ function renderWorldChannel(options = {}) {
         .join("")
         : `
           <div class="world-empty-state">
-            ${renderAssetImage(APP_ASSETS.empty.world, "", "world-empty-image", 'aria-hidden="true" loading="lazy"')}
+            ${renderAssetImage(getThemeAssetValue(["empty", "world"]), "", "world-empty-image", 'aria-hidden="true" loading="lazy"')}
             <strong>${escapeHtml(worldText("emptyTitle", "世界频道还没有消息"))}</strong>
             <small>${escapeHtml(worldText("emptyHint", "发一句话，或者分享一张图片，让这里热起来。"))}</small>
           </div>
@@ -12751,7 +12894,7 @@ function changeLanguage(language) {
   state.languageManuallySelected = true;
   saveState();
   render();
-  showToast(`${t("menu.language", "语言")}：${LANGUAGE_LABELS[nextLanguage]}`);
+  showToast(`${t("menu.language", "语言")}：${getLanguageLabel(nextLanguage)}`);
 }
 
 function changeTheme(themeId) {

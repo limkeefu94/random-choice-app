@@ -32,6 +32,12 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 [hidden] {
   display: none !important;
 }
@@ -108,6 +114,13 @@ button {
   min-height: 100vh;
   margin: 0 auto;
   padding: 24px;
+  overflow-x: clip;
+}
+
+@supports not (overflow: clip) {
+  .app {
+    overflow-x: hidden;
+  }
 }
 
 .topbar {
@@ -6201,7 +6214,52 @@ body.is-home-layout-dragging * {
   }
 }
 
-/* Theme layer: keep the original warm theme, but give dark mode its own calm depth. */
+/* Theme layer: keep theme text and reusable cards tied to the active palette. */
+:root[data-app-theme] .app :is(
+  .notification-item strong,
+  .notification-empty strong,
+  .notification-category-pill strong,
+  .settings-version-button strong,
+  .release-notes-card strong,
+  .connected-app-card,
+  .connected-app-copy strong,
+  .home-layout-empty strong,
+  .home-layout-hint strong
+) {
+  color: var(--ink);
+}
+
+:root[data-app-theme] .app :is(
+  .notification-details,
+  .settings-version-button span,
+  .settings-version-button small,
+  .release-notes-card ul,
+  .connected-app-copy small,
+  .connected-app-status,
+  .home-layout-empty,
+  .home-layout-hint,
+  .settings-footnote,
+  .world-image-viewer-hint
+) {
+  color: var(--muted);
+}
+
+:root[data-app-theme] .app .connected-app-status.is-current {
+  color: var(--accent-strong);
+}
+
+:root[data-app-theme] .app :is(
+  .notification-category-pill,
+  .release-notes-card,
+  .connected-app-card,
+  .feedback-context,
+  .home-layout-empty,
+  .home-layout-hint
+) {
+  border-color: var(--line);
+  background: var(--glass);
+}
+
 :root[data-app-theme$="-dark"] {
   color-scheme: dark;
 }
@@ -6322,9 +6380,15 @@ body.is-home-layout-dragging * {
   .settings-toggle strong,
   .settings-placeholder-card,
   .settings-info-row strong,
+  .settings-version-button strong,
+  .notification-empty strong,
   .world-message strong,
   .world-composer-identity strong,
   .world-panel-heading strong,
+  .more-menu-item strong,
+  .more-menu-language strong,
+  .more-menu-theme strong,
+  .theme-settings-summary strong,
   .more-menu-section-title
 ) {
   color: var(--ink);
@@ -6335,12 +6399,17 @@ body.is-home-layout-dragging * {
   .settings-section-heading small,
   .settings-toggle small,
   .settings-placeholder-card small,
+  .settings-version-button span,
+  .settings-version-button small,
   .settings-login-hint,
   .world-message p,
   .world-message time,
   .world-empty-state,
   .notification-item p,
-  .more-menu-item small
+  .more-menu-item small,
+  .more-menu-language small,
+  .more-menu-theme small,
+  .theme-settings-summary small
 ) {
   color: var(--muted);
 }
@@ -6416,6 +6485,22 @@ body.is-home-layout-dragging * {
 :root[data-app-theme$="-dark"] .settings-toggle input::after {
   background: #f7f8fb;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.32);
+}
+
+:root[data-app-theme$="-dark"] .app :is(
+  .connected-apps-badge,
+  .notification-item-title span,
+  .settings-placeholder-card span,
+  .home-feature-toggle-button,
+  .home-feature-locked-hint
+) {
+  color: var(--ink);
+  border-color: var(--line);
+  background: var(--surface-control);
+}
+
+:root[data-app-theme$="-dark"] .app .home-feature-toggle-button.is-restore {
+  color: var(--mint);
 }
 
 :root[data-app-theme$="-dark"] .world-composer-avatar::after {
