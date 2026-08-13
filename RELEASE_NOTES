@@ -1,0 +1,8 @@
+# Release Notes
+
+## v0.8.1 - 手机端 QA 和小屏优化
+
+- 检查 390px 手机宽度下的 Home、Result、World Channel、Profile、Settings、Notifications、Gift Exchange 和图片浏览器。
+- 放大世界频道爱心按钮和礼物交换名单删除按钮，减少小屏误触。
+- 收紧手机端结果舞台和未登入世界频道表单，降低按钮被挤到屏幕外的概率。
+- 保持现有主题系统、PNG 按钮系统、随机逻辑、Auth、GCS、世界频道 API、爱心和礼物交换流程不变。

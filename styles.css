@@ -2847,6 +2847,7 @@ body.is-home-layout-dragging * {
   margin: 0;
   color: #5f4638;
   line-height: 1.6;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
@@ -3382,6 +3383,7 @@ body.is-home-layout-dragging * {
   color: #5f4638;
   font-size: 0.88rem;
   line-height: 1.45;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
   background: rgba(255, 255, 255, 0.72);
 }
@@ -4996,8 +4998,9 @@ body.is-home-layout-dragging * {
   .floating-panel {
     top: 92px;
     right: 16px;
-    max-height: calc(100vh - 116px);
+    max-height: calc(100dvh - 116px);
     overflow: auto;
+    overscroll-behavior: contain;
   }
 
   .notification-panel {
@@ -5259,7 +5262,7 @@ body.is-home-layout-dragging * {
 
 @media (max-width: 560px) {
   .app {
-    padding: 10px;
+    padding: 10px 10px calc(18px + env(safe-area-inset-bottom, 0px));
   }
 
   .topbar {
@@ -5400,24 +5403,37 @@ body.is-home-layout-dragging * {
   }
 
   .icon-button {
-    min-height: 40px;
+    min-height: 42px;
     padding: 0 10px;
     gap: 5px;
     font-size: 0.86rem;
   }
 
   .icon-button.is-icon-only {
-    width: 40px;
-    min-width: 40px;
+    width: 42px;
+    min-width: 42px;
     padding: 0;
   }
 
   .inline-action-menu {
     max-width: calc(100vw - 32px);
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
   }
 
   .primary-button {
     padding: 0 16px;
+  }
+
+  .action-row {
+    gap: 8px;
+  }
+
+  .action-row .secondary-button,
+  .action-row .icon-button {
+    flex: 1 1 96px;
+    min-width: 0;
+    padding-inline: 8px;
   }
 
   .connected-apps-heading {
@@ -5541,8 +5557,8 @@ body.is-home-layout-dragging * {
   }
 
   .result-stage {
-    min-height: 276px;
-    margin: 16px 0 14px;
+    min-height: 232px;
+    margin: 14px 0 12px;
     padding: 12px;
     border-radius: 24px;
   }
@@ -5553,7 +5569,7 @@ body.is-home-layout-dragging * {
 
   .result-content {
     width: calc(100% - 22px);
-    padding: 24px 16px;
+    padding: 22px 14px;
     border-radius: 22px;
   }
 
@@ -5563,6 +5579,7 @@ body.is-home-layout-dragging * {
   }
 
   .result-value {
+    min-height: 1.55em;
     font-size: clamp(1.9rem, 13vw, 3.15rem);
   }
 
@@ -5570,6 +5587,34 @@ body.is-home-layout-dragging * {
     margin-top: 10px;
     font-size: 0.86rem;
     line-height: 1.45;
+  }
+
+  .result-stage.is-gift-result .result-content {
+    padding: 14px;
+  }
+
+  .gift-result-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .gift-result-actions > button {
+    min-width: 0;
+    padding-inline: 8px;
+  }
+
+  .gift-result-actions > button:nth-child(3):last-child {
+    grid-column: 1 / -1;
+  }
+
+  .gift-reveal-card {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .gift-reveal-result {
+    min-height: 64px;
+    padding: 12px;
   }
 
   .controls-panel,
@@ -5791,9 +5836,9 @@ body.is-home-layout-dragging * {
   }
 
   .world-like-button {
-    min-width: 50px;
-    min-height: 30px;
-    padding: 0 8px;
+    min-width: 56px;
+    min-height: 36px;
+    padding: 0 10px;
     font-size: 0.82rem;
   }
 
@@ -5820,7 +5865,7 @@ body.is-home-layout-dragging * {
     padding: 6px 0 calc(4px + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid rgba(80, 45, 24, 0.1);
     overflow-y: auto;
-    max-height: 38dvh;
+    max-height: min(42dvh, 360px);
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
   }
@@ -5836,6 +5881,11 @@ body.is-home-layout-dragging * {
   .auth-hint-list,
   .upload-status {
     font-size: 0.72rem;
+  }
+
+  .world-auth-panel .auth-panel .field-hint,
+  .world-auth-panel .auth-panel .auth-hint-list {
+    display: none;
   }
 
   .identity-panel {
@@ -5893,14 +5943,24 @@ body.is-home-layout-dragging * {
 
   .world-composer-actions .compact-primary {
     width: 100%;
-    min-height: 38px;
+    min-height: 40px;
   }
 
   .world-composer-actions .image-upload-button {
     width: auto;
     min-width: 54px;
-    min-height: 38px;
+    min-height: 40px;
     padding: 0 10px;
+  }
+
+  .gift-participant-chip {
+    min-height: 38px;
+  }
+
+  .gift-participant-chip button {
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
   }
 
   .world-image-action {
