@@ -1,65 +1,82 @@
 (function () {
-  const softPngTheme = {
-    id: "soft-png",
-    label: "Soft PNG theme",
-    labelKey: "theme.softPng",
-    family: "soft-png",
-    appearance: "light",
-    descriptionKey: "theme.softPngDescription",
-    assets: {
-      icons: {
-        app: "./assets/icons/app-icon.png",
-      },
-      modes: {
-        food: "./assets/modes/mode-food.png",
-        drink: "./assets/modes/mode-drink.png",
-        travel: "./assets/modes/mode-travel.png",
-        number: "./assets/modes/mode-number.png",
-        shopping: "./assets/modes/mode-shopping.png",
-        gift: "./assets/modes/mode-gift.png",
-        custom: "./assets/modes/mode-custom.png",
-        world: "./assets/modes/mode-world.png",
-      },
-      empty: {
-        favorites: "./assets/empty/empty-favorites.png",
-        history: "./assets/empty/empty-history.png",
-        notification: "./assets/empty/empty-notification.png",
-        options: "./assets/empty/empty-options.png",
-        world: "./assets/empty/empty-world.png",
-      },
-      gift: {
-        box: "./assets/gift/gift-box.png",
-        nameCard: "./assets/gift/name-card.png",
-      },
-      social: {
-        defaultAvatar: "./assets/social/default-avatar.png",
-        heartPopSprite: "./assets/social/heart-pop-sprite.png",
-        uploadImage: "./assets/social/upload-image.png",
-      },
-      ui: {
-        leafAccent: "./assets/ui/leaf-accent.png",
-        notificationBell: "./assets/ui/notification-bell.png",
-        wheelPointer: "./assets/ui/wheel-pointer.png",
-        buttonIcons: {
-          close: "./assets/ui/button-icons/close.png",
-          edit: "./assets/ui/button-icons/edit.png",
-          menu: "./assets/ui/button-icons/menu.png",
-          copy: "./assets/ui/button-icons/copy.png",
-          share: "./assets/ui/button-icons/share.png",
-          trash: "./assets/ui/button-icons/trash.png",
-          cancel: "./assets/ui/button-icons/cancel.png",
-          confirm: "./assets/ui/button-icons/confirm.png",
-          refresh: "./assets/ui/button-icons/refresh.png",
-          shuffle: "./assets/ui/button-icons/shuffle.png",
-          hide: "./assets/ui/button-icons/hide.png",
-          tools: "./assets/ui/button-icons/tools.png",
-        },
+  const defaultThemeAssets = Object.freeze({
+    icons: {
+      app: "./assets/icons/app-icon.png",
+    },
+    modes: {
+      food: "./assets/modes/mode-food.png",
+      drink: "./assets/modes/mode-drink.png",
+      travel: "./assets/modes/mode-travel.png",
+      number: "./assets/modes/mode-number.png",
+      shopping: "./assets/modes/mode-shopping.png",
+      gift: "./assets/modes/mode-gift.png",
+      custom: "./assets/modes/mode-custom.png",
+      world: "./assets/modes/mode-world.png",
+    },
+    empty: {
+      favorites: "./assets/empty/empty-favorites.png",
+      history: "./assets/empty/empty-history.png",
+      notification: "./assets/empty/empty-notification.png",
+      options: "./assets/empty/empty-options.png",
+      world: "./assets/empty/empty-world.png",
+    },
+    gift: {
+      box: "./assets/gift/gift-box.png",
+      nameCard: "./assets/gift/name-card.png",
+    },
+    social: {
+      defaultAvatar: "./assets/social/default-avatar.png",
+      heartPopSprite: "./assets/social/heart-pop-sprite.png",
+      uploadImage: "./assets/social/upload-image.png",
+    },
+    backgrounds: {
+      starlightLight: "./assets/themes/aurora/aurora-light-background.png",
+      starlightDark: "./assets/themes/aurora/aurora-dark-background.png",
+    },
+    ui: {
+      leafAccent: "./assets/ui/leaf-accent.png",
+      notificationBell: "./assets/ui/notification-bell.png",
+      wheelPointer: "./assets/ui/wheel-pointer.png",
+      buttonIcons: {
+        close: "./assets/ui/button-icons/close.png",
+        edit: "./assets/ui/button-icons/edit.png",
+        menu: "./assets/ui/button-icons/menu.png",
+        copy: "./assets/ui/button-icons/copy.png",
+        share: "./assets/ui/button-icons/share.png",
+        trash: "./assets/ui/button-icons/trash.png",
+        cancel: "./assets/ui/button-icons/cancel.png",
+        confirm: "./assets/ui/button-icons/confirm.png",
+        refresh: "./assets/ui/button-icons/refresh.png",
+        shuffle: "./assets/ui/button-icons/shuffle.png",
+        hide: "./assets/ui/button-icons/hide.png",
+        recover: "./assets/ui/button-icons/recover.png",
+        tools: "./assets/ui/button-icons/tools.png",
       },
     },
-    cssVars: {
-      "--asset-wheel-pointer": "url('./assets/ui/wheel-pointer.png')",
-      "--asset-leaf-accent": "url('./assets/ui/leaf-accent.png')",
-      "--asset-heart-pop-sprite": "url('./assets/social/heart-pop-sprite.png')",
+  });
+
+  const assetUrl = (path) => `url('${path}')`;
+  const baseAssetCssVars = Object.freeze({
+    "--asset-wheel-pointer": assetUrl(defaultThemeAssets.ui.wheelPointer),
+    "--asset-leaf-accent": assetUrl(defaultThemeAssets.ui.leafAccent),
+    "--asset-heart-pop-sprite": assetUrl(defaultThemeAssets.social.heartPopSprite),
+  });
+  const withAssetCssVars = (cssVars) => ({
+    ...baseAssetCssVars,
+    ...cssVars,
+  });
+
+  const softPngTheme = {
+    id: "soft-png",
+    label: "Warm light theme",
+    labelKey: "theme.softPng",
+    family: "soft-png",
+    familyIcon: "☀",
+    familyLabelKey: "theme.softPngShort",
+    appearance: "light",
+    descriptionKey: "theme.softPngDescription",
+    assets: defaultThemeAssets,
+    cssVars: withAssetCssVars({
       "--theme-background-image": "none",
       "--theme-background-overlay": "linear-gradient(135deg, rgba(255, 248, 239, 0.1), rgba(255, 248, 239, 0.1))",
       "--bg": "#fff8ef",
@@ -82,21 +99,20 @@
       "--rose": "#ff9aa2",
       "--shadow": "0 24px 70px rgba(106, 57, 26, 0.16)",
       "--shadow-soft": "0 14px 35px rgba(106, 57, 26, 0.1)",
-    },
+    }),
   };
 
   const softPngDarkTheme = {
     id: "soft-png-dark",
-    label: "Soft PNG dark theme",
+    label: "Warm dark theme",
     labelKey: "theme.softPngDark",
     family: "soft-png",
+    familyIcon: "☾",
+    familyLabelKey: "theme.softPngShort",
     appearance: "dark",
     descriptionKey: "theme.softPngDarkDescription",
-    assets: softPngTheme.assets,
-    cssVars: {
-      "--asset-wheel-pointer": "url('./assets/ui/wheel-pointer.png')",
-      "--asset-leaf-accent": "url('./assets/ui/leaf-accent.png')",
-      "--asset-heart-pop-sprite": "url('./assets/social/heart-pop-sprite.png')",
+    assets: defaultThemeAssets,
+    cssVars: withAssetCssVars({
       "--theme-background-image": "none",
       "--theme-background-overlay": "linear-gradient(135deg, rgba(10, 18, 34, 0.12), rgba(10, 18, 34, 0.12))",
       "--bg": "#101722",
@@ -119,22 +135,21 @@
       "--rose": "#ff9ab1",
       "--shadow": "0 28px 76px rgba(0, 0, 0, 0.38)",
       "--shadow-soft": "0 16px 40px rgba(0, 0, 0, 0.26)",
-    },
+    }),
   };
 
   const auroraLightTheme = {
     id: "aurora-light",
-    label: "Aurora light theme",
+    label: "Starlight light theme",
     labelKey: "theme.auroraLight",
     family: "aurora",
+    familyIcon: "✦",
+    familyLabelKey: "theme.auroraShort",
     appearance: "light",
     descriptionKey: "theme.auroraLightDescription",
-    assets: softPngTheme.assets,
-    cssVars: {
-      "--asset-wheel-pointer": "url('./assets/ui/wheel-pointer.png')",
-      "--asset-leaf-accent": "url('./assets/ui/leaf-accent.png')",
-      "--asset-heart-pop-sprite": "url('./assets/social/heart-pop-sprite.png')",
-      "--theme-background-image": "url('./assets/themes/aurora/aurora-light-background.png')",
+    assets: defaultThemeAssets,
+    cssVars: withAssetCssVars({
+      "--theme-background-image": assetUrl(defaultThemeAssets.backgrounds.starlightLight),
       "--theme-background-overlay": "linear-gradient(135deg, rgba(244, 250, 255, 0.54), rgba(251, 245, 255, 0.44))",
       "--bg": "#eef5ff",
       "--bg-strong": "#e9e5ff",
@@ -156,22 +171,21 @@
       "--rose": "#cf91ee",
       "--shadow": "0 24px 70px rgba(68, 84, 142, 0.18)",
       "--shadow-soft": "0 14px 35px rgba(68, 84, 142, 0.12)",
-    },
+    }),
   };
 
   const auroraDarkTheme = {
     id: "aurora-dark",
-    label: "Aurora dark theme",
+    label: "Starlight dark theme",
     labelKey: "theme.auroraDark",
     family: "aurora",
+    familyIcon: "✦",
+    familyLabelKey: "theme.auroraShort",
     appearance: "dark",
     descriptionKey: "theme.auroraDarkDescription",
-    assets: softPngTheme.assets,
-    cssVars: {
-      "--asset-wheel-pointer": "url('./assets/ui/wheel-pointer.png')",
-      "--asset-leaf-accent": "url('./assets/ui/leaf-accent.png')",
-      "--asset-heart-pop-sprite": "url('./assets/social/heart-pop-sprite.png')",
-      "--theme-background-image": "url('./assets/themes/aurora/aurora-dark-background.png')",
+    assets: defaultThemeAssets,
+    cssVars: withAssetCssVars({
+      "--theme-background-image": assetUrl(defaultThemeAssets.backgrounds.starlightDark),
       "--theme-background-overlay": "linear-gradient(135deg, rgba(6, 12, 34, 0.5), rgba(10, 11, 42, 0.4))",
       "--bg": "#0b1029",
       "--bg-strong": "#101440",
@@ -193,9 +207,10 @@
       "--rose": "#ef9ee9",
       "--shadow": "0 28px 78px rgba(0, 0, 0, 0.44)",
       "--shadow-soft": "0 16px 42px rgba(0, 0, 0, 0.3)",
-    },
+    }),
   };
 
+  window.APP_DEFAULT_THEME_ASSETS = defaultThemeAssets;
   window.APP_DEFAULT_THEME_ID = "soft-png";
   window.APP_THEMES = Object.freeze({
     "soft-png": Object.freeze(softPngTheme),
