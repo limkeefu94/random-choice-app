@@ -1865,7 +1865,7 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.8.0";
+const APP_VERSION = "0.8.1";
 const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
 const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
 const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
@@ -1881,6 +1881,25 @@ const AVATAR_IMAGE_ALLOWED_PREFIXES = Object.freeze([
   "profile/",
 ]);
 const RELEASE_NOTES = [
+  {
+    version: "0.8.1",
+    title: "手机端 QA 和小屏优化",
+    date: "2026-08-14",
+    summary: "这次集中检查 390px 手机宽度下的首页、结果、世界频道、个人主页、设置、通知、礼物交换和图片浏览器，让小屏幕上的按钮、面板和输入区域更稳。",
+    userChanges: [
+      "390px 手机宽度下继续避免页面横向溢出。",
+      "世界频道爱心按钮和礼物交换名单删除按钮更容易点。",
+      "未登入的世界频道表单在手机上更紧凑，减少输入区和按钮被挤到屏幕外的情况。",
+      "随机结果区域在手机上略微收紧，让结果和操作按钮更容易一起查看。",
+      "图片浏览器、通知、更多菜单、个人主页和设置面板保留原有主题和 PNG 按钮风格。",
+    ],
+    technicalChanges: [
+      "Adjusted mobile-only spacing and touch targets at the 560px breakpoint.",
+      "Added defensive wrapping for world message and image-viewer caption text.",
+      "Switched mobile floating panel max-height calculations to dynamic viewport units.",
+      "Kept existing random, Auth, GCS, world channel API, like, gift exchange, image refresh, and theme behavior unchanged.",
+    ],
+  },
   {
     version: "0.8.0",
     title: "主题风格和日夜切换",
