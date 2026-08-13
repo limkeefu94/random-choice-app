@@ -1964,7 +1964,7 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.8.2";
+const APP_VERSION = "0.8.3";
 const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
 const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
 const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
@@ -1980,6 +1980,23 @@ const AVATAR_IMAGE_ALLOWED_PREFIXES = Object.freeze([
   "profile/",
 ]);
 const RELEASE_NOTES = [
+  {
+    version: "0.8.3",
+    title: "通用词库基础",
+    date: "2026-08-14",
+    summary: "这次先为常见固定候选建立一套通用词库结构，后续新增生活灵感和奖池功能时可以复用同一份资料。",
+    userChanges: [
+      "部分食物、饮料、购物和旅行候选现在会使用统一的词库资料。",
+      "切换语言后，已接入词库的固定候选会显示对应语言名称。",
+      "现有自定义候选、历史记录和收藏使用方式保持不变。",
+    ],
+    technicalChanges: [
+      "Added a browser-safe shared option library with category, emoji, keywords, weight, quantity, rarity, and usable-mode fields.",
+      "Added partial adapters for existing food, drink, shopping, and travel fixed options without changing their random pools.",
+      "Stored shared option IDs on new generated results while preserving existing raw titles and favorite/history matching.",
+      "Reserved quantity, default weight, and rarity for a future prize wheel.",
+    ],
+  },
   {
     version: "0.8.2",
     title: "主题系统一致性整理",
@@ -2951,6 +2968,53 @@ function fixedLabelText(value, fallback = value) {
   return key ? t(`label.${key}`, fallback || key) : "";
 }
 
+const SHARED_OPTION_LIBRARY = Object.freeze(
+  (Array.isArray(globalThis.SHARED_OPTION_LIBRARY) ? globalThis.SHARED_OPTION_LIBRARY : [])
+    .filter((option) => option && typeof option === "object" && option.id && option.localeKey),
+);
+const SHARED_OPTION_BY_ID = new Map(SHARED_OPTION_LIBRARY.map((option) => [option.id, option]));
+const SHARED_OPTION_BY_MODE_TITLE = new Map();
+
+SHARED_OPTION_LIBRARY.forEach((option) => {
+  Object.entries(option.sourceTitles || {}).forEach(([mode, titles]) => {
+    if (!Array.isArray(titles)) {
+      return;
+    }
+
+    titles.forEach((title) => {
+      const normalizedTitle = String(title || "").trim();
+      if (normalizedTitle) {
+        SHARED_OPTION_BY_MODE_TITLE.set(`${mode}:${normalizedTitle}`, option);
+      }
+    });
+  });
+});
+
+function getSharedOptionForItem(mode, item) {
+  const title = String(item?.title || item || "").trim();
+  return title ? SHARED_OPTION_BY_MODE_TITLE.get(`${mode}:${title}`) || null : null;
+}
+
+function getSharedOptionForResult(result) {
+  const sharedOptionId = String(result?.sharedOptionId || "").trim();
+
+  if (sharedOptionId && SHARED_OPTION_BY_ID.has(sharedOptionId)) {
+    return SHARED_OPTION_BY_ID.get(sharedOptionId);
+  }
+
+  const rawTitle = String(result?.rawTitle || result?.titleKey || result?.title || "").trim();
+  return rawTitle ? getSharedOptionForItem(result?.mode, { title: rawTitle }) : null;
+}
+
+function getSharedOptionDisplayTitle(option, fallback = "") {
+  return option ? t(option.localeKey, fallback || option.name || option.id) : fallback;
+}
+
+function getSharedOptionResultFields(mode, item) {
+  const sharedOption = getSharedOptionForItem(mode, item);
+  return sharedOption ? { sharedOptionId: sharedOption.id } : {};
+}
+
 function getRawLabelKeyFromDisplay(value) {
   const text = String(value || "").trim();
 
@@ -2992,6 +3056,7 @@ function getResultRawTitle(result) {
 function getResultDisplayTitle(result) {
   const title = String(result?.title || "").trim();
   const rawTitle = getResultRawTitle(result);
+  const sharedOption = getSharedOptionForResult(result);
 
   if (!rawTitle) {
     return title;
@@ -2999,6 +3064,10 @@ function getResultDisplayTitle(result) {
 
   if (!["food", "drink", "travel", "shopping"].includes(result?.mode)) {
     return title || rawTitle;
+  }
+
+  if (sharedOption) {
+    return getSharedOptionDisplayTitle(sharedOption, rawTitle || title);
   }
 
   return fixedLabelText(rawTitle, title || rawTitle);
@@ -7587,6 +7656,11 @@ function getOptionDisplayTitle(item) {
     return item.title;
   }
 
+  const sharedOption = getSharedOptionForItem(state.mode, item);
+  if (sharedOption) {
+    return getSharedOptionDisplayTitle(sharedOption, item.title);
+  }
+
   return fixedLabelText(item.title, item.title);
 }
 
@@ -7760,6 +7834,7 @@ function getResult() {
       mode: state.mode,
       title: dishResult.title,
       rawTitle: dishResult.title,
+      ...getSharedOptionResultFields(state.mode, dishResult),
       meta: `${sourceLabel} · ${joinFixedLabels(dishResult.tags, " / ")} · ${formatRawBudgetLabel(dishResult.budget)}${poolNote}`,
     };
   }
@@ -7771,6 +7846,7 @@ function getResult() {
       mode: state.mode,
       title: drinkResult.title,
       rawTitle: drinkResult.title,
+      ...getSharedOptionResultFields(state.mode, drinkResult),
       meta: `${fixedLabelText(state.drink.country)} · ${drinkResult.brand} · ${joinFixedLabels(drinkResult.tags, " / ")} · ${formatRawBudgetLabel(drinkResult.budget)}${poolNote}`,
     };
   }
@@ -7783,6 +7859,7 @@ function getResult() {
       mode: state.mode,
       title: travelResult.title,
       rawTitle: travelResult.title,
+      ...getSharedOptionResultFields(state.mode, travelResult),
       meta: `${fixedLabelText(travelResult.country)} · ${formatLocaleText(t("travel.days", "{count} 天"), { count: travelResult.days })} · ${joinFixedLabels(getDestinationActivities(travelResult).slice(0, 3), " / ")} · ${fixedLabelText(state.travel.transport === "全部" ? travelResult.transports[0] : state.travel.transport)} · ${formatRawBudgetLabel(budgetText, { perPerson: true })}${poolNote}。${fixedLabelText(travelResult.note, travelResult.note)}`,
     };
   }
@@ -7807,6 +7884,7 @@ function getResult() {
       mode: state.mode,
       title: shoppingResult.title,
       rawTitle: shoppingResult.title,
+      ...getSharedOptionResultFields(state.mode, shoppingResult),
       meta: buildShoppingResultMeta(shoppingResult, poolNote),
       shopping: buildShoppingResultDetails(shoppingResult),
     };
