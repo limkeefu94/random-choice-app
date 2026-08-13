@@ -1964,7 +1964,7 @@ const WORLD_PLACEHOLDERS = [
   "世界频道等你丢一句话。",
   "今天的灵感掉在哪里？",
 ];
-const APP_VERSION = "0.8.3";
+const APP_VERSION = "0.8.4";
 const WORLD_LIKE_POP_TIMEOUT_MS = 1250;
 const WORLD_LIKE_SYNC_TIMEOUT_MS = 10000;
 const WORLD_LIKE_TOGGLE_GUARD_MS = WORLD_LIKE_POP_TIMEOUT_MS;
@@ -1980,6 +1980,22 @@ const AVATAR_IMAGE_ALLOWED_PREFIXES = Object.freeze([
   "profile/",
 ]);
 const RELEASE_NOTES = [
+  {
+    version: "0.8.4",
+    title: "吃喝筛选体验优化",
+    date: "2026-08-14",
+    summary: "这次让食物和饮料模式的筛选更直观，常用种类可以更快切换，也能即时看到符合条件的候选数量。",
+    userChanges: [
+      "食物和饮料筛选新增快速分类，点一下就能更新候选。",
+      "筛选区域会即时显示符合条件的候选数量。",
+      "可以一键清除食物种类，或清除饮料品牌和种类筛选。",
+    ],
+    technicalChanges: [
+      "Added compact quick-category controls for the existing food and drink filters.",
+      "Kept country, region, brand, category, random, history, favorite, and copy data flows unchanged.",
+      "Added localized filter labels and responsive chip controls for zh-CN, en, and ms.",
+    ],
+  },
   {
     version: "0.8.3",
     title: "通用词库基础",
@@ -5541,6 +5557,37 @@ function renderControls() {
   renderCustomControls();
 }
 
+function renderQuickCategoryControls({ mode, categories, selectedCategory, optionCount, groupKey, resetKey, resetDisabled }) {
+  const groupLabel = filterText(groupKey, "Quick categories");
+  const resetLabel = filterText(resetKey, "Reset filters");
+  const summary = filterText("matchingOptions", "{count} matching options", { count: optionCount });
+
+  return `
+    <section class="quick-filter-field" aria-label="${escapeHtml(groupLabel)}">
+      <div class="quick-filter-heading">
+        <div>
+          <strong>${escapeHtml(groupLabel)}</strong>
+          <small>${escapeHtml(filterText("quickFilterHint", "Choose a category to update the options"))}</small>
+        </div>
+        <button class="filter-reset-button" type="button" data-reset-${mode}-filters="true" title="${escapeHtml(resetLabel)}" aria-label="${escapeHtml(resetLabel)}" ${resetDisabled ? "disabled" : ""}>
+          ${escapeHtml(resetLabel)}
+        </button>
+      </div>
+      <div class="quick-filter-chips" role="group" aria-label="${escapeHtml(groupLabel)}">
+        ${categories.map((category) => `
+          <button
+            class="quick-filter-chip${category === selectedCategory ? " is-active" : ""}"
+            type="button"
+            data-${mode}-category="${escapeHtml(category)}"
+            aria-pressed="${category === selectedCategory}"
+          >${escapeHtml(fixedLabelText(category))}</button>
+        `).join("")}
+      </div>
+      <p class="quick-filter-summary" aria-live="polite">${escapeHtml(summary)}</p>
+    </section>
+  `;
+}
+
 function renderFoodControls() {
   const countries = Object.keys(FOOD_DATA);
   const currentCountry = FOOD_DATA[state.food.country] ? state.food.country : countries[0];
@@ -5551,6 +5598,7 @@ function renderFoodControls() {
   state.food.country = currentCountry;
   state.food.region = currentRegion;
   state.food.category = currentCategory;
+  const optionCount = getCurrentOptions().length;
 
   elements.modeControls.innerHTML = `
     <div class="field">
@@ -5575,9 +5623,18 @@ function renderFoodControls() {
       <label for="foodNote">${escapeHtml(filterText("lockedUsage", "锁定用法"))}</label>
       <input id="foodNote" value="${escapeHtml(filterText("foodLockNote", "Mamak / 快餐 / 外卖已放入食物种类"))}" readonly />
     </div>
+    ${renderQuickCategoryControls({
+      mode: "food",
+      categories: FOOD_CATEGORIES,
+      selectedCategory: currentCategory,
+      optionCount,
+      groupKey: "foodQuickCategory",
+      resetKey: "resetFoodFilters",
+      resetDisabled: currentCategory === "全部",
+    })}
   `;
 
-  document.querySelector("#countrySelect").addEventListener("change", (event) => {
+  elements.modeControls.querySelector("#countrySelect").addEventListener("change", (event) => {
     state.food.country = event.target.value;
     state.food.region = Object.keys(FOOD_DATA[state.food.country]).find((region) => !SPECIAL_REGION_KEYS.has(region));
     saveState();
@@ -5585,15 +5642,33 @@ function renderFoodControls() {
     renderPreview();
   });
 
-  document.querySelector("#regionSelect").addEventListener("change", (event) => {
+  elements.modeControls.querySelector("#regionSelect").addEventListener("change", (event) => {
     state.food.region = event.target.value;
     saveState();
+    renderControls();
     renderPreview();
   });
 
-  document.querySelector("#foodCategory").addEventListener("change", (event) => {
+  elements.modeControls.querySelector("#foodCategory").addEventListener("change", (event) => {
     state.food.category = event.target.value;
     saveState();
+    renderControls();
+    renderPreview();
+  });
+
+  elements.modeControls.querySelectorAll("[data-food-category]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.food.category = button.dataset.foodCategory || "全部";
+      saveState();
+      renderControls();
+      renderPreview();
+    });
+  });
+
+  elements.modeControls.querySelector("[data-reset-food-filters]").addEventListener("click", () => {
+    state.food.category = "全部";
+    saveState();
+    renderControls();
     renderPreview();
   });
 }
@@ -5608,6 +5683,7 @@ function renderDrinkControls() {
   state.drink.country = currentCountry;
   state.drink.brand = currentBrand;
   state.drink.category = currentCategory;
+  const optionCount = getCurrentOptions().length;
 
   elements.modeControls.innerHTML = `
     <div class="field">
@@ -5632,9 +5708,18 @@ function renderDrinkControls() {
       <label for="drinkNote">${escapeHtml(filterText("menuNote", "菜单说明"))}</label>
       <input id="drinkNote" value="${escapeHtml(filterText("drinkMenuNote", "参考外卖平台常见店铺，点候选可锁定"))}" readonly />
     </div>
+    ${renderQuickCategoryControls({
+      mode: "drink",
+      categories: DRINK_CATEGORIES,
+      selectedCategory: currentCategory,
+      optionCount,
+      groupKey: "drinkQuickCategory",
+      resetKey: "resetDrinkFilters",
+      resetDisabled: currentBrand === "全部" && currentCategory === "全部",
+    })}
   `;
 
-  document.querySelector("#drinkCountry").addEventListener("change", (event) => {
+  elements.modeControls.querySelector("#drinkCountry").addEventListener("change", (event) => {
     state.drink.country = event.target.value;
     state.drink.brand = "全部";
     saveState();
@@ -5642,15 +5727,34 @@ function renderDrinkControls() {
     renderPreview();
   });
 
-  document.querySelector("#drinkBrand").addEventListener("change", (event) => {
+  elements.modeControls.querySelector("#drinkBrand").addEventListener("change", (event) => {
     state.drink.brand = event.target.value;
     saveState();
+    renderControls();
     renderPreview();
   });
 
-  document.querySelector("#drinkCategory").addEventListener("change", (event) => {
+  elements.modeControls.querySelector("#drinkCategory").addEventListener("change", (event) => {
     state.drink.category = event.target.value;
     saveState();
+    renderControls();
+    renderPreview();
+  });
+
+  elements.modeControls.querySelectorAll("[data-drink-category]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.drink.category = button.dataset.drinkCategory || "全部";
+      saveState();
+      renderControls();
+      renderPreview();
+    });
+  });
+
+  elements.modeControls.querySelector("[data-reset-drink-filters]").addEventListener("click", () => {
+    state.drink.brand = "全部";
+    state.drink.category = "全部";
+    saveState();
+    renderControls();
     renderPreview();
   });
 }
