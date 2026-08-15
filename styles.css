@@ -1589,6 +1589,119 @@ body.is-home-layout-dragging * {
   gap: 8px;
 }
 
+.quick-filter-field {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-raised);
+}
+
+.quick-filter-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.quick-filter-heading > div {
+  min-width: 0;
+}
+
+.quick-filter-heading strong,
+.quick-filter-heading small {
+  display: block;
+}
+
+.quick-filter-heading strong {
+  color: var(--ink);
+  font-size: 0.86rem;
+}
+
+.quick-filter-heading small,
+.quick-filter-summary {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+.quick-filter-heading small {
+  margin-top: 3px;
+}
+
+.filter-reset-button,
+.quick-filter-chip {
+  border: 1px solid var(--line);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.filter-reset-button {
+  flex: 0 1 auto;
+  max-width: min(42%, 138px);
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  color: var(--accent-strong);
+  background: rgba(255, 122, 61, 0.08);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-reset-button:disabled {
+  opacity: 0.52;
+  cursor: default;
+}
+
+.quick-filter-chips {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  padding: 1px 1px 5px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+}
+
+.quick-filter-chip {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--glass);
+  white-space: nowrap;
+}
+
+.filter-reset-button:not(:disabled):hover,
+.quick-filter-chip:hover,
+.quick-filter-chip:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(255, 122, 61, 0.45);
+}
+
+.quick-filter-chip.is-active {
+  color: var(--accent-strong);
+  border-color: rgba(255, 122, 61, 0.52);
+  background: rgba(255, 122, 61, 0.14);
+  box-shadow: 0 7px 16px rgba(255, 122, 61, 0.12);
+}
+
+.quick-filter-summary {
+  margin: 0;
+}
+
 .shopping-filter-field {
   min-width: 0;
 }
@@ -5640,6 +5753,30 @@ body.is-home-layout-dragging * {
   .controls-grid {
     gap: 10px;
     margin-top: 10px;
+  }
+
+  .quick-filter-field {
+    gap: 8px;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .quick-filter-heading {
+    gap: 8px;
+  }
+
+  .filter-reset-button {
+    flex: 0 0 78px;
+    max-width: 78px;
+    min-height: 32px;
+    padding-inline: 8px;
+    font-size: 0.76rem;
+  }
+
+  .quick-filter-chip {
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 0.8rem;
   }
 
   .settings-utility-actions {
